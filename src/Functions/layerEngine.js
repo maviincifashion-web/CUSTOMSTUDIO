@@ -1,84 +1,87 @@
 // src/Functions/layerEngine.js
 
-const shirt_collars = ["CR", "CB", "CT", "CS", "CE"];
+export const getKurtaLayerCodes = (selections, hasCoat = false, hasSadri = false) => {
+    
+    // --- 1. EXTREME SAFETY CHECKS ---
+    if (!selections) return []; 
 
-// ==========================================
-// ENGINE 1: FULL BODY MODEL (Display Images)
-// ==========================================
-export const getKurtaDisplayLayers = (selections, hasCoat = false, hasSadri = false) => {
-    const isShirtCollar = shirt_collars.includes(selections.collar);
-    const isLong = selections.length === 'K';
-    const isRound = selections.bottomCut === 'R';
-    let layers = [];
+    // Agar koi value undefined hai, toh use default de do taaki crash na ho
+    const collar = selections.collar || "CM";
+    const bottomCut = selections.bottomCut || "R";
+    const lengthStr = selections.length || "K";
+    const placketStyle = selections.placketStyle || "NS";
+    const pocketQty = selections.pocketQty || "00";
+    const pocketShape = selections.pocketShape || "R";
+    const flapYes = selections.flapYes || "0";
+    const flapShape = selections.flapShape || "R";
+    const epaulette = selections.epaulette || "0";
+    const sleeve = selections.sleeve || "SN";
+    const cuffStyle = selections.cuffStyle || "US1";
 
-    // 1. BASE
-    let baseCode = "";
-    if (isShirtCollar) baseCode = (hasCoat || hasSadri) ? (isLong ? "D0" : "P0") : (isLong ? "D" : "P");
-    else baseCode = isLong ? (isRound ? "R" : "S") : (isRound ? "K" : "L");
-    layers.push({ code: baseCode, zIndex: 10 });
+    const shirt_collars = ["CR", "CB", "CT", "CS", "CE"];
+    const isShirtCollar = shirt_collars.includes(collar);
+    
+    const isLongLength = lengthStr === 'K';
+    const isRoundCut = bottomCut === 'R';
 
-    // 2. PLACKET
-    let placketCode = selections.placketStyle;
-    if (hasCoat || hasSadri) placketCode += "3"; 
-    else placketCode += (isShirtCollar ? "3" : "4");
-    layers.push({ code: placketCode, zIndex: 20 });
+    let layersToRender = []; 
 
-    // 3. POCKETS & FLAPS
-    if (selections.pocketQty !== "00") {
-        layers.push({ code: "R" + selections.pocketShape, zIndex: 30 }); // Right Pocket
-        if(selections.flapYes === "1") layers.push({ code: "FR" + selections.flapShape, zIndex: 31 });
-        
-        if (selections.pocketQty === "11" || selections.pocketQty === "02") { // Left Pocket
-            layers.push({ code: "L" + selections.pocketShape, zIndex: 32 });
-            if(selections.flapYes === "1") layers.push({ code: "FL" + selections.flapShape, zIndex: 33 });
+    // --- 2. BASE LAYER ---
+    let baseCode = "R"; // Default
+    if (isShirtCollar) {
+        if (isLongLength) {
+            baseCode = isRoundCut ? "D" : "T";
+            if (hasCoat || hasSadri) baseCode += "0"; 
+        } else {
+            baseCode = isRoundCut ? "P" : "Q";
+            if (hasCoat || hasSadri) baseCode += "0"; 
+        }
+    } else {
+        if (isLongLength) {
+            baseCode = isRoundCut ? "R" : "S";
+        } else {
+            baseCode = isRoundCut ? "K" : "L";
+        }
+    }
+    layersToRender.push({ code: baseCode, zIndex: 10 }); 
+
+    // --- 3. PLACKET ---
+    let placketCode = placketStyle;
+    if (hasCoat || hasSadri) {
+        // Under outerwear, neck plackets switch to NT3 / QT3
+        const prefix = placketStyle.charAt(0); // N or Q
+        placketCode = `${prefix}T3`;
+    } else {
+        placketCode = placketCode + (isShirtCollar ? "3" : "4");
+    }
+    layersToRender.push({ code: placketCode, zIndex: 20 });
+
+    // --- 4. POCKETS & FLAPS ---
+    if (pocketQty !== "00") {
+        layersToRender.push({ code: `R${pocketShape}`, zIndex: 30 });
+        if (flapYes === "1") layersToRender.push({ code: `FR${flapShape}`, zIndex: 31 });
+
+        if (pocketQty === "11") {
+            layersToRender.push({ code: `L${pocketShape}`, zIndex: 32 });
+            if (flapYes === "1") layersToRender.push({ code: `FL${flapShape}`, zIndex: 33 });
         }
     }
 
-    // 4. SLEEVES
-    layers.push({ code: hasCoat ? "SS" : selections.sleeve, zIndex: 40 });
-
-    // 5. COLLAR
-    layers.push({ code: selections.collar, zIndex: 50 });
-
-    // 6. EPAULETTE
-    if (selections.epaulette === "SE") layers.push({ code: hasSadri ? "SE0" : "SE", zIndex: 60 });
-
-    return layers;
-};
-
-// ==========================================
-// ENGINE 2: FOLDED VIEW (Style Images)
-// ==========================================
-export const getKurtaStyleLayers = (selections) => {
-    const isShirtCollar = shirt_collars.includes(selections.collar);
-    let layers = [];
-
-    // 1. FOLDED BASE
-    let foldedBase = "";
-    if (isShirtCollar) foldedBase = "BASE";
-    else if (selections.collar === "CC") foldedBase = "BASE_C";
-    else if (selections.collar === "CM") foldedBase = "BASE_M";
-    else foldedBase = "BASE_R"; // Round neck default
-    layers.push({ code: foldedBase, zIndex: 10 });
-
-    // 2. FOLDED PLACKET
-    let fPlacket = "";
-    if (foldedBase === "BASE_R") fPlacket = selections.placketStyle + "R"; // NSR / QSR
-    else if (foldedBase === "BASE_C") fPlacket = selections.placketStyle + "C"; // NSC / QSC
-    else fPlacket = selections.placketStyle + "0"; // NS0 / QS0
-    layers.push({ code: fPlacket, zIndex: 20 });
-
-    // 3. FOLDED COLLAR
-    layers.push({ code: selections.collar, zIndex: 50 });
-
-    // 4. FOLDED SLEEVES & CUFFS
-    layers.push({ code: selections.sleeve, zIndex: 40 }); // SN or SC
-    if (selections.sleeve === "SC") {
-        layers.push({ code: selections.cuffStyle, zIndex: 41 }); // UN1, UR2, etc.
+    // --- 5. EPAULETTE (Shoulder) ---
+    if (epaulette === "SE") {
+        layersToRender.push({ code: hasSadri ? "SE0" : "SE", zIndex: 35 });
     }
 
-    // Note: Pockets/Flaps in folded view usually use the same codes (UN1, UR1) or standard Left/Right. 
-    // Isko hum data structure dekh kar fine-tune karenge.
+    // --- 6. SLEEVES & CUFFS ---
+    let sleeveCode = hasCoat ? "SS" : sleeve;
+    layersToRender.push({ code: sleeveCode, zIndex: 40 });
+    
+    if (sleeve === "SC") {
+        layersToRender.push({ code: cuffStyle, zIndex: 41 }); 
+    }
 
-    return layers;
+    // --- 7. COLLAR ---
+    layersToRender.push({ code: collar, zIndex: 50 });
+
+    return layersToRender;
 };

@@ -4,8 +4,7 @@ import {
     IconLenLong, IconLenShort, IconCutRound, IconCutStraight, IconPlacketNotch, IconPlacketSquare,
     IconPocket0, IconPocket1, IconPocket2, IconFlap0, IconFlap1, IconTypeRound, IconTypeNotch, IconTypeSquare,
     IconEpNo, IconEpYes, IconColRound, IconColMandarin, IconColChinese, IconColShirtRound, IconColButtonDown,
-    IconColStandard, IconColSemiSpread, IconColSpread, IconSleeveNocuff, IconSleeveCuff,
-    IconTypeSquareC1, IconTypeRoundC1, IconTypeNotchC1, IconTypeSquareC2, IconTypeRoundC2, IconTypeNotchC2
+    IconColStandard, IconColSemiSpread, IconColSpread, IconSleeveNocuff, IconSleeveCuff
 } from '../icons/KurtaIcons'; 
 
 export const KURTA_STYLE_OPTIONS = [
@@ -94,18 +93,6 @@ export const KURTA_STYLE_OPTIONS = [
         options: [
             { label: "No Cuff", value: "SN", icon: IconSleeveNocuff },
             { label: "Cuff", value: "SC", icon: IconSleeveCuff }
-        ]
-    },
-    {
-        title: "Cuff Style", key: "cuffStyle",
-        dependency: { key: "sleeve", value: "SC" },
-        options: [
-            { label: "Square", value: "US1", icon: IconTypeSquareC1 },
-            { label: "Round", value: "UR1", icon: IconTypeRoundC1 },
-            { label: "Notch", value: "UN1", icon: IconTypeNotchC1 },
-            { label: "2 Square", value: "US2", icon: IconTypeSquareC2 },
-            { label: "2 Round", value: "UR2", icon: IconTypeRoundC2 },
-            { label: "2 Notch", value: "UN2", icon: IconTypeNotchC2 }
         ]
     }
 ];

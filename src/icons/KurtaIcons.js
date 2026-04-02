@@ -44,48 +44,52 @@ import CuffNotch2 from '../../assets/images/style_icons/kurta/type_notch_c2.png'
 
 
 // --- WRAPPER FUNCTION ---
-const wrapIcon = (src) => ({ color = null, size = 60, style, ...rest }) => (
-  <Image
-    source={src}
-    style={[ { width: size, height: size }, color ? { tintColor: color } : null, style ]}
-    resizeMode="contain"
-    {...rest}
-  />
-);
+const wrapIcon = (src, displayName) => {
+  const IconComponent = ({ color = null, size = 60, style, ...rest }) => (
+    <Image
+      source={src}
+      style={[{ width: size, height: size }, color ? { tintColor: color } : null, style]}
+      resizeMode="contain"
+      {...rest}
+    />
+  );
+  IconComponent.displayName = displayName;
+  return IconComponent;
+};
 
 // --- EXPORTS (Yahan se error aa raha tha kyunki ye missing the) ---
-export const IconLenLong = wrapIcon(LenLong);
-export const IconLenShort = wrapIcon(LenShort);
-export const IconCutRound = wrapIcon(CutRound);
-export const IconCutStraight = wrapIcon(CutStraight);
-export const IconPlacketNotch = wrapIcon(PlacketNotch);
-export const IconPlacketSquare = wrapIcon(PlacketSquare);
-export const IconPocket0 = wrapIcon(Pocket0);
-export const IconPocket1 = wrapIcon(Pocket1);
-export const IconPocket2 = wrapIcon(Pocket2);
-export const IconFlap0 = wrapIcon(Flap0);
-export const IconFlap1 = wrapIcon(Flap1);
-export const IconTypeRound = wrapIcon(TypeRound);
-export const IconTypeNotch = wrapIcon(TypeNotch);
-export const IconTypeSquare = wrapIcon(TypeSquare);
-export const IconEpNo = wrapIcon(EpNo);
-export const IconEpYes = wrapIcon(EpYes);
+export const IconLenLong = wrapIcon(LenLong, 'IconLenLong');
+export const IconLenShort = wrapIcon(LenShort, 'IconLenShort');
+export const IconCutRound = wrapIcon(CutRound, 'IconCutRound');
+export const IconCutStraight = wrapIcon(CutStraight, 'IconCutStraight');
+export const IconPlacketNotch = wrapIcon(PlacketNotch, 'IconPlacketNotch');
+export const IconPlacketSquare = wrapIcon(PlacketSquare, 'IconPlacketSquare');
+export const IconPocket0 = wrapIcon(Pocket0, 'IconPocket0');
+export const IconPocket1 = wrapIcon(Pocket1, 'IconPocket1');
+export const IconPocket2 = wrapIcon(Pocket2, 'IconPocket2');
+export const IconFlap0 = wrapIcon(Flap0, 'IconFlap0');
+export const IconFlap1 = wrapIcon(Flap1, 'IconFlap1');
+export const IconTypeRound = wrapIcon(TypeRound, 'IconTypeRound');
+export const IconTypeNotch = wrapIcon(TypeNotch, 'IconTypeNotch');
+export const IconTypeSquare = wrapIcon(TypeSquare, 'IconTypeSquare');
+export const IconEpNo = wrapIcon(EpNo, 'IconEpNo');
+export const IconEpYes = wrapIcon(EpYes, 'IconEpYes');
 
-export const IconColRound = wrapIcon(CollarRound);
-export const IconColMandarin = wrapIcon(CollarMandarin);
-export const IconColChinese = wrapIcon(CollarChinese);
-export const IconColShirtRound = wrapIcon(CollarShirt);
-export const IconColButtonDown = wrapIcon(CollarButtonDown);
-export const IconColStandard = wrapIcon(CollarStandard);
-export const IconColSemiSpread = wrapIcon(CollarSemiSpread);
-export const IconColSpread = wrapIcon(CollarSpread);
+export const IconColRound = wrapIcon(CollarRound, 'IconColRound');
+export const IconColMandarin = wrapIcon(CollarMandarin, 'IconColMandarin');
+export const IconColChinese = wrapIcon(CollarChinese, 'IconColChinese');
+export const IconColShirtRound = wrapIcon(CollarShirt, 'IconColShirtRound');
+export const IconColButtonDown = wrapIcon(CollarButtonDown, 'IconColButtonDown');
+export const IconColStandard = wrapIcon(CollarStandard, 'IconColStandard');
+export const IconColSemiSpread = wrapIcon(CollarSemiSpread, 'IconColSemiSpread');
+export const IconColSpread = wrapIcon(CollarSpread, 'IconColSpread');
 
-export const IconSleeveNocuff = wrapIcon(SleeveNocuff);
-export const IconSleeveCuff = wrapIcon(SleeveCuff);
+export const IconSleeveNocuff = wrapIcon(SleeveNocuff, 'IconSleeveNocuff');
+export const IconSleeveCuff = wrapIcon(SleeveCuff, 'IconSleeveCuff');
 
-export const IconTypeSquareC1 = wrapIcon(CuffSquare1 || TypeSquare);
-export const IconTypeRoundC1 = wrapIcon(CuffRound1 || TypeRound);
-export const IconTypeNotchC1 = wrapIcon(CuffNotch1 || TypeNotch);
-export const IconTypeSquareC2 = wrapIcon(CuffSquare2 || TypeSquare);
-export const IconTypeRoundC2 = wrapIcon(CuffRound2 || TypeRound);
-export const IconTypeNotchC2 = wrapIcon(CuffNotch2 || TypeNotch);
+export const IconTypeSquareC1 = wrapIcon(CuffSquare1 || TypeSquare, 'IconTypeSquareC1');
+export const IconTypeRoundC1 = wrapIcon(CuffRound1 || TypeRound, 'IconTypeRoundC1');
+export const IconTypeNotchC1 = wrapIcon(CuffNotch1 || TypeNotch, 'IconTypeNotchC1');
+export const IconTypeSquareC2 = wrapIcon(CuffSquare2 || TypeSquare, 'IconTypeSquareC2');
+export const IconTypeRoundC2 = wrapIcon(CuffRound2 || TypeRound, 'IconTypeRoundC2');
+export const IconTypeNotchC2 = wrapIcon(CuffNotch2 || TypeNotch, 'IconTypeNotchC2');
