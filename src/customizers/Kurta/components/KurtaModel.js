@@ -9,10 +9,12 @@ import { getKurtaLayerCodes } from '../../../Functions/layerEngine';
 import kurta_body from '../../../../assets/images/body/kurta_body.webp';
 import kurta_hand_n from '../../../../assets/images/body/kurta_hand_n.webp';
 import kurta_hand_c from '../../../../assets/images/body/kurta_hand_c.webp';
+import pajama_body from '../../../../assets/images/body/pajama_body.webp';
+
 
 const SmartLayer = ({ src, zIndex }) => {
     const [displaySrc, setDisplaySrc] = useState(src);
-    
+
     useEffect(() => {
         let isMounted = true;
         if (src && src !== displaySrc) {
@@ -22,7 +24,7 @@ const SmartLayer = ({ src, zIndex }) => {
             } else {
                 Image.prefetch(Image.resolveAssetSource(src).uri)
                     .then(() => { if (isMounted) setDisplaySrc(src); })
-                    .catch(() => { if (isMounted) setDisplaySrc(src); }); 
+                    .catch(() => { if (isMounted) setDisplaySrc(src); });
             }
         } else if (!src) {
             if (isMounted) setDisplaySrc(null);
@@ -33,16 +35,16 @@ const SmartLayer = ({ src, zIndex }) => {
     if (!displaySrc) return null;
 
     return (
-        <Image 
-            source={displaySrc} 
-            style={[styles.modelLayer, { zIndex: zIndex }]} 
-            resizeMode="contain" 
+        <Image
+            source={displaySrc}
+            style={[styles.modelLayer, { zIndex: zIndex }]}
+            resizeMode="contain"
         />
     );
 };
 
 export default function KurtaModel({ selections, selectedFabric }) {
-    
+
     // SAFETY CHECK: Jab tak data ready na ho, model render mat karo
     if (!selections || !selectedFabric) return null;
 
@@ -59,18 +61,20 @@ export default function KurtaModel({ selections, selectedFabric }) {
             {/* 1. Nanga Ladka (Z-Index: 1) */}
             <Image source={kurta_body} style={[styles.modelLayer, { zIndex: 1 }]} resizeMode="contain" />
 
+            <Image source={pajama_body} style={[styles.modelLayer, { zIndex: 1 }]} resizeMode="contain" />
+
             {/* 2. Kapde ki Layers (Z-Index: 10 se 90) */}
             {layersToRender.map((layerObj, index) => {
                 if (!layerObj || !layerObj.code) return null;
-                
+
                 const imageSource = fabricRenders[layerObj.code];
-                if (!imageSource) return null; 
+                if (!imageSource) return null;
 
                 return (
-                    <SmartLayer 
-                        key={`layer-${layerObj.code}-${index}`} 
-                        src={imageSource} 
-                        zIndex={layerObj.zIndex} 
+                    <SmartLayer
+                        key={`layer-${layerObj.code}-${index}`}
+                        src={imageSource}
+                        zIndex={layerObj.zIndex}
                     />
                 );
             })}
@@ -90,7 +94,7 @@ const styles = StyleSheet.create({
     modelLayer: {
         position: 'absolute',
         width: '100%',
-        height: '115%', 
-        marginTop: 60 
+        height: '115%',
+        marginTop: 60
     }
 });

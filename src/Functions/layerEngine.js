@@ -1,9 +1,9 @@
 // src/Functions/layerEngine.js
 
 export const getKurtaLayerCodes = (selections, hasCoat = false, hasSadri = false) => {
-    
+
     // --- 1. EXTREME SAFETY CHECKS ---
-    if (!selections) return []; 
+    if (!selections) return [];
 
     // Agar koi value undefined hai, toh use default de do taaki crash na ho
     const collar = selections.collar || "CM";
@@ -20,21 +20,21 @@ export const getKurtaLayerCodes = (selections, hasCoat = false, hasSadri = false
 
     const shirt_collars = ["CR", "CB", "CT", "CS", "CE"];
     const isShirtCollar = shirt_collars.includes(collar);
-    
+
     const isLongLength = lengthStr === 'K';
     const isRoundCut = bottomCut === 'R';
 
-    let layersToRender = []; 
+    let layersToRender = [];
 
     // --- 2. BASE LAYER ---
     let baseCode = "R"; // Default
     if (isShirtCollar) {
         if (isLongLength) {
             baseCode = isRoundCut ? "D" : "T";
-            if (hasCoat || hasSadri) baseCode += "0"; 
+            if (hasCoat || hasSadri) baseCode += "0";
         } else {
             baseCode = isRoundCut ? "P" : "Q";
-            if (hasCoat || hasSadri) baseCode += "0"; 
+            if (hasCoat || hasSadri) baseCode += "0";
         }
     } else {
         if (isLongLength) {
@@ -43,7 +43,7 @@ export const getKurtaLayerCodes = (selections, hasCoat = false, hasSadri = false
             baseCode = isRoundCut ? "K" : "L";
         }
     }
-    layersToRender.push({ code: baseCode, zIndex: 10 }); 
+    layersToRender.push({ code: baseCode, zIndex: 10 });
 
     // --- 3. PLACKET ---
     let placketCode = placketStyle;
@@ -75,9 +75,9 @@ export const getKurtaLayerCodes = (selections, hasCoat = false, hasSadri = false
     // --- 6. SLEEVES & CUFFS ---
     let sleeveCode = hasCoat ? "SS" : sleeve;
     layersToRender.push({ code: sleeveCode, zIndex: 40 });
-    
+
     if (sleeve === "SC") {
-        layersToRender.push({ code: cuffStyle, zIndex: 41 }); 
+        layersToRender.push({ code: cuffStyle, zIndex: 41 });
     }
 
     // --- 7. COLLAR ---

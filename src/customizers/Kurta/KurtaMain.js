@@ -8,6 +8,9 @@ import { KURTA_STYLE_OPTIONS } from '../../Data/styleData';
 // --- YAHAN MODEL COMPONENT IMPORT HUA HAI ---
 import KurtaModel from './components/KurtaModel';
 import KurtaFolded from './components/KurtaFolded';
+import FullScreenCarousel from '../../../components/FullScreenCarousel';
+
+import { IconFabric, IconStyle, IconEmbroidery, IconExtras } from '../../icons/ExtraIcons';
 
 const { width } = Dimensions.get('window');
 
@@ -77,12 +80,12 @@ export default function KurtaMain() {
                                 <Text style={styles.sectionTitle}>{section.title}</Text>
                                 <View style={styles.optionRow}>
                                     {section.options.map((opt) => {
-                                        const IconComponent = opt.icon?.default || opt.icon; 
+                                        const IconComponent = opt.icon?.default || opt.icon;
                                         const isActive = selections[section.key] === opt.value;
                                         return (
                                             <View key={opt.value} style={{ width: '48%', marginBottom: 15 }}>
                                                 <TouchableOpacity style={[styles.styleOption, isActive && styles.activeStyleOption]} onPress={() => handleStyleChange(section.key, opt.value)}>
-                                                    {IconComponent ? <IconComponent width={40} height={40} color={isActive ? '#fff' : '#14213D'} /> : <Text>Icon</Text>}
+                                                    {IconComponent ? <IconComponent size={65} /> : <Text>Icon</Text>}
                                                 </TouchableOpacity>
                                                 <Text style={[styles.optionLabel, { color: isActive ? '#000' : '#555' }]}>{opt.label}</Text>
                                             </View>
@@ -108,27 +111,36 @@ export default function KurtaMain() {
 
             {/* --- LAYER 1: 3D MODEL ENGINE --- */}
             <View style={styles.modelContainer}>
-                <View style={styles.modelPreview}>
-                    <KurtaModel selections={selections} selectedFabric={selectedFabric} />
-                    <View style={styles.previewLabel}>
-                        <Text style={styles.previewLabelText}>Full Body</Text>
-                    </View>
-                </View>
-
-                <View style={styles.foldedPreview}>
-                    <KurtaFolded selections={selections} selectedFabric={selectedFabric} />
-                    <View style={styles.previewLabel}>
-                        <Text style={styles.previewLabelText}>Folded View</Text>
-                    </View>
-                </View>
+                <FullScreenCarousel
+                    data={[
+                        <View key="full" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                            <KurtaModel selections={selections} selectedFabric={selectedFabric} />
+                            <View style={[styles.previewLabel, { top: 60, left: 20 }]}>
+                                <Text style={styles.previewLabelText}>Full Body</Text>
+                            </View>
+                        </View>,
+                        <View key="folded" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                            <KurtaFolded selections={selections} selectedFabric={selectedFabric} />
+                            <View style={[styles.previewLabel, { top: 60, left: 20 }]}>
+                                <Text style={styles.previewLabelText}>Folded View</Text>
+                            </View>
+                        </View>
+                    ]}
+                />
             </View>
 
             <View style={styles.rightMenu}>
-                {['Fabric', 'Style', 'Embroidery'].map((item) => (
-                    <TouchableOpacity key={item} style={[styles.iconButton, activePanel === item && styles.iconButtonActive]} onPress={() => togglePanel(item)}>
-                        <Text style={[styles.iconText, activePanel === item && { color: '#fff' }]}>{item === 'Embroidery' ? 'Emb' : item.toUpperCase()}</Text>
-                    </TouchableOpacity>
-                ))}
+                {[IconFabric, IconStyle, IconEmbroidery, IconExtras].map((IconComponent, index) => {
+                    const isActive = activePanel === IconComponent.displayName;
+                    return (
+                        <TouchableOpacity key={index} style={[styles.iconButton, isActive && styles.iconButtonActive]} onPress={() => togglePanel(IconComponent.displayName)}>
+                            <IconComponent size={28} color={isActive ? '#fff' : '#14213D'} />
+                            <Text style={[styles.iconText, isActive && { color: '#fff' }, { marginTop: 4 }]}>
+                                {IconComponent.displayName === 'Embroidery' ? 'EMB' : IconComponent.displayName.toUpperCase()}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
 
             {isPanelOpen && <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={closePanel} />}
@@ -157,9 +169,7 @@ export default function KurtaMain() {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#E5e5e5' },
-    modelContainer: { flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', zIndex: 1, height: Dimensions.get('window').height * 0.75, position: 'relative' },
-    modelPreview: { width: '60%', height: '90%', backgroundColor: '#fff', borderRadius: 32, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 12 },
-    foldedPreview: { width: '30%', height: '65%', backgroundColor: '#fff', borderRadius: 32, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 10 },
+    modelContainer: { flex: 1, zIndex: 1, position: 'relative', marginTop: -60 },
     previewLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(20,33,61,0.9)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
     previewLabelText: { color: '#fff', fontSize: 12, fontWeight: '700' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, zIndex: 10 },
@@ -171,7 +181,7 @@ const styles = StyleSheet.create({
     iconButtonActive: { backgroundColor: '#14213D', shadowColor: '#14213D', shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
     iconText: { fontSize: 11, color: '#14213D', fontWeight: 'bold', textAlign: 'center' },
     overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20 },
-    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 90, width: width * 0.6, backgroundColor: 'rgba(249, 249, 249, 0.95)', zIndex: 5000, elevation: 5000, paddingTop: 60, shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.3, shadowRadius: 15, borderTopRightRadius: 2, borderBottomRightRadius: 2, overflow: 'hidden' },
+    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 90, width: width * 0.6, backgroundColor: 'rgba(249, 249, 249, 0.2)', zIndex: 5000, elevation: 5000, paddingTop: 60, shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.3, shadowRadius: 15, borderTopRightRadius: 2, borderBottomRightRadius: 2, overflow: 'hidden' },
     panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginBottom: 10, marginTop: -10 },
     panelTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
     closeBtn: { fontSize: 24, color: '#999', padding: 10 },

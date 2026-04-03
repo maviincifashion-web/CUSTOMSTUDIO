@@ -87,9 +87,9 @@ export const IconColSpread = wrapIcon(CollarSpread, 'IconColSpread');
 export const IconSleeveNocuff = wrapIcon(SleeveNocuff, 'IconSleeveNocuff');
 export const IconSleeveCuff = wrapIcon(SleeveCuff, 'IconSleeveCuff');
 
-export const IconTypeSquareC1 = wrapIcon(CuffSquare1 || TypeSquare, 'IconTypeSquareC1');
-export const IconTypeRoundC1 = wrapIcon(CuffRound1 || TypeRound, 'IconTypeRoundC1');
-export const IconTypeNotchC1 = wrapIcon(CuffNotch1 || TypeNotch, 'IconTypeNotchC1');
-export const IconTypeSquareC2 = wrapIcon(CuffSquare2 || TypeSquare, 'IconTypeSquareC2');
-export const IconTypeRoundC2 = wrapIcon(CuffRound2 || TypeRound, 'IconTypeRoundC2');
-export const IconTypeNotchC2 = wrapIcon(CuffNotch2 || TypeNotch, 'IconTypeNotchC2');
+export const IconCuffSquare1 = wrapIcon(CuffSquare1 || TypeSquare, 'IconCuffSquare1');
+export const IconCuffRound1 = wrapIcon(CuffRound1 || TypeRound, 'IconCuffRound1');
+export const IconCuffNotch1 = wrapIcon(CuffNotch1 || TypeNotch, 'IconCuffNotch1');
+export const IconCuffSquare2 = wrapIcon(CuffSquare2 || TypeSquare, 'IconCuffSquare2');
+export const IconCuffRound2 = wrapIcon(CuffRound2 || TypeRound, 'IconCuffRound2');
+export const IconCuffNotch2 = wrapIcon(CuffNotch2 || TypeNotch, 'IconCuffNotch2');

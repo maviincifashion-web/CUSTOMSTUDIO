@@ -5,8 +5,8 @@ import { KURTA_RENDERS as KURTA_RENDERS_SOURCE } from './kurtaRenders';
 export const DUMMY_FABRICS = FABRIC_PROFILES;
 
 export const INITIAL_SELECTION = {
-    bottomCut: 'R',
     length: 'K',
+    bottomCut: 'R',
     placketStyle: 'NS',
     pocketQty: '00',
     pocketShape: 'R',

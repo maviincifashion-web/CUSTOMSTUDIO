@@ -4,17 +4,10 @@ import {
     IconLenLong, IconLenShort, IconCutRound, IconCutStraight, IconPlacketNotch, IconPlacketSquare,
     IconPocket0, IconPocket1, IconPocket2, IconFlap0, IconFlap1, IconTypeRound, IconTypeNotch, IconTypeSquare,
     IconEpNo, IconEpYes, IconColRound, IconColMandarin, IconColChinese, IconColShirtRound, IconColButtonDown,
-    IconColStandard, IconColSemiSpread, IconColSpread, IconSleeveNocuff, IconSleeveCuff
-} from '../icons/KurtaIcons'; 
+    IconColStandard, IconColSemiSpread, IconColSpread, IconSleeveNocuff, IconSleeveCuff, IconCuffRound1, IconCuffNotch1, IconCuffSquare1, IconCuffRound2, IconCuffNotch2, IconCuffSquare2
+} from '../icons/KurtaIcons';
 
 export const KURTA_STYLE_OPTIONS = [
-    {
-        title: "Bottom Cut", key: "bottomCut",
-        options: [
-            { label: "Round", value: "R", icon: IconCutRound },
-            { label: "Straight", value: "S", icon: IconCutStraight }
-        ]
-    },
     {
         title: "Length", key: "length",
         options: [
@@ -22,6 +15,14 @@ export const KURTA_STYLE_OPTIONS = [
             { label: "Short", value: "L", icon: IconLenShort }
         ]
     },
+    {
+        title: "Bottom Cut", key: "bottomCut",
+        options: [
+            { label: "Round", value: "R", icon: IconCutRound },
+            { label: "Straight", value: "S", icon: IconCutStraight }
+        ]
+    },
+
     {
         title: "Neck Placket", key: "placketStyle",
         options: [
@@ -93,6 +94,18 @@ export const KURTA_STYLE_OPTIONS = [
         options: [
             { label: "No Cuff", value: "SN", icon: IconSleeveNocuff },
             { label: "Cuff", value: "SC", icon: IconSleeveCuff }
+        ]
+    },
+    {
+        title: "Cuff Style", key: "cuffStyle",
+        dependency: { key: "sleeve", value: "SC" },
+        options: [
+            { label: "Round", value: "UR1", icon: IconCuffRound1 },
+            { label: "Notch", value: "UN1", icon: IconCuffNotch1 },
+            { label: "Square", value: "US1", icon: IconCuffSquare1 },
+            { label: "Round 2", value: "UR2", icon: IconCuffRound2 },
+            { label: "Notch 2", value: "UN2", icon: IconCuffNotch2 },
+            { label: "Square 2", value: "US2", icon: IconCuffSquare2 }
         ]
     }
 ];

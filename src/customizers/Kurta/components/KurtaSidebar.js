@@ -10,14 +10,14 @@ import { DUMMY_FABRICS } from '../../../Data/dummyData';
 // 4. onFabricSelect (Jab user fabric chune toh kya ho)
 
 export default function KurtaSidebar({ activePanel, selections, onStyleChange, selectedFabric, onFabricSelect }) {
-    
+
     // --- 1. RENDER FABRIC LIST ---
     if (activePanel === 'Fabric') {
         return (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.gridContainer}>
                 {DUMMY_FABRICS.map((fabric) => (
-                    <TouchableOpacity 
-                        key={fabric.fabricID} 
+                    <TouchableOpacity
+                        key={fabric.fabricID}
                         style={[styles.fabricCard, selectedFabric.fabricID === fabric.fabricID && styles.activeCard]}
                         onPress={() => onFabricSelect(fabric)}
                     >
@@ -37,7 +37,7 @@ export default function KurtaSidebar({ activePanel, selections, onStyleChange, s
         return (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 50 }}>
                 {KURTA_STYLE_OPTIONS.map((section, idx) => {
-                    
+
                     // DEPENDENCY LOGIC (Hide if dependency not met)
                     if (section.dependency) {
                         const depValue = selections[section.dependency.key];
@@ -49,7 +49,7 @@ export default function KurtaSidebar({ activePanel, selections, onStyleChange, s
                         <View key={idx} style={{ marginBottom: 25 }}>
                             {/* Section Heading */}
                             <Text style={styles.sectionTitle}>{section.title}</Text>
-                            
+
                             {/* Options Buttons */}
                             <View style={styles.optionRow}>
                                 {section.options.map((opt) => {
@@ -63,7 +63,7 @@ export default function KurtaSidebar({ activePanel, selections, onStyleChange, s
                                                 onPress={() => onStyleChange(section.key, opt.value)}
                                             >
                                                 {IconComponent && (
-                                                    <IconComponent color={isActive ? '#ffffff' : '#14213D'} size={50} />
+                                                    <IconComponent size={65} />
                                                 )}
                                             </TouchableOpacity>
                                             <Text style={[styles.optionLabel, { color: isActive ? '#000' : '#555' }]}>{opt.label}</Text>
@@ -83,7 +83,7 @@ export default function KurtaSidebar({ activePanel, selections, onStyleChange, s
         return (
             <View style={{ padding: 20 }}>
                 <Text style={styles.sectionTitle}>Embroidery Designs</Text>
-                <Text style={{color: '#666'}}>Premium handwork and machine designs will appear here.</Text>
+                <Text style={{ color: '#666' }}>Premium handwork and machine designs will appear here.</Text>
             </View>
         );
     }
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     fabricInfo: { padding: 10 },
     fabricName: { fontSize: 14, fontWeight: 'bold', color: '#333' },
     fabricBrand: { fontSize: 10, color: '#888', marginTop: 2 },
-    
+
     sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: '#333' },
     optionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     styleOption: { width: '100%', aspectRatio: 1, backgroundColor: 'rgba(245, 245, 245, 0.8)', padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

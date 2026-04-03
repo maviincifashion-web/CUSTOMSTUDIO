@@ -9,7 +9,7 @@ import { KURTA_RENDERS } from '../../../Data/dummyData';
 // --- FLICKER-FREE LAYER COMPONENT ---
 const SmartLayer = ({ src, zIndex }) => {
     const [displaySrc, setDisplaySrc] = useState(src);
-    
+
     useEffect(() => {
         let isMounted = true;
         if (src && src !== displaySrc) {
@@ -25,20 +25,20 @@ const SmartLayer = ({ src, zIndex }) => {
     if (!displaySrc) return null;
 
     return (
-        <Image 
-            source={displaySrc} 
-            style={[styles.modelLayer, { zIndex: zIndex }]} 
-            resizeMode="contain" 
+        <Image
+            source={displaySrc}
+            style={[styles.modelLayer, { zIndex: zIndex }]}
+            resizeMode="contain"
         />
     );
 };
 
 export default function KurtaFolded({ selections, selectedFabric }) {
-    
+
     // --- ENGINE: Folded View (Style Images) Logic ---
     const getFoldedLayerCodes = () => {
         const shirtCollars = ["CR", "CB", "CT", "CS", "CE"];
-        const mandarinCollars = ["CM", "CN"];
+        const mandarinCollars = ["CM", "CC"];
 
         const getFoldedBase = (collar) => {
             if (shirtCollars.includes(collar)) return "BASE";        // Shirt Collar -> Pathani folded base
@@ -106,14 +106,14 @@ export default function KurtaFolded({ selections, selectedFabric }) {
             {/* Dynamic Folded Garment Layers (Z-Index 10 se 90 tak) */}
             {getFoldedLayerCodes().map((layerObj, index) => {
                 const imageSource = fabricStyleRenders[layerObj.code];
-                
+
                 if (!imageSource) return null; // Agar image folder mein nahi hai, toh chhod do
 
                 return (
-                    <SmartLayer 
-                        key={`folded-${layerObj.code}-${index}`} 
-                        src={imageSource} 
-                        zIndex={layerObj.zIndex} 
+                    <SmartLayer
+                        key={`folded-${layerObj.code}-${index}`}
+                        src={imageSource}
+                        zIndex={layerObj.zIndex}
                     />
                 );
             })}
