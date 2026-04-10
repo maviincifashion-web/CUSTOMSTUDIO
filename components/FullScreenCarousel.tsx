@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { View, StyleSheet, FlatList, Dimensions, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -8,9 +8,22 @@ interface CarouselProps {
     data: React.ReactNode[];
 }
 
-export default function FullScreenCarousel({ data }: CarouselProps) {
+export interface CarouselRef {
+    scrollToIndex: (index: number) => void;
+}
+
+const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
+
+    useImperativeHandle(ref, () => ({
+        scrollToIndex: (index: number) => {
+            if (flatListRef.current && index >= 0 && index < data.length) {
+                flatListRef.current.scrollToIndex({ index, animated: true });
+                setCurrentIndex(index);
+            }
+        }
+    }));
 
     const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
         if (viewableItems.length > 0) {
@@ -79,7 +92,9 @@ export default function FullScreenCarousel({ data }: CarouselProps) {
             </View>
         </View>
     );
-}
+});
+
+export default FullScreenCarousel;
 
 const styles = StyleSheet.create({
     container: {

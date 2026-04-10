@@ -1,87 +1,289 @@
-// src/Functions/layerEngine.js
+const SHIRT_COLLARS = ['CR', 'CB', 'CT', 'CS', 'CE'];
+const MANDARIN_COLLARS = ['CM', 'CC', 'CN'];
+const CATEGORY_A_SADRI = ['SR', 'RR', 'SS', 'AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'KK'];
+const CATEGORY_B_BASE_TYPES = ['L', 'M', 'N'];
 
-export const getKurtaLayerCodes = (selections, hasCoat = false, hasSadri = false) => {
+const isShirtCollar = (collar) => SHIRT_COLLARS.includes(collar);
+const isMandarinCollar = (collar) => MANDARIN_COLLARS.includes(collar);
+const getSadriCollarSuffix = (collar) => {
+    if (collar === 'CN') return 'R';
+    if (isMandarinCollar(collar)) return 'C';
+    if (isShirtCollar(collar)) return 'S';
+    return 'R';
+};
 
-    // --- 1. EXTREME SAFETY CHECKS ---
+const getKurtaBaseCode = (collar, lengthStr, bottomCut, hasOuterwear, forceMandarin) => {
+    const longLength = lengthStr === 'K';
+    const roundCut = bottomCut === 'R';
+    const useMandarin = forceMandarin || isMandarinCollar(collar);
+    const useShirt = !useMandarin && isShirtCollar(collar);
+
+    if (useShirt) {
+        if (longLength) {
+            return `${roundCut ? 'D' : 'T'}${hasOuterwear ? '0' : ''}`;
+        }
+        return `${roundCut ? 'P' : 'Q'}${hasOuterwear ? '0' : ''}`;
+    }
+
+    if (longLength) {
+        return roundCut ? 'R' : 'S';
+    }
+    return roundCut ? 'K' : 'L';
+};
+
+export const getSadriLayerCodes = (sadriCode, selections = {}, selectedSadriButton, viewMode = 0, slideIndex = 0) => {
+    if (!sadriCode) return [];
+
+    const bSuffix = viewMode === 0 ? '-F' : '-S';
+    const collar = selections.collar || 'CM';
+    const isCategoryA = CATEGORY_A_SADRI.includes(sadriCode);
+    const categoryPrefix = sadriCode?.charAt(0);
+
+    let finalSadriCode = sadriCode;
+    if (!isCategoryA) {
+        if (CATEGORY_B_BASE_TYPES.includes(sadriCode)) {
+            finalSadriCode = `${sadriCode}${getSadriCollarSuffix(collar)}`;
+        } else if (CATEGORY_B_BASE_TYPES.includes(categoryPrefix)) {
+            finalSadriCode = `${categoryPrefix}${getSadriCollarSuffix(collar)}`;
+        }
+    }
+
+    const layersToRender = [];
+
+    const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'fabric') => {
+        layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type: type });
+
+        if (selections.embroideryID && ['SadriBase'].includes(partName)) {
+            layersToRender.push({
+                code: `E-${fabricCode}${bSuffix}`,
+                zIndex: baseZIndex + 1,
+                type: 'embroidery',
+                collectionID: selections.embroideryID,
+                part: partName
+            });
+        }
+    };
+
+    addGarmentPart('SadriBase', `${finalSadriCode}${bSuffix}`, 75, 'sadri_fabric');
+
+    if (selectedSadriButton?.material !== 'Ring') {
+        layersToRender.push({ code: `B${finalSadriCode}${bSuffix}`, zIndex: 80, type: 'sadri_button' });
+    }
+
+    return layersToRender;
+};
+
+export const getKurtaLayerCodes = (
+    selections,
+    selectedButton,
+    selectedEmbCol,
+    viewMode = 0,
+    hasCoat = false,
+    hasSadri = false,
+    currentSadriCode = null
+) => {
     if (!selections) return [];
 
-    // Agar koi value undefined hai, toh use default de do taaki crash na ho
-    const collar = selections.collar || "CM";
-    const bottomCut = selections.bottomCut || "R";
-    const lengthStr = selections.length || "K";
-    const placketStyle = selections.placketStyle || "NS";
-    const pocketQty = selections.pocketQty || "00";
-    const pocketShape = selections.pocketShape || "R";
-    const flapYes = selections.flapYes || "0";
-    const flapShape = selections.flapShape || "R";
-    const epaulette = selections.epaulette || "0";
-    const sleeve = selections.sleeve || "SN";
-    const cuffStyle = selections.cuffStyle || "US1";
+    // ─────────────────────────────────────────────────────────────────────
+    // PHASE 1: Build effectiveSelections with under-layer overrides.
+    // Overrides ONLY apply when outerwear is visible in front view.
+    // ─────────────────────────────────────────────────────────────────────
+    const effectiveSelections = { ...selections };
+    const outerwearVisible = (viewMode === 0 || viewMode === 4) && (hasCoat || hasSadri);
 
-    const shirt_collars = ["CR", "CB", "CT", "CS", "CE"];
-    const isShirtCollar = shirt_collars.includes(collar);
-
-    const isLongLength = lengthStr === 'K';
-    const isRoundCut = bottomCut === 'R';
-
-    let layersToRender = [];
-
-    // --- 2. BASE LAYER ---
-    let baseCode = "R"; // Default
-    if (isShirtCollar) {
-        if (isLongLength) {
-            baseCode = isRoundCut ? "D" : "T";
-            if (hasCoat || hasSadri) baseCode += "0";
-        } else {
-            baseCode = isRoundCut ? "P" : "Q";
-            if (hasCoat || hasSadri) baseCode += "0";
+    if (outerwearVisible) {
+        // ── RULE 1: UNIVERSAL (Coat & Sadri) ─────────────────────────────
+        // Epaulette: Half-hide when any outerwear is worn.
+        if (effectiveSelections.epaulette === 'SE') {
+            effectiveSelections.epaulette = 'SE0';
         }
+
+        // ── RULE 2: COAT SPECIFIC ────────────────────────────────────────
+        if (hasCoat) {
+            // Sleeves hidden inside coat.
+            effectiveSelections.sleeve = 'SS';
+            // Pockets hidden behind coat.
+            effectiveSelections.pocketQty = '00';
+            // Placket gets a "3" suffix (e.g. NT3 / QT3).
+            const ps = effectiveSelections.placketStyle || 'NS';
+            effectiveSelections.placketStyle = `${ps.charAt(0)}T3`;
+        }
+
+        // ── RULE 3: SADRI (JACKET) SPECIFIC ─────────────────────────────
+        if (hasSadri && !hasCoat) {
+            const isCatA = CATEGORY_A_SADRI.includes(currentSadriCode);
+
+            if (isCatA) {
+                // Category A – Closed Neck Sadri
+                // Force Mandarin collar to prevent shirt collar clipping.
+                effectiveSelections.collar = 'CM';
+                // Pockets hidden behind the closed jacket.
+                effectiveSelections.pocketQty = '00';
+                // Placket: standard 4-button for Mandarin (NS4 / QS4).
+                const ps = effectiveSelections.placketStyle || 'NS';
+                effectiveSelections.placketStyle = `${ps.charAt(0)}S4`;
+            } else {
+                // Category B – Open Neck Sadri (Deep V / Lapel)
+                // User's selected collar remains visible – do NOT override.
+                const activeCollar = effectiveSelections.collar || 'CM';
+
+                // Base Transformation: shirt collars get "0" suffix bases.
+                // (Applied later in getKurtaBaseCode via `isCatBShirt` flag.)
+                // We signal this by leaving the collar as-is; the base helper
+                // already appends '0' when hasOuterwear=true & !forceMandarin.
+
+                // Placket: shirt collar → "3" suffix; mandarin → "4" suffix.
+                if (isShirtCollar(activeCollar)) {
+                    const ps = effectiveSelections.placketStyle || 'NS';
+                    effectiveSelections.placketStyle = `${ps.charAt(0)}T3`;
+                } else {
+                    const ps = effectiveSelections.placketStyle || 'NS';
+                    effectiveSelections.placketStyle = `${ps.charAt(0)}S4`;
+                }
+                // Pockets remain visible for open-neck sadri - no override.
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // PHASE 2: Resolve all effective values from the (possibly overridden)
+    //          effectiveSelections object.
+    // ─────────────────────────────────────────────────────────────────────
+    const collar       = effectiveSelections.collar       || 'CM';
+    const bottomCut    = effectiveSelections.bottomCut    || 'R';
+    const lengthStr    = effectiveSelections.length       || 'K';
+    const placketStyle = effectiveSelections.placketStyle || 'NS';
+    const pocketQty    = effectiveSelections.pocketQty    || '00';
+    const pocketShape  = effectiveSelections.pocketShape  || 'R';
+    const flapYes      = effectiveSelections.flapYes      || '0';
+    const flapShape    = effectiveSelections.flapShape    || 'R';
+    const epaulette    = effectiveSelections.epaulette    || '0';
+    const sleeve       = effectiveSelections.sleeve       || 'SN';
+    const cuffStyle    = effectiveSelections.cuffStyle    || 'US1';
+    const pajamaType   = effectiveSelections.pajamaType   || 'PJ';
+
+    // Determine whether the collar is now effectively mandarin (Cat A forces it).
+    const isCatASadri     = outerwearVisible && hasSadri && !hasCoat && CATEGORY_A_SADRI.includes(currentSadriCode);
+    const forceMandarin   = isCatASadri; // Cat A always resolves to mandarin base.
+
+    // For the base code: outerwear '0' suffix applies for Category B shirt-collar
+    // sadris and for any coat scenario.  Cat A uses mandarin bases (no '0' suffix).
+    const needsOuterwearBase = outerwearVisible && !forceMandarin && (hasCoat || hasSadri);
+    const baseCode = getKurtaBaseCode(collar, lengthStr, bottomCut, needsOuterwearBase, forceMandarin);
+
+    const bSuffix = '-F';
+    const isRing  = selectedButton?.material === 'Ring';
+
+    const layersToRender = [];
+
+    // ─────────────────────────────────────────────────────────────────────
+    // PHASE 3: Build layer list in strict Z-Index push order.
+    //   Base(10) → Placket(20) → Pockets/Flaps(30-36) → Epaulette(45)
+    //   → Sleeves(55) → [Sadri at 60 rendered outside] → Collar(65)
+    //   → Button Holes(70-74) → Buttons(75-79)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Pushes the fabric layer + optional embroidery sandwich. */
+    const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'fabric') => {
+        layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type });
+
+        if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve'].includes(partName)) {
+            layersToRender.push({
+                code: `E-${fabricCode}${bSuffix}`,
+                zIndex: baseZIndex + 1,
+                type: 'embroidery',
+                collectionID: selections.embroideryID,
+                part: partName,
+            });
+        }
+    };
+
+    // ── Pajama (Z: 5) ────────────────────────────────────────────────────
+    addGarmentPart('Pajama', `${pajamaType}-${baseCode}`, 5, 'pajama');
+
+    // ── Base / Chest (Z: 10) ─────────────────────────────────────────────
+    addGarmentPart('Chest', baseCode, 10);
+
+    // ── Placket (Z: 20) ──────────────────────────────────────────────────
+    // placketStyle was already overridden above; use it directly.
+    // If NOT in outerwear-visible mode, resolve suffix from collar type.
+    let placketCode;
+    if (outerwearVisible) {
+        placketCode = placketStyle; // already fully resolved (e.g. "NT3", "NS4")
     } else {
-        if (isLongLength) {
-            baseCode = isRoundCut ? "R" : "S";
-        } else {
-            baseCode = isRoundCut ? "K" : "L";
+        placketCode = `${placketStyle}${isShirtCollar(collar) ? '3' : '4'}`;
+    }
+    addGarmentPart('Placket', placketCode, 20);
+
+    // Placket centre buttons/holes (Z: 24-25)
+    if (placketCode === 'NS4' || placketCode === 'QS4') {
+        if (!isRing) layersToRender.push({ code: 'BHC', zIndex: 24, type: 'fabric' });
+        layersToRender.push({ code: `BKC${bSuffix}`, zIndex: 25, type: 'button' });
+    } else if (placketCode === 'NS3' || placketCode === 'QS3') {
+        if (!isRing) layersToRender.push({ code: 'BHN', zIndex: 24, type: 'fabric' });
+        layersToRender.push({ code: `BKN${bSuffix}`, zIndex: 25, type: 'button' });
+    } else if (placketCode === 'NT3' || placketCode === 'QT3') {
+        if (!isRing) layersToRender.push({ code: 'BHT', zIndex: 24, type: 'fabric' });
+        layersToRender.push({ code: `BKT${bSuffix}`, zIndex: 25, type: 'button' });
+    }
+
+    // ── Pockets & Flaps (Z: 30-41) ───────────────────────────────────────
+    if (pocketQty !== '00') {
+        addGarmentPart('Pocket', `R${pocketShape}`, 30);
+        if (flapYes === '1') {
+            addGarmentPart('Flap', `FR${flapShape}`, 32);
+            if (!isRing) layersToRender.push({ code: 'BHR', zIndex: 36, type: 'fabric' });
+            layersToRender.push({ code: `BPR${bSuffix}`, zIndex: 37, type: 'button' });
+        }
+        if (pocketQty === '11') {
+            addGarmentPart('Pocket', `L${pocketShape}`, 34);
+            if (flapYes === '1') {
+                addGarmentPart('Flap', `FL${flapShape}`, 36);
+                if (!isRing) layersToRender.push({ code: 'BHL', zIndex: 40, type: 'fabric' });
+                layersToRender.push({ code: `BPL${bSuffix}`, zIndex: 41, type: 'button' });
+            }
         }
     }
-    layersToRender.push({ code: baseCode, zIndex: 10 });
 
-    // --- 3. PLACKET ---
-    let placketCode = placketStyle;
-    if (hasCoat || hasSadri) {
-        // Under outerwear, neck plackets switch to NT3 / QT3
-        const prefix = placketStyle.charAt(0); // N or Q
-        placketCode = `${prefix}T3`;
-    } else {
-        placketCode = placketCode + (isShirtCollar ? "3" : "4");
+    // ── Epaulette (Z: 45) ────────────────────────────────────────────────
+    // epaulette value is already 'SE0' if the universal override fired.
+    if (epaulette === 'SE' || epaulette === 'SE0') {
+        addGarmentPart('Epaulette', epaulette, 45);
+        if (!isRing) layersToRender.push({ code: 'HE', zIndex: 49, type: 'fabric' });
+        layersToRender.push({ code: `BE${bSuffix}`, zIndex: 50, type: 'button' });
     }
-    layersToRender.push({ code: placketCode, zIndex: 20 });
 
-    // --- 4. POCKETS & FLAPS ---
-    if (pocketQty !== "00") {
-        layersToRender.push({ code: `R${pocketShape}`, zIndex: 30 });
-        if (flapYes === "1") layersToRender.push({ code: `FR${flapShape}`, zIndex: 31 });
+    // ── Sleeves (Z: 55) ──────────────────────────────────────────────────
+    // sleeve is already 'SS' if coat override fired; sadri does NOT touch sleeve.
+    addGarmentPart('Sleeve', sleeve, 55);
 
-        if (pocketQty === "11") {
-            layersToRender.push({ code: `L${pocketShape}`, zIndex: 32 });
-            if (flapYes === "1") layersToRender.push({ code: `FL${flapShape}`, zIndex: 33 });
+    if (sleeve === 'SC') {
+        addGarmentPart('Cuff', cuffStyle, 57);
+        if (cuffStyle.endsWith('1')) {
+            if (!isRing) layersToRender.push({ code: 'BH2', zIndex: 61, type: 'fabric' });
+            layersToRender.push({ code: `BC2${bSuffix}`, zIndex: 62, type: 'button' });
+        } else if (cuffStyle.endsWith('2')) {
+            if (!isRing) layersToRender.push({ code: 'BH4', zIndex: 61, type: 'fabric' });
+            layersToRender.push({ code: `BC4${bSuffix}`, zIndex: 62, type: 'button' });
         }
     }
 
-    // --- 5. EPAULETTE (Shoulder) ---
-    if (epaulette === "SE") {
-        layersToRender.push({ code: hasSadri ? "SE0" : "SE", zIndex: 35 });
+    // [Sadri renders at Z:60 OUTSIDE this function]
+
+    // ── Kurta Collar (Z: 65) ─────────────────────────────────────────────
+    // When the base is D0/T0/P0/Q0 (shirt collar under outerwear) the collar
+    // shape is already baked into that base asset — skip the separate collar
+    // layer to avoid a double-render.
+    const collarBakedIntoBase = needsOuterwearBase && isShirtCollar(collar);
+
+    if (!collarBakedIntoBase) {
+        addGarmentPart('Collar', collar, 65);
+
+        if (collar === 'CB') {
+            if (!isRing) layersToRender.push({ code: 'CBH', zIndex: 70, type: 'fabric' });
+            layersToRender.push({ code: `CBB${bSuffix}`, zIndex: 71, type: 'button' });
+        }
     }
-
-    // --- 6. SLEEVES & CUFFS ---
-    let sleeveCode = hasCoat ? "SS" : sleeve;
-    layersToRender.push({ code: sleeveCode, zIndex: 40 });
-
-    if (sleeve === "SC") {
-        layersToRender.push({ code: cuffStyle, zIndex: 41 });
-    }
-
-    // --- 7. COLLAR ---
-    layersToRender.push({ code: collar, zIndex: 50 });
 
     return layersToRender;
 };

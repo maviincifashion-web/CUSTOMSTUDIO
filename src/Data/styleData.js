@@ -107,5 +107,47 @@ export const KURTA_STYLE_OPTIONS = [
             { label: "Notch 2", value: "UN2", icon: IconCuffNotch2 },
             { label: "Square 2", value: "US2", icon: IconCuffSquare2 }
         ]
+    },
+    {
+        title: "Pajama Type", key: "pajamaType",
+        options: [
+            { label: "Salwar", value: "PS", icon: IconCutRound },
+            { label: "Dhoti", value: "PD", icon: IconCutStraight },
+            { label: "Pajama", value: "PJ", icon: IconLenLong },
+            { label: "Chudidar", value: "PC", icon: IconLenShort },
+            { label: "Patiala", value: "PT", icon: IconPlacketNotch },
+            { label: "Aligarhi", value: "PA", icon: IconPlacketSquare },
+            { label: "Pant", value: "PP", icon: IconTypeRound },
+            { label: "Bellbottom", value: "PB", icon: IconTypeSquare }
+        ]
+    },
+    {
+        title: "Belt Type", key: "beltType",
+        dependency: { key: "pajamaType", notValue: "PP", andNotValue: "PB" },
+        options: [
+            { label: "Rope", value: "R", icon: IconEpYes },
+            { label: "Elastic", value: "E", icon: IconEpNo }
+        ]
+    },
+    {
+        title: "Sadri Style", key: "sadriType",
+        dependency: { isContextItem: "sadri" },
+        options: [
+            { label: "Style SR", value: "SR", icon: IconLenLong },
+            { label: "Style RR", value: "RR", icon: IconLenShort },
+            { label: "Style SS", value: "SS", icon: IconCutRound },
+            { label: "Style AA", value: "AA", icon: IconCutStraight },
+            { label: "Style BB", value: "BB", icon: IconPlacketNotch },
+            { label: "Style CC", value: "CC", icon: IconPlacketSquare },
+            { label: "Style DD", value: "DD", icon: IconPocket0 },
+            { label: "Style EE", value: "EE", icon: IconPocket1 },
+            { label: "Style FF", value: "FF", icon: IconPocket2 },
+            { label: "Style GG", value: "GG", icon: IconFlap0 },
+            { label: "Style HH", value: "HH", icon: IconFlap1 },
+            { label: "Style KK", value: "KK", icon: IconTypeRound },
+            { label: "Heritage V", value: "L", icon: IconTypeNotch },
+            { label: "Classic Lapel", value: "M", icon: IconTypeSquare },
+            { label: "Urban Safari", value: "N", icon: IconEpNo }
+        ]
     }
 ];

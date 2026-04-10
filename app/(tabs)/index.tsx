@@ -16,7 +16,7 @@ export default function HomeScreen() {
                 {/* BUTTON 1: KURTA */}
                 <TouchableOpacity 
                     style={styles.card} 
-                    onPress={() => router.push('/kurta')} // Ye hume kurta screen par le jayega
+                    onPress={() => router.push('/outfit')} // Ye pehle outfit selection screen par le jayega
                 >
                     <Text style={styles.cardTitle}>Custom Kurta Set</Text>
                     <Text style={styles.cardSub}>Design Now {'>'}</Text>

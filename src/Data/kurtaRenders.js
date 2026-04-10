@@ -46,6 +46,14 @@ export const KURTA_RENDERS = {
             "FLN": require('../../assets/images/renders/FAB_001/display/FLN.webp'),
             "FLR": require('../../assets/images/renders/FAB_001/display/FLR.webp'),
             "FLS": require('../../assets/images/renders/FAB_001/display/FLS.webp'),
+            // BUTTON HOLES FULL BODY
+            "BHC": require('../../assets/images/renders/FAB_001/display/BHC.webp'),
+            "BHL": require('../../assets/images/renders/FAB_001/display/BHL.webp'),
+            "BHN": require('../../assets/images/renders/FAB_001/display/BHN.webp'),
+            "BHR": require('../../assets/images/renders/FAB_001/display/BHR.webp'),
+            "BHT": require('../../assets/images/renders/FAB_001/display/BHT.webp'),
+            "CBH": require('../../assets/images/renders/FAB_001/display/CBH.webp'),
+            "HE": require('../../assets/images/renders/FAB_001/display/HE.webp'),
         },
         style: { // Folded views
             "BASE": require('../../assets/images/renders/FAB_001/style/BASE.webp'),
@@ -84,6 +92,15 @@ export const KURTA_RENDERS = {
             "CB": require('../../assets/images/renders/FAB_001/style/CB.webp'),
             "CS": require('../../assets/images/renders/FAB_001/style/CS.webp'),
             "CE": require('../../assets/images/renders/FAB_001/style/CE.webp'),
+            // BUTTON HOLES FOLDED VIEW
+            "BHC": require('../../assets/images/renders/FAB_001/style/BHC.webp'),
+            "BHL": require('../../assets/images/renders/FAB_001/style/BHL.webp'),
+            "BHN": require('../../assets/images/renders/FAB_001/style/BHN.webp'),
+            "BHR": require('../../assets/images/renders/FAB_001/style/BHR.webp'),
+            "CBH": require('../../assets/images/renders/FAB_001/style/CBH.webp'),
+            "HE": require('../../assets/images/renders/FAB_001/style/HE.webp'),
+            "BH2": require('../../assets/images/renders/FAB_001/style/BH2.webp'),
+            "BH4": require('../../assets/images/renders/FAB_001/style/BH4.webp'),
         }
     },
     "FAB_002": {
@@ -130,6 +147,14 @@ export const KURTA_RENDERS = {
             "FLN": require('../../assets/images/renders/FAB_002/display/FLN.webp'),
             "FLR": require('../../assets/images/renders/FAB_002/display/FLR.webp'),
             "FLS": require('../../assets/images/renders/FAB_002/display/FLS.webp'),
+            // BUTTON HOLES FULL BODY
+            "BHC": require('../../assets/images/renders/FAB_002/display/BHC.webp'),
+            "BHL": require('../../assets/images/renders/FAB_002/display/BHL.webp'),
+            "BHN": require('../../assets/images/renders/FAB_002/display/BHN.webp'),
+            "BHR": require('../../assets/images/renders/FAB_002/display/BHR.webp'),
+            "BHT": require('../../assets/images/renders/FAB_002/display/BHT.webp'),
+            "CBH": require('../../assets/images/renders/FAB_002/display/CBH.webp'),
+            "HE": require('../../assets/images/renders/FAB_002/display/HE.webp'),
         },
         style: {
             "BASE": require('../../assets/images/renders/FAB_002/style/BASE.webp'),
@@ -168,6 +193,15 @@ export const KURTA_RENDERS = {
             "CB": require('../../assets/images/renders/FAB_002/style/CB.webp'),
             "CS": require('../../assets/images/renders/FAB_002/style/CS.webp'),
             "CE": require('../../assets/images/renders/FAB_002/style/CE.webp'),
+            // BUTTON HOLES FOLDED VIEW
+            "BHC": require('../../assets/images/renders/FAB_002/style/BHC.webp'),
+            "BHL": require('../../assets/images/renders/FAB_002/style/BHL.webp'),
+            "BHN": require('../../assets/images/renders/FAB_002/style/BHN.webp'),
+            "BHR": require('../../assets/images/renders/FAB_002/style/BHR.webp'),
+            "CBH": require('../../assets/images/renders/FAB_002/style/CBH.webp'),
+            "HE": require('../../assets/images/renders/FAB_002/style/HE.webp'),
+            "BH2": require('../../assets/images/renders/FAB_002/style/BH2.webp'),
+            "BH4": require('../../assets/images/renders/FAB_002/style/BH4.webp'),
         }
     }
 };
