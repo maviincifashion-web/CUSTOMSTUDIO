@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Image, StyleSheet, Dimensions } from 'react-native';
 import { PAJAMA_RENDERS } from '../../../Data/dummyData';
 
@@ -17,18 +17,57 @@ export default function PajamaStylePreview({ selections, selectedPajamaFabric })
 
     const pajamaStyleRenders = PAJAMA_RENDERS[selectedPajamaFabric.fabricID]?.style || {};
     const imageSource = pajamaStyleRenders[pajamaStyleCode];
+    const [displaySource, setDisplaySource] = useState(imageSource || null);
+    const [pendingSource, setPendingSource] = useState(null);
+    const [pendingToken, setPendingToken] = useState(0);
+    const tokenRef = useRef(0);
+
+    useEffect(() => {
+        if (!imageSource) return;
+
+        if (!displaySource) {
+            setDisplaySource(imageSource);
+            return;
+        }
+
+        if (imageSource !== displaySource && imageSource !== pendingSource) {
+            tokenRef.current += 1;
+            setPendingSource(imageSource);
+            setPendingToken(tokenRef.current);
+        }
+    }, [imageSource, displaySource, pendingSource]);
 
     return (
         <View style={styles.container}>
-            {imageSource ? (
+            {displaySource ? (
                 <Image
-                    source={imageSource}
+                    source={displaySource}
                     style={styles.image}
                     resizeMode="contain"
                 />
             ) : (
                 <View style={[styles.image, { backgroundColor: 'transparent' }]} />
             )}
+            {pendingSource ? (
+                <Image
+                    key={`pending-${pendingToken}`}
+                    source={pendingSource}
+                    style={[styles.image, styles.imageOverlay]}
+                    resizeMode="contain"
+                    onLoad={() => {
+                        if (pendingToken === tokenRef.current) {
+                            setDisplaySource(pendingSource);
+                            setPendingSource(null);
+                        }
+                    }}
+                    onError={() => {
+                        if (pendingToken === tokenRef.current) {
+                            setDisplaySource(pendingSource);
+                            setPendingSource(null);
+                        }
+                    }}
+                />
+            ) : null}
         </View>
     );
 }
@@ -44,5 +83,9 @@ const styles = StyleSheet.create({
     image: {
         width: width * 1.9,
         height: width * 1.9,
-    }
+    },
+    imageOverlay: {
+        position: 'absolute',
+        opacity: 0,
+    },
 });

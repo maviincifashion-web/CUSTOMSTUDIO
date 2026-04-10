@@ -1,6 +1,6 @@
 // src/customizers/Kurta/components/KurtaFolded.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 
 // ENGINE & DATA IMPORTS
@@ -8,28 +8,56 @@ import { KURTA_RENDERS, EMBROIDERY_RENDERS, PAJAMA_RENDERS } from '../../../Data
 
 // --- FLICKER-FREE LAYER COMPONENT ---
 const SmartLayer = ({ src, zIndex }) => {
-    const [displaySrc, setDisplaySrc] = useState(src);
+    const [displaySrc, setDisplaySrc] = useState(src || null);
+    const [pendingSrc, setPendingSrc] = useState(null);
+    const [pendingToken, setPendingToken] = useState(0);
+    const tokenRef = useRef(0);
 
     useEffect(() => {
-        let isMounted = true;
-        if (src && src !== displaySrc) {
-            Image.prefetch(Image.resolveAssetSource(src).uri)
-                .then(() => { if (isMounted) setDisplaySrc(src); })
-                .catch(() => { if (isMounted) setDisplaySrc(src); }); // Fallback
-        } else if (!src) {
-            setDisplaySrc(null);
+        if (!src) return;
+
+        if (!displaySrc) {
+            setDisplaySrc(src);
+            return;
         }
-        return () => { isMounted = false; };
-    }, [src, displaySrc]);
+
+        if (src !== displaySrc && src !== pendingSrc) {
+            tokenRef.current += 1;
+            setPendingSrc(src);
+            setPendingToken(tokenRef.current);
+        }
+    }, [src, displaySrc, pendingSrc]);
 
     if (!displaySrc) return null;
 
     return (
-        <Image
-            source={displaySrc}
-            style={[styles.modelLayer, { zIndex: zIndex }]}
-            resizeMode="contain"
-        />
+        <>
+            <Image
+                source={displaySrc}
+                style={[styles.modelLayer, { zIndex: zIndex }]}
+                resizeMode="contain"
+            />
+            {pendingSrc ? (
+                <Image
+                    key={`pending-${pendingToken}`}
+                    source={pendingSrc}
+                    style={[styles.modelLayer, { zIndex: zIndex, opacity: 0 }]}
+                    resizeMode="contain"
+                    onLoad={() => {
+                        if (pendingToken === tokenRef.current) {
+                            setDisplaySrc(pendingSrc);
+                            setPendingSrc(null);
+                        }
+                    }}
+                    onError={() => {
+                        if (pendingToken === tokenRef.current) {
+                            setDisplaySrc(pendingSrc);
+                            setPendingSrc(null);
+                        }
+                    }}
+                />
+            ) : null}
+        </>
     );
 };
 
@@ -154,7 +182,7 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
     return (
         <View style={styles.container}>
             {/* Dynamic Folded Garment Layers (Z-Index 10 se 90 tak) */}
-            {getFoldedLayerCodes().map((layerObj, index) => {
+            {getFoldedLayerCodes().map((layerObj) => {
                 let imageSource = null;
                 if (layerObj.type === 'button') {
                     imageSource = selectedButton?.renders?.[layerObj.code];
@@ -166,11 +194,9 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
                     imageSource = fabricStyleRenders[layerObj.code];
                 }
 
-                if (!imageSource) return null; // Agar image folder mein nahi hai, toh chhod do
-
                 return (
                     <SmartLayer
-                        key={`folded-${layerObj.code}-${index}`}
+                        key={`folded-${layerObj.type}-${layerObj.zIndex}`}
                         src={imageSource}
                         zIndex={layerObj.zIndex}
                     />

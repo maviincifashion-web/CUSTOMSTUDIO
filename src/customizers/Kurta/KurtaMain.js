@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Ani
 import { router } from 'expo-router';
 import { BlurView } from 'expo-blur';
 
-import { DUMMY_FABRICS, INITIAL_SELECTION, DUMMY_BUTTONS, EMBROIDERY_COLLECTIONS } from '../../Data/dummyData';
+import { DUMMY_FABRICS, INITIAL_SELECTION, DUMMY_BUTTONS, DUMMY_SADRI_BUTTONS, EMBROIDERY_COLLECTIONS } from '../../Data/dummyData';
 import { KURTA_STYLE_OPTIONS } from '../../Data/styleData';
 import { useOutfit } from '../../context/OutfitContext';
 
@@ -28,10 +28,14 @@ export default function KurtaMain() {
         bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', embroideryID: null
     });
     const [selectedButton, setSelectedButton] = useState(INITIAL_SELECTION?.button || (DUMMY_BUTTONS ? DUMMY_BUTTONS[0] : null));
+    const [selectedSadriButton, setSelectedSadriButton] = useState(DUMMY_SADRI_BUTTONS ? DUMMY_SADRI_BUTTONS[0] : null);
     const [isButtonModalOpen, setButtonModalOpen] = useState(false);
+    const [isSadriButtonModalOpen, setSadriButtonModalOpen] = useState(false);
     const [buttonModalTab, setButtonModalTab] = useState('Plastic');
+    const [sadriButtonModalTab, setSadriButtonModalTab] = useState('Plastic');
     const [selectedPajamaFabric, setSelectedPajamaFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
-    const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama'
+    const [selectedSadriFabric, setSelectedSadriFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
+    const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri'
 
     const carouselRef = useRef(null);
     const slideAnim = useRef(new Animated.Value(-width)).current;
@@ -66,7 +70,7 @@ export default function KurtaMain() {
                 <View style={[StyleSheet.absoluteFill, { opacity: activePanel === 'Fabric' ? 1 : 0, zIndex: activePanel === 'Fabric' ? 10 : 0 }]} pointerEvents={activePanel === 'Fabric' ? 'auto' : 'none'}>
                     {/* SWITCHER TABS */}
                     <View style={styles.fabricSwitcher}>
-                        {['Kurta', 'Pajama'].map(tab => (
+                        {['Kurta', 'Pajama', ...(selectedItems.includes('sadri') ? ['Sadri'] : [])].map(tab => (
                             <TouchableOpacity
                                 key={tab}
                                 style={[styles.fabricSwitcherTab, fabricTab === tab && styles.fabricSwitcherTabActive]}
@@ -98,6 +102,22 @@ export default function KurtaMain() {
                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.gridContainer}>
                             {DUMMY_FABRICS.map((fabric) => (
                                 <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedPajamaFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedPajamaFabric(fabric); closePanel(); }}>
+                                    <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
+                                    <Image source={fabric.thumbnail} style={styles.fabricImage} />
+                                    <View style={styles.fabricInfo}>
+                                        <Text style={styles.fabricName}>{fabric.name}</Text>
+                                        <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    ) : null}
+
+                    {/* SADRI FABRICS — same fabric list as Kurta, independent selection */}
+                    {fabricTab === 'Sadri' && DUMMY_FABRICS ? (
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.gridContainer}>
+                            {DUMMY_FABRICS.map((fabric) => (
+                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedSadriFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedSadriFabric(fabric); closePanel(); }}>
                                     <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
@@ -164,6 +184,40 @@ export default function KurtaMain() {
 
                                 return (
                                     <View key={idx} style={{ marginBottom: 25 }}>
+                                        {section.key === 'sadriType' && selectedItems.includes('sadri') && (
+                                            <View style={{ marginBottom: 15 }}>
+                                                <View style={styles.buttonBanner}>
+                                                    <Text style={styles.buttonBannerText}>Sadri Button</Text>
+                                                </View>
+                                                <View style={styles.optionRow}>
+                                                    <View style={{ width: '48%', marginBottom: 10 }}>
+                                                        <View style={styles.buttonIconWrapper}>
+                                                            {selectedSadriButton && selectedSadriButton.icon ? (
+                                                                <Image source={selectedSadriButton.icon} style={{ width: 45, height: 45 }} resizeMode="contain" />
+                                                            ) : (
+                                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#888' }} />
+                                                            )}
+                                                        </View>
+                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
+                                                            Button 1
+                                                        </Text>
+                                                    </View>
+
+                                                    <View style={{ width: '48%', marginBottom: 10 }}>
+                                                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => setSadriButtonModalOpen(true)}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                                                <View style={styles.dot} />
+                                                                <View style={styles.dot} />
+                                                                <View style={styles.dot} />
+                                                            </View>
+                                                        </TouchableOpacity>
+                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
+                                                            More{"\n"}options
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        )}
                                         <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>{section.title}</Text>
                                         <View style={styles.optionRow}>
                                             {section.options.map((opt) => {
@@ -236,14 +290,15 @@ export default function KurtaMain() {
 
     const basePrice = (selectedFabric?.price || 0) + 4500;
     const pajamaFabricPrice = selectedPajamaFabric?.price || 0;
-    const embroideryPrice = selections.embroideryID ? (EMBROIDERY_COLLECTIONS.find(e => e.id === selections.embroideryID)?.price || 0) : 0;
-    const totalPrice = basePrice + pajamaFabricPrice + embroideryPrice;
-
     const hasSadri = selectedItems.includes('sadri');
+    const sadriFabricPrice = hasSadri ? (selectedSadriFabric?.price || 0) : 0;
+    const embroideryPrice = selections.embroideryID ? (EMBROIDERY_COLLECTIONS.find(e => e.id === selections.embroideryID)?.price || 0) : 0;
+    const totalPrice = basePrice + pajamaFabricPrice + sadriFabricPrice + embroideryPrice;
+
     const sadriCode = selections.sadriType || 'SR';
 
     const buildSlides = () => {
-        const baseProps = { selections, selectedFabric, selectedButton, selectedPajamaFabric, hasSadri, sadriCode };
+        const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedPajamaFabric, selectedSadriFabric, hasSadri, sadriCode };
 
         if (hasSadri) {
             return [
@@ -368,6 +423,65 @@ export default function KurtaMain() {
                                             key={btn.id}
                                             style={[styles.buttonItem, isSelected && styles.buttonItemActive]}
                                             onPress={() => { setSelectedButton(btn); setButtonModalOpen(false); }}
+                                        >
+                                            {btn.icon ? (
+                                                <Image source={btn.icon} style={styles.buttonItemIcon} />
+                                            ) : (
+                                                <View style={styles.buttonItemIcon} />
+                                            )}
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.buttonItemName}>{btn.name}</Text>
+                                                {isRecommended && <Text style={styles.recommendedBadge}>RECOMMENDED</Text>}
+                                            </View>
+                                        </TouchableOpacity>
+                                    );
+                                })
+                            }
+                        </ScrollView>
+                    </View>
+                </View>
+            )}
+
+            {isSadriButtonModalOpen && (
+                <View style={styles.buttonModalOverlay}>
+                    <BlurView tint="dark" intensity={20} style={StyleSheet.absoluteFill} />
+                    <View style={styles.buttonModalContainer}>
+                        <BlurView tint="light" intensity={90} style={StyleSheet.absoluteFill} />
+                        <View style={styles.buttonModalHeader}>
+                            <Text style={styles.buttonModalTitle}>Select Sadri Button</Text>
+                            <TouchableOpacity onPress={() => setSadriButtonModalOpen(false)}>
+                                <Text style={styles.closeBtn}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.buttonModalTabs}>
+                            {['Plastic', 'Metal', 'Wood', 'Ring', 'Fabric'].map(tab => (
+                                <TouchableOpacity
+                                    key={tab}
+                                    style={[styles.buttonTab, sadriButtonModalTab === tab && styles.buttonTabActive]}
+                                    onPress={() => setSadriButtonModalTab(tab)}
+                                >
+                                    <Text style={[styles.buttonTabText, sadriButtonModalTab === tab && { color: '#fff' }]}>{tab}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <ScrollView style={styles.buttonList}>
+                            {DUMMY_SADRI_BUTTONS
+                                .filter(b => b.material === sadriButtonModalTab)
+                                .sort((a, b) => {
+                                    if (a.material === 'Fabric' && b.material === 'Fabric') {
+                                        if (a.linkedFabricID === selectedSadriFabric?.fabricID) return -1;
+                                        if (b.linkedFabricID === selectedSadriFabric?.fabricID) return 1;
+                                    }
+                                    return 0;
+                                })
+                                .map(btn => {
+                                    const isRecommended = btn.material === 'Fabric' && btn.linkedFabricID === selectedSadriFabric?.fabricID;
+                                    const isSelected = selectedSadriButton?.id === btn.id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={btn.id}
+                                            style={[styles.buttonItem, isSelected && styles.buttonItemActive]}
+                                            onPress={() => { setSelectedSadriButton(btn); setSadriButtonModalOpen(false); }}
                                         >
                                             {btn.icon ? (
                                                 <Image source={btn.icon} style={styles.buttonItemIcon} />

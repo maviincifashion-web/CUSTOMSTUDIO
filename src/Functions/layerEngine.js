@@ -31,7 +31,7 @@ const getKurtaBaseCode = (collar, lengthStr, bottomCut, hasOuterwear, forceManda
     return roundCut ? 'K' : 'L';
 };
 
-export const getSadriLayerCodes = (sadriCode, selections = {}, selectedButton, viewMode = 0, slideIndex = 0) => {
+export const getSadriLayerCodes = (sadriCode, selections = {}, selectedSadriButton, viewMode = 0, slideIndex = 0) => {
     if (!sadriCode) return [];
 
     const bSuffix = viewMode === 0 ? '-F' : '-S';
@@ -66,9 +66,8 @@ export const getSadriLayerCodes = (sadriCode, selections = {}, selectedButton, v
 
     addGarmentPart('SadriBase', `${finalSadriCode}${bSuffix}`, 75, 'sadri_fabric');
 
-    if (selectedButton?.material !== 'Ring') {
-        layersToRender.push({ code: `KH${bSuffix}`, zIndex: 75 + 5 - 1, type: 'fabric' });
-        layersToRender.push({ code: `KB${bSuffix}`, zIndex: 75 + 5, type: 'button' });
+    if (selectedSadriButton?.material !== 'Ring') {
+        layersToRender.push({ code: `B${finalSadriCode}${bSuffix}`, zIndex: 80, type: 'sadri_button' });
     }
 
     return layersToRender;
