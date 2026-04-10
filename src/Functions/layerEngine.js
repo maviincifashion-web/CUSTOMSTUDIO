@@ -6,6 +6,7 @@ const CATEGORY_B_BASE_TYPES = ['L', 'M', 'N'];
 const isShirtCollar = (collar) => SHIRT_COLLARS.includes(collar);
 const isMandarinCollar = (collar) => MANDARIN_COLLARS.includes(collar);
 const getSadriCollarSuffix = (collar) => {
+    if (collar === 'CN') return 'R';
     if (isMandarinCollar(collar)) return 'C';
     if (isShirtCollar(collar)) return 'S';
     return 'R';
