@@ -1,3 +1,5 @@
+import { EMBROIDERY_RENDERS } from '../Data/dummyData';
+
 const SHIRT_COLLARS = ['CR', 'CB', 'CT', 'CS', 'CE'];
 const MANDARIN_COLLARS = ['CM', 'CC', 'CN'];
 const CATEGORY_A_SADRI = ['SR', 'RR', 'SS', 'AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'KK'];
@@ -53,14 +55,27 @@ export const getSadriLayerCodes = (sadriCode, selections = {}, selectedSadriButt
     const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'fabric') => {
         layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type: type });
 
-        if (selections.embroideryID && ['SadriBase'].includes(partName)) {
-            layersToRender.push({
-                code: `E-${fabricCode}${bSuffix}`,
-                zIndex: baseZIndex + 1,
-                type: 'embroidery',
-                collectionID: selections.embroideryID,
-                part: partName
-            });
+        if (selections.sadriEmbroideryID && ['SadriBase'].includes(partName)) {
+            const embCode = `E-${finalSadriCode}`;
+            const coll = EMBROIDERY_RENDERS[selections.sadriEmbroideryID];
+            const leftAsset = coll?.sadriChestLeft?.[embCode];
+            const rightAsset = coll?.sadriChestRight?.[embCode];
+            if (leftAsset && rightAsset) {
+                layersToRender.push({
+                    code: embCode,
+                    zIndex: baseZIndex + 1,
+                    type: 'sadri_embroidery_left',
+                    collectionID: selections.sadriEmbroideryID,
+                    part: partName
+                });
+                layersToRender.push({
+                    code: embCode,
+                    zIndex: baseZIndex + 2,
+                    type: 'sadri_embroidery_right',
+                    collectionID: selections.sadriEmbroideryID,
+                    part: partName
+                });
+            }
         }
     };
 

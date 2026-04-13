@@ -1,4 +1,5 @@
 // metro.config.js
+const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
 
 module.exports = (async () => {
@@ -9,6 +10,12 @@ module.exports = (async () => {
   config.resolver.sourceExts = [...sourceExts, 'svg'];
   // Remove '.svg' from assetExts if it's there (generally not needed for Expo, but safe)
   config.resolver.assetExts = assetExts.filter((ext) => ext !== 'svg');
+
+  // Peer of react-native-reanimated 4.x; pin resolution to app node_modules
+  config.resolver.extraNodeModules = {
+    ...(config.resolver.extraNodeModules ?? {}),
+    'react-native-worklets': path.resolve(__dirname, 'node_modules/react-native-worklets'),
+  };
 
   return config;
 })();

@@ -105,6 +105,10 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     imageSource = selectedButton?.renders?.[layerObj.code];
                 } else if (layerObj.type === 'embroidery') {
                     imageSource = EMBROIDERY_RENDERS[layerObj.collectionID]?.display?.[layerObj.code];
+                } else if (layerObj.type === 'sadri_embroidery_left') {
+                    imageSource = EMBROIDERY_RENDERS[layerObj.collectionID]?.sadriChestLeft?.[layerObj.code];
+                } else if (layerObj.type === 'sadri_embroidery_right') {
+                    imageSource = EMBROIDERY_RENDERS[layerObj.collectionID]?.sadriChestRight?.[layerObj.code];
                 } else if (layerObj.type === 'pajama') {
                     imageSource = pajamaRenders[layerObj.code];
                 } else if (layerObj.type === 'sadri_button') {
