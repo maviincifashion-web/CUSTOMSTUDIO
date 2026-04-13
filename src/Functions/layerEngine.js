@@ -4,6 +4,7 @@ const SHIRT_COLLARS = ['CR', 'CB', 'CT', 'CS', 'CE'];
 const MANDARIN_COLLARS = ['CM', 'CC', 'CN'];
 const CATEGORY_A_SADRI = ['SR', 'RR', 'SS', 'AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'KK'];
 const CATEGORY_B_BASE_TYPES = ['L', 'M', 'N'];
+const JODHPURI_COAT_TYPES = ['JH', 'JR', 'JS'];
 
 const isShirtCollar = (collar) => SHIRT_COLLARS.includes(collar);
 const isMandarinCollar = (collar) => MANDARIN_COLLARS.includes(collar);
@@ -113,18 +114,17 @@ export const getKurtaLayerCodes = (
             effectiveSelections.epaulette = 'SE0';
         }
 
-        // ── RULE 2: COAT SPECIFIC ────────────────────────────────────────
-        if (hasCoat) {
-            // Sleeves hidden inside coat.
+        // Coat main-composite view: force inner kurta sleeve to SS.
+        if (hasCoat && viewMode === 0) {
             effectiveSelections.sleeve = 'SS';
-            // Pockets hidden behind coat.
-            effectiveSelections.pocketQty = '00';
-            // Placket gets a "3" suffix (e.g. NT3 / QT3).
-            const ps = effectiveSelections.placketStyle || 'NS';
-            effectiveSelections.placketStyle = `${ps.charAt(0)}T3`;
         }
 
-        // ── RULE 3: SADRI (JACKET) SPECIFIC ─────────────────────────────
+        // Jodhpuri coat: image-1 inner kurta should use Chinese/Mandarin collar.
+        if (hasCoat && viewMode === 0 && JODHPURI_COAT_TYPES.includes(effectiveSelections.coatType)) {
+            effectiveSelections.collar = 'CM';
+        }
+
+        // ── RULE 2: SADRI (JACKET) SPECIFIC ─────────────────────────────
         if (hasSadri && !hasCoat) {
             const isCatA = CATEGORY_A_SADRI.includes(currentSadriCode);
 
@@ -220,11 +220,12 @@ export const getKurtaLayerCodes = (
     addGarmentPart('Chest', baseCode, 10);
 
     // ── Placket (Z: 20) ──────────────────────────────────────────────────
-    // placketStyle was already overridden above; use it directly.
-    // If NOT in outerwear-visible mode, resolve suffix from collar type.
+    // For sadri we may receive an already-resolved placket override (NS4 / NT3 etc).
+    // For coat (and normal flow), compute from selected placket base + collar family.
     let placketCode;
-    if (outerwearVisible) {
-        placketCode = placketStyle; // already fully resolved (e.g. "NT3", "NS4")
+    const hasResolvedPlacketSuffix = /[34]$/.test(placketStyle);
+    if (outerwearVisible && hasResolvedPlacketSuffix) {
+        placketCode = placketStyle;
     } else {
         placketCode = `${placketStyle}${isShirtCollar(collar) ? '3' : '4'}`;
     }
@@ -269,7 +270,7 @@ export const getKurtaLayerCodes = (
     }
 
     // ── Sleeves (Z: 55) ──────────────────────────────────────────────────
-    // sleeve is already 'SS' if coat override fired; sadri does NOT touch sleeve.
+    // Coat keeps sleeve selection; only specific sadri rules can alter it.
     addGarmentPart('Sleeve', sleeve, 55);
 
     if (sleeve === 'SC') {

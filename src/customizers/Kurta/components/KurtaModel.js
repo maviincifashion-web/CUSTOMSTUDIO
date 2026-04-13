@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 
 // ENGINE & DATA IMPORTS
-import { KURTA_RENDERS, EMBROIDERY_RENDERS, PAJAMA_RENDERS, SADRI_RENDERS } from '../../../Data/dummyData';
+import { KURTA_RENDERS, EMBROIDERY_RENDERS, PAJAMA_RENDERS, SADRI_RENDERS, COAT_RENDERS } from '../../../Data/dummyData';
 import { getKurtaLayerCodes, getSadriLayerCodes } from '../../../Functions/layerEngine';
 
 // ASSETS IMPORTS
@@ -65,23 +65,111 @@ const SmartLayer = ({ src, zIndex }) => {
     );
 };
 
-export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedPajamaFabric, selectedSadriFabric, hasSadri, sadriCode, slideIndex = 0 }) {
+const SHIRT_COLLARS = ['CR', 'CB', 'CT', 'CS', 'CE'];
+const JODHPURI_TYPES = ['JH', 'JR', 'JS', 'JO'];
+
+const getCoatCollarGroup = (kurtaCollar = 'CM') => {
+    if (kurtaCollar === 'CN') return 'R';
+    if (kurtaCollar === 'CM' || kurtaCollar === 'CC') return 'C';
+    if (SHIRT_COLLARS.includes(kurtaCollar)) return 'S';
+    return 'C';
+};
+
+const getDisplayCoatCodes = (selections = {}) => {
+    const coatType = selections.coatType || '1B';
+    if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
+        return [coatType, 'UP1'];
+    }
+    if (coatType === 'JO') {
+        return [coatType];
+    }
+
+    const lapelCode = selections.coatLapel || 'N';
+    const collarGroup = getCoatCollarGroup(selections.collar);
+    const collarCode = `${coatType === '2B' ? 'C2' : 'C1'}-${collarGroup}`;
+    const lapelLayerCode = `${coatType === '2B' ? 'L2' : 'L1'}-${lapelCode}`;
+
+    return [
+        `${coatType}-${lapelCode}-${collarGroup}`,
+        collarCode,
+        'UP1',
+        lapelLayerCode,
+    ];
+};
+
+const getStyleFrontCoatCodes = (selections = {}) => {
+    const coatType = selections.coatType || '1B';
+    if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
+        return [coatType, 'UP1'];
+    }
+    if (coatType === 'JO') {
+        return [coatType];
+    }
+
+    const lapelCode = selections.coatLapel || 'N';
+    const collarCode = coatType === '2B' ? 'C2' : 'C1';
+    const lapelLayerCode = `${coatType === '2B' ? 'L2' : 'L1'}-${lapelCode}`;
+
+    return [
+        `${coatType}-${lapelCode}`,
+        collarCode,
+        'UP1',
+        lapelLayerCode,
+    ];
+};
+
+const getStyleBackCoatCodes = (selections = {}) => {
+    const coatType = selections.coatType || 'JO';
+    const ventCode = selections.coatBackStyle || 'NV';
+
+    if (coatType === 'JH') return [`JH-${ventCode}`];
+    return [ventCode];
+};
+
+export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedPajamaFabric, selectedSadriFabric, hasCoat = false, hasSadri, sadriCode, slideIndex = 0 }) {
 
     // SAFETY CHECK: Jab tak data ready na ho, model render mat karo
     if (!selections || !selectedFabric) return null;
 
     const handsImage = selections.sleeve === "SC" ? kurta_hand_c : kurta_hand_n;
 
+    const coatRenderSet = COAT_RENDERS['FAB_001'] || { display: {}, style: {} };
+    const coatDisplayRenders = coatRenderSet.display || {};
+    const coatStyleRenders = coatRenderSet.style || {};
+
+    if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
+        const coatCodes = slideIndex === 4 ? getStyleFrontCoatCodes(selections) : getStyleBackCoatCodes(selections);
+        return (
+            <View style={styles.container}>
+                {coatCodes.map((code, idx) => (
+                    <SmartLayer
+                        key={`coat-style-${code}-${idx}`}
+                        src={coatStyleRenders[code]}
+                        zIndex={20 + idx}
+                    />
+                ))}
+            </View>
+        );
+    }
+
     // ENGINE KO BULAO: Kurta Arrays
-    const kurtaLayers = getKurtaLayerCodes(selections, selectedButton, 0, slideIndex, false, hasSadri, sadriCode) || [];
+    const kurtaLayers = getKurtaLayerCodes(selections, selectedButton, 0, slideIndex, hasCoat, hasSadri, sadriCode) || [];
 
     // ENGINE KO BULAO: Sadri Arrays
     let sadriLayers = [];
-    if (hasSadri && (slideIndex === 0 || slideIndex === 4)) {
+    if (hasSadri && (slideIndex === 0 || slideIndex === 4 || slideIndex === 5)) {
         sadriLayers = getSadriLayerCodes(sadriCode, selections, selectedSadriButton, 0, slideIndex) || [];
     }
 
-    const layersToRender = [...kurtaLayers, ...sadriLayers].sort((a, b) => a.zIndex - b.zIndex);
+    const coatDisplayLayers = hasCoat && slideIndex === 0
+        ? getDisplayCoatCodes(selections).map((code, idx) => ({
+            code,
+            zIndex: 85 + idx,
+            type: 'coat_display'
+        }))
+        : [];
+
+    const layersToRender = [...kurtaLayers, ...sadriLayers, ...coatDisplayLayers].sort((a, b) => a.zIndex - b.zIndex);
 
     // DATABASE: Us kapde ki saari images yahan se nikalo
     const fabricRenders = KURTA_RENDERS[selectedFabric.fabricID]?.display || {};
@@ -115,6 +203,8 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     imageSource = selectedSadriButton?.renders?.[layerObj.code];
                 } else if (layerObj.type === 'sadri_fabric') {
                     imageSource = sadriRenders[layerObj.code];
+                } else if (layerObj.type === 'coat_display') {
+                    imageSource = coatDisplayRenders[layerObj.code];
                 } else {
                     imageSource = fabricRenders[layerObj.code];
                 }
@@ -130,6 +220,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
 
             {/* 3. Hands Overlay (Z-Index: 100) */}
             <Image source={handsImage} style={[styles.modelLayer, { zIndex: 100 }]} resizeMode="contain" />
+
         </View>
     );
 }

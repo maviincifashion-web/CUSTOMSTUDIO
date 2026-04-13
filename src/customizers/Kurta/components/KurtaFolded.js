@@ -157,7 +157,11 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
         }
 
         // 5. FOLDED COLLAR
-        addGarmentPart('Collar', selections.collar, 65);
+        // Round neck (CN) folded base already contains the neck shape,
+        // so we skip an extra collar layer to avoid double render.
+        if (selections.collar !== "CN") {
+            addGarmentPart('Collar', selections.collar, 65);
+        }
 
         if (selections.collar === "CB") {
             if (!isRing) layersToRender.push({ code: "CBH", zIndex: 65 + 5 - 1, type: 'fabric' });

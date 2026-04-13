@@ -115,6 +115,9 @@ export default function KurtaMain() {
     };
 
     const renderPanelContent = () => {
+        const coatType = selections.coatType || 'NONE';
+        const isJodhpuriMode = ['JH', 'JR', 'JS', 'JO'].includes(coatType);
+
         return (
             <View style={{ flex: 1, position: 'relative' }}>
                 {/* --- FABRIC PANEL --- */}
@@ -234,7 +237,15 @@ export default function KurtaMain() {
                                 }
 
                                 return (
-                                    <View key={idx} style={{ marginBottom: 25 }}>
+                                    <View
+                                        key={idx}
+                                        style={[
+                                            { marginBottom: 25 },
+                                            section.key === 'coatLapel' && isJodhpuriMode
+                                                ? { opacity: 0.35 }
+                                                : null
+                                        ]}
+                                    >
                                         {section.key === 'sadriType' && selectedItems.includes('sadri') && (
                                             <View style={{ marginBottom: 15 }}>
                                                 <View style={styles.buttonBanner}>
@@ -276,7 +287,13 @@ export default function KurtaMain() {
                                                 const isActive = selections[section.key] === opt.value;
                                                 return (
                                                     <View key={opt.value} style={{ width: '48%', marginBottom: 15 }}>
-                                                        <TouchableOpacity style={[styles.styleOption, isActive && styles.activeStyleOption]} onPress={() => handleStyleChange(section.key, opt.value)}>
+                                                        <TouchableOpacity
+                                                            style={[styles.styleOption, isActive && styles.activeStyleOption]}
+                                                            onPress={() => {
+                                                                if (section.key === 'coatLapel' && isJodhpuriMode) return;
+                                                                handleStyleChange(section.key, opt.value);
+                                                            }}
+                                                        >
                                                             <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
                                                             {IconComponent ? <IconComponent size={75} /> : <Text>Icon</Text>}
                                                         </TouchableOpacity>
@@ -383,7 +400,9 @@ export default function KurtaMain() {
 
     const basePrice = (selectedFabric?.price || 0) + 4500;
     const pajamaFabricPrice = selectedPajamaFabric?.price || 0;
+    const hasCoat = selectedItems.includes('coat');
     const hasSadri = selectedItems.includes('sadri');
+    const hasOuterwear = hasCoat || hasSadri;
     const sadriFabricPrice = hasSadri ? (selectedSadriFabric?.price || 0) : 0;
     const kurtaEmbroideryPrice = selections.embroideryID ? (EMBROIDERY_COLLECTIONS.find(e => e.id === selections.embroideryID)?.price || 0) : 0;
     const sadriEmbroideryPrice = hasSadri && selections.sadriEmbroideryID
@@ -397,31 +416,47 @@ export default function KurtaMain() {
     const buildSlides = () => {
         const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedPajamaFabric, selectedSadriFabric, hasSadri, sadriCode };
 
-        if (hasSadri) {
+        if (hasOuterwear) {
             return [
                 <View key="full" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                    <KurtaModel {...baseProps} slideIndex={0} />
+                    <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={0} />
                 </View>,
                 <View key="inner" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                    <KurtaModel {...baseProps} slideIndex={1} />
+                    <KurtaModel {...baseProps} hasCoat={false} slideIndex={1} />
                 </View>,
                 <View key="folded" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                    <KurtaFolded {...baseProps} />
+                    <KurtaFolded
+                        {...baseProps}
+                        selections={{
+                            ...selections,
+                        }}
+                    />
                 </View>,
                 <View key="pajama_only" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                     <PajamaStylePreview {...baseProps} />
                 </View>,
-
-                // Zoomed view of the sadri
-                <View key="zoomed" style={{ flex: 1, position: 'relative', width: '100%', height: '100%', transform: [{ scale: 1.5 }, { translateY: 100 }] }}>
-                    <KurtaModel {...baseProps} slideIndex={4} />
-                </View>
+                <View key="outerwear_front" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                    <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={4} />
+                    {hasCoat ? (
+                        <View style={styles.outerwearBadge}>
+                            <Text style={styles.outerwearBadgeText}>Only Coat Front</Text>
+                        </View>
+                    ) : null}
+                </View>,
+                ...(hasCoat ? [
+                    <View key="outerwear_back" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                        <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={5} />
+                        <View style={styles.outerwearBadge}>
+                            <Text style={styles.outerwearBadgeText}>Only Coat Back</Text>
+                        </View>
+                    </View>
+                ] : []),
             ];
         }
 
         return [
             <View key="full" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                <KurtaModel {...baseProps} slideIndex={0} />
+                <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={0} />
             </View>,
             <View key="folded" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                 <KurtaFolded {...baseProps} />
@@ -833,4 +868,21 @@ const styles = StyleSheet.create({
     buttonItemIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ccc', marginRight: 15 },
     buttonItemName: { fontSize: 14, fontWeight: 'bold', color: '#333' },
     recommendedBadge: { fontSize: 9, color: '#27ae60', fontWeight: 'bold', marginTop: 2 }
+    ,
+    outerwearBadge: {
+        position: 'absolute',
+        top: 20,
+        alignSelf: 'center',
+        backgroundColor: 'rgba(20,33,61,0.92)',
+        borderRadius: 18,
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        zIndex: 900,
+    },
+    outerwearBadgeText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 0.3,
+    }
 });

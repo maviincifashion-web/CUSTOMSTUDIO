@@ -163,7 +163,10 @@ export const INITIAL_SELECTION = {
     sadriEmbroideryID: null, // Sadri chest (left+right asset folders)
     pajamaType: 'PJ',
     beltType: 'R',
-    sadriType: 'SR'
+    sadriType: 'SR',
+    coatType: '1B',
+    coatBackStyle: 'NV',
+    coatLapel: 'N'
 };
 
 export const KURTA_RENDERS = KURTA_RENDERS_SOURCE;
@@ -297,5 +300,66 @@ export const SADRI_RENDERS = {
     },
     "FAB_002": {
         display: {}
+    }
+};
+
+export const COAT_RENDERS = {
+    "FAB_001": {
+        display: {
+            "1B-N-C": require('../../assets/Coat/Render/FAB_001/display/1B-N-C.webp'),
+            "1B-N-R": require('../../assets/Coat/Render/FAB_001/display/1B-N-R.webp'),
+            "1B-N-S": require('../../assets/Coat/Render/FAB_001/display/1B-N-S.webp'),
+            "1B-P-C": require('../../assets/Coat/Render/FAB_001/display/1B-P-C.webp'),
+            "1B-P-R": require('../../assets/Coat/Render/FAB_001/display/1B-P-R.webp'),
+            "1B-P-S": require('../../assets/Coat/Render/FAB_001/display/1B-P-S.webp'),
+            "2B-N-C": require('../../assets/Coat/Render/FAB_001/display/2B-N-C.webp'),
+            "2B-N-R": require('../../assets/Coat/Render/FAB_001/display/2B-N-R.webp'),
+            "2B-N-S": require('../../assets/Coat/Render/FAB_001/display/2B-N-S.webp'),
+            "2B-P-C": require('../../assets/Coat/Render/FAB_001/display/2B-P-C.webp'),
+            "2B-P-R": require('../../assets/Coat/Render/FAB_001/display/2B-P-R.webp'),
+            "2B-P-S": require('../../assets/Coat/Render/FAB_001/display/2B-P-S.webp'),
+            "C1-C": require('../../assets/Coat/Render/FAB_001/display/C1-C.webp'),
+            "C1-R": require('../../assets/Coat/Render/FAB_001/display/C1-R.webp'),
+            "C1-S": require('../../assets/Coat/Render/FAB_001/display/C1-S.webp'),
+            "C2-C": require('../../assets/Coat/Render/FAB_001/display/C2-C.webp'),
+            "C2-R": require('../../assets/Coat/Render/FAB_001/display/C2-R.webp'),
+            "C2-S": require('../../assets/Coat/Render/FAB_001/display/C2-S.webp'),
+            "L1-N": require('../../assets/Coat/Render/FAB_001/display/L1-N.webp'),
+            "L1-P": require('../../assets/Coat/Render/FAB_001/display/L1-P.webp'),
+            "L2-N": require('../../assets/Coat/Render/FAB_001/display/L2-N.webp'),
+            "L2-P": require('../../assets/Coat/Render/FAB_001/display/L2-P.webp'),
+            "UP1": require('../../assets/Coat/Render/FAB_001/display/UP1.webp'),
+            "JO": require('../../assets/Coat/Render/FAB_001/display/JO.webp'),
+            "JR": require('../../assets/Coat/Render/FAB_001/display/JR.webp'),
+            "JS": require('../../assets/Coat/Render/FAB_001/display/JS.webp'),
+            "JH": require('../../assets/Coat/Render/FAB_001/display/JH.webp'),
+        },
+        style: {
+            "1B-N": require('../../assets/Coat/Render/FAB_001/style/1B-N.webp'),
+            "1B-P": require('../../assets/Coat/Render/FAB_001/style/1B-P.webp'),
+            "2B-N": require('../../assets/Coat/Render/FAB_001/style/2B-N.webp'),
+            "2B-P": require('../../assets/Coat/Render/FAB_001/style/2B-P.webp'),
+            "C1": require('../../assets/Coat/Render/FAB_001/style/C1.webp'),
+            "C2": require('../../assets/Coat/Render/FAB_001/style/C2.webp'),
+            "L1-N": require('../../assets/Coat/Render/FAB_001/style/L1-N.webp'),
+            "L1-P": require('../../assets/Coat/Render/FAB_001/style/L1-P.webp'),
+            "L2-N": require('../../assets/Coat/Render/FAB_001/style/L2-N.webp'),
+            "L2-P": require('../../assets/Coat/Render/FAB_001/style/L2-P.webp'),
+            "UP1": require('../../assets/Coat/Render/FAB_001/style/UP1.webp'),
+            "NV": require('../../assets/Coat/Render/FAB_001/style/NV.webp'),
+            "SV": require('../../assets/Coat/Render/FAB_001/style/SV.webp'),
+            "DV": require('../../assets/Coat/Render/FAB_001/style/DV.webp'),
+            "JO": require('../../assets/Coat/Render/FAB_001/style/JO.webp'),
+            "JR": require('../../assets/Coat/Render/FAB_001/style/JR.webp'),
+            "JS": require('../../assets/Coat/Render/FAB_001/style/JS.webp'),
+            "JH": require('../../assets/Coat/Render/FAB_001/style/JH.webp'),
+            "JH-NV": require('../../assets/Coat/Render/FAB_001/style/JH-NV.webp'),
+            "JH-SV": require('../../assets/Coat/Render/FAB_001/style/JH-SV.webp'),
+            "JH-DV": require('../../assets/Coat/Render/FAB_001/style/JH-DV.webp'),
+        }
+    },
+    "FAB_002": {
+        display: {},
+        style: {}
     }
 };

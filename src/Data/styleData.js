@@ -149,5 +149,40 @@ export const KURTA_STYLE_OPTIONS = [
             { label: "Classic Lapel", value: "M", icon: IconTypeSquare },
             { label: "Urban Safari", value: "N", icon: IconEpNo }
         ]
+    },
+    {
+        title: "Single Brested", key: "coatType",
+        dependency: { isContextItem: "coat" },
+        options: [
+            { label: "Single Button", value: "1B", icon: IconLenLong },
+            { label: "Double Button", value: "2B", icon: IconLenShort },
+        ]
+    },
+    {
+        title: "Jodhpuri", key: "coatType",
+        dependency: { isContextItem: "coat" },
+        options: [
+            { label: "Seamless", value: "JH", icon: IconCutRound },
+            { label: "Round", value: "JR", icon: IconTypeRound },
+            { label: "Straight", value: "JS", icon: IconCutStraight },
+            { label: "Open Coat", value: "JO", icon: IconPlacketNotch }
+        ]
+    },
+    {
+        title: "Lapel", key: "coatLapel",
+        dependency: { isContextItem: "coat" },
+        options: [
+            { label: "Notch", value: "N", icon: IconFlap0 },
+            { label: "Peak", value: "P", icon: IconFlap1 }
+        ]
+    },
+    {
+        title: "Back Style", key: "coatBackStyle",
+        dependency: { isContextItem: "coat" },
+        options: [
+            { label: "Non Vent", value: "NV", icon: IconPocket0 },
+            { label: "Single Vent", value: "SV", icon: IconPocket1 },
+            { label: "Double Vent", value: "DV", icon: IconPocket2 }
+        ]
     }
 ];
