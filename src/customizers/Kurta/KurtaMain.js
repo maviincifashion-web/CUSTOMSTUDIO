@@ -1,8 +1,8 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons';
 
 import { DUMMY_FABRICS, INITIAL_SELECTION, DUMMY_BUTTONS, DUMMY_SADRI_BUTTONS, DUMMY_COAT_BUTTONS, EMBROIDERY_COLLECTIONS, EMBROIDERY_RENDERS } from '../../Data/dummyData';
 import { KURTA_STYLE_OPTIONS } from '../../Data/styleData';
@@ -70,7 +70,8 @@ export default function KurtaMain() {
     const [coatButtonModalTab, setCoatButtonModalTab] = useState('Plastic');
     const [selectedPajamaFabric, setSelectedPajamaFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
     const [selectedSadriFabric, setSelectedSadriFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
-    const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri'
+    const [selectedCoatFabric, setSelectedCoatFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
+    const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri' | 'Coat'
     const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri'
 
     // Yahan aap apne screens ke hisab se Side Panel ki width set kar sakte hain
@@ -154,7 +155,7 @@ export default function KurtaMain() {
                 <View style={[StyleSheet.absoluteFill, { opacity: activePanel === 'Fabric' ? 1 : 0, zIndex: activePanel === 'Fabric' ? 10 : 0 }]} pointerEvents={activePanel === 'Fabric' ? 'auto' : 'none'}>
                     {/* SWITCHER TABS */}
                     <View style={styles.fabricSwitcher}>
-                        {['Kurta', 'Pajama', ...(selectedItems.includes('sadri') ? ['Sadri'] : [])].map(tab => (
+                        {['Kurta', 'Pajama', ...(selectedItems.includes('sadri') ? ['Sadri'] : []), ...(selectedItems.includes('coat') ? ['Coat'] : [])].map(tab => (
                             <TouchableOpacity
                                 key={tab}
                                 style={[styles.fabricSwitcherTab, fabricTab === tab && styles.fabricSwitcherTabActive]}
@@ -169,12 +170,14 @@ export default function KurtaMain() {
                     {fabricTab === 'Kurta' && DUMMY_FABRICS ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
                             {DUMMY_FABRICS.map((fabric) => (
-                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedFabric(fabric); closePanel(); }}>
-                                    <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
+                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedFabric(fabric); }}>
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
-                                        <Text style={styles.fabricName}>{fabric.name}</Text>
-                                        <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.fabricName}>{fabric.name}</Text>
+                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                        </View>
+                                        <MaterialIcons name="info-outline" size={24} color="#666" style={{ padding: 4 }} />
                                     </View>
                                 </TouchableOpacity>
                             ))}
@@ -185,12 +188,14 @@ export default function KurtaMain() {
                     {fabricTab === 'Pajama' && DUMMY_FABRICS ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
                             {DUMMY_FABRICS.map((fabric) => (
-                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedPajamaFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedPajamaFabric(fabric); closePanel(); }}>
-                                    <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
+                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedPajamaFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedPajamaFabric(fabric); }}>
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
-                                        <Text style={styles.fabricName}>{fabric.name}</Text>
-                                        <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.fabricName}>{fabric.name}</Text>
+                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                        </View>
+                                        <MaterialIcons name="info-outline" size={28} color="#666" style={{ padding: 4 }} />
                                     </View>
                                 </TouchableOpacity>
                             ))}
@@ -201,12 +206,32 @@ export default function KurtaMain() {
                     {fabricTab === 'Sadri' && DUMMY_FABRICS ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
                             {DUMMY_FABRICS.map((fabric) => (
-                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedSadriFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedSadriFabric(fabric); closePanel(); }}>
-                                    <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
+                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedSadriFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedSadriFabric(fabric); }}>
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
-                                        <Text style={styles.fabricName}>{fabric.name}</Text>
-                                        <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.fabricName}>{fabric.name}</Text>
+                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                        </View>
+                                        <MaterialIcons name="info-outline" size={24} color="#666" style={{ padding: 4 }} />
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    ) : null}
+
+                    {/* COAT FABRICS — same fabric list as Kurta, independent selection */}
+                    {fabricTab === 'Coat' && DUMMY_FABRICS ? (
+                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
+                            {DUMMY_FABRICS.map((fabric) => (
+                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedCoatFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedCoatFabric(fabric); }}>
+                                    <Image source={fabric.thumbnail} style={styles.fabricImage} />
+                                    <View style={styles.fabricInfo}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.fabricName}>{fabric.name}</Text>
+                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
+                                        </View>
+                                        <MaterialIcons name="info-outline" size={18} color="#666" style={{ padding: 4 }} />
                                     </View>
                                 </TouchableOpacity>
                             ))}
@@ -366,7 +391,6 @@ export default function KurtaMain() {
                                                                 handleStyleChange(section.key, opt.value);
                                                             }}
                                                         >
-                                                            <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
                                                             {IconComponent ? <IconComponent size={120} /> : <Text>Icon</Text>}
                                                         </TouchableOpacity>
                                                         <Text style={[styles.optionLabel, { color: isActive ? '#000' : '#555' }]}>{opt.label}</Text>
@@ -398,61 +422,57 @@ export default function KurtaMain() {
                                     </TouchableOpacity>
                                 ))}
                             </View>
-                        <ScrollView {...PANEL_SCROLL_PROPS} style={{ flex: 1 }} contentContainerStyle={styles.gridContainer}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.fabricCard,
-                                    (embroideryPanelTab === 'Kurta' ? !selections.embroideryID : !selections.sadriEmbroideryID) && styles.fabricCardActive
-                                ]}
-                                onPress={() => {
-                                    if (embroideryPanelTab === 'Kurta') handleStyleChange('embroideryID', null);
-                                    else handleStyleChange('sadriEmbroideryID', null);
-                                    closePanel();
-                                }}
-                            >
-                                <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
-                                <View style={[styles.fabricImage, { backgroundColor: '#ddd', justifyContent: 'center', alignItems: 'center' }]}>
-                                    <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#555' }}>None</Text>
-                                </View>
-                                <View style={styles.fabricInfo}>
-                                    <Text style={styles.fabricName}>No Embroidery</Text>
-                                    <Text style={styles.fabricBrand}>+ ₹ 0</Text>
-                                </View>
-                            </TouchableOpacity>
-                            {(embroideryPanelTab === 'Sadri'
-                                ? EMBROIDERY_COLLECTIONS.filter((e) => EMBROIDERY_RENDERS[e.id]?.sadriChestLeft)
-                                : EMBROIDERY_COLLECTIONS
-                            ).map((embroidery) => {
-                                const profileThumb = embroideryPanelTab === 'Sadri'
-                                    ? (embroidery.profileImageSadri || embroidery.profileImage)
-                                    : embroidery.profileImage;
-                                const isActive = embroideryPanelTab === 'Kurta'
-                                    ? selections.embroideryID === embroidery.id
-                                    : selections.sadriEmbroideryID === embroidery.id;
-                                return (
-                                    <TouchableOpacity
-                                        key={embroidery.id}
-                                        style={[styles.fabricCard, isActive && styles.fabricCardActive]}
-                                        onPress={() => {
-                                            if (embroideryPanelTab === 'Kurta') handleStyleChange('embroideryID', embroidery.id);
-                                            else handleStyleChange('sadriEmbroideryID', embroidery.id);
-                                            closePanel();
-                                        }}
-                                    >
-                                        <BlurView tint="light" intensity={30} style={StyleSheet.absoluteFill} />
-                                        {profileThumb ? (
-                                            <Image source={profileThumb} style={styles.fabricImage} />
-                                        ) : (
-                                            <View style={[styles.fabricImage, { backgroundColor: '#f0e6d2' }]} />
-                                        )}
-                                        <View style={styles.fabricInfo}>
-                                            <Text style={styles.fabricName}>{embroidery.name}</Text>
-                                            <Text style={[styles.fabricBrand, { color: '#27ae60', fontWeight: 'bold' }]}>+ ₹ {embroidery.price}</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
+                            <ScrollView {...PANEL_SCROLL_PROPS} style={{ flex: 1 }} contentContainerStyle={styles.gridContainer}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.fabricCard,
+                                        (embroideryPanelTab === 'Kurta' ? !selections.embroideryID : !selections.sadriEmbroideryID) && styles.fabricCardActive
+                                    ]}
+                                    onPress={() => {
+                                        if (embroideryPanelTab === 'Kurta') handleStyleChange('embroideryID', null);
+                                        else handleStyleChange('sadriEmbroideryID', null);
+                                    }}
+                                >
+                                    <View style={[styles.fabricImage, { backgroundColor: '#ddd', justifyContent: 'center', alignItems: 'center' }]}>
+                                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#555' }}>None</Text>
+                                    </View>
+                                    <View style={styles.fabricInfo}>
+                                        <Text style={styles.fabricName}>No Embroidery</Text>
+                                        <Text style={styles.fabricBrand}>+ ₹ 0</Text>
+                                    </View>
+                                </TouchableOpacity>
+                                {(embroideryPanelTab === 'Sadri'
+                                    ? EMBROIDERY_COLLECTIONS.filter((e) => EMBROIDERY_RENDERS[e.id]?.sadriChestLeft)
+                                    : EMBROIDERY_COLLECTIONS
+                                ).map((embroidery) => {
+                                    const profileThumb = embroideryPanelTab === 'Sadri'
+                                        ? (embroidery.profileImageSadri || embroidery.profileImage)
+                                        : embroidery.profileImage;
+                                    const isActive = embroideryPanelTab === 'Kurta'
+                                        ? selections.embroideryID === embroidery.id
+                                        : selections.sadriEmbroideryID === embroidery.id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={embroidery.id}
+                                            style={[styles.fabricCard, isActive && styles.fabricCardActive]}
+                                            onPress={() => {
+                                                if (embroideryPanelTab === 'Kurta') handleStyleChange('embroideryID', embroidery.id);
+                                                else handleStyleChange('sadriEmbroideryID', embroidery.id);
+                                            }}
+                                        >
+                                            {profileThumb ? (
+                                                <Image source={profileThumb} style={styles.fabricImage} />
+                                            ) : (
+                                                <View style={[styles.fabricImage, { backgroundColor: '#f0e6d2' }]} />
+                                            )}
+                                            <View style={styles.fabricInfo}>
+                                                <Text style={styles.fabricName}>{embroidery.name}</Text>
+                                                <Text style={[styles.fabricBrand, { color: '#27ae60', fontWeight: 'bold' }]}>+ ₹ {embroidery.price}</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </ScrollView>
                         </>
                     ) : (
                         <Text style={styles.panelContent}>Loading Embroidery...</Text>
@@ -476,19 +496,20 @@ export default function KurtaMain() {
     const hasSadri = selectedItems.includes('sadri');
     const hasOuterwear = hasCoat || hasSadri;
     const sadriFabricPrice = hasSadri ? (selectedSadriFabric?.price || 0) : 0;
+    const coatFabricPrice = hasCoat ? (selectedCoatFabric?.price || 0) : 0;
     const kurtaEmbroideryPrice = selections.embroideryID ? (EMBROIDERY_COLLECTIONS.find(e => e.id === selections.embroideryID)?.price || 0) : 0;
     const sadriEmbroideryPrice = hasSadri && selections.sadriEmbroideryID
         ? (EMBROIDERY_COLLECTIONS.find(e => e.id === selections.sadriEmbroideryID)?.price || 0)
         : 0;
     const embroideryPrice = kurtaEmbroideryPrice + sadriEmbroideryPrice;
-    const totalPrice = basePrice + pajamaFabricPrice + sadriFabricPrice + embroideryPrice;
+    const totalPrice = basePrice + pajamaFabricPrice + sadriFabricPrice + coatFabricPrice + embroideryPrice;
 
     const sadriCode = selections.sadriType || 'SR';
     const firstCoatTypeIndex = KURTA_STYLE_OPTIONS.findIndex((section) => section.key === 'coatType');
     const panelBottomOffset = 70;
 
     const buildSlides = () => {
-        const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, hasSadri, sadriCode };
+        const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, selectedCoatFabric, hasSadri, sadriCode };
 
         if (hasOuterwear) {
             return [
@@ -545,7 +566,6 @@ export default function KurtaMain() {
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <BlurView tint="light" intensity={60} style={StyleSheet.absoluteFill} />
                     <Text style={styles.backText}>←</Text>
                 </TouchableOpacity>
                 <View style={{ width: 40 }} />
@@ -581,7 +601,6 @@ export default function KurtaMain() {
                         const isActive = activePanel === IconComponent.displayName;
                         return (
                             <TouchableOpacity key={index} style={[styles.iconButton, isActive && styles.iconButtonActive]} onPress={() => togglePanel(IconComponent.displayName)}>
-                                <BlurView tint="light" intensity={55} style={StyleSheet.absoluteFill} />
                                 <IconComponent size={28} color={isActive ? '#fff' : '#14213D'} />
                                 <Text style={[styles.iconText, isActive && { color: '#fff' }, { marginTop: 4 }]}>
                                     {IconComponent.displayName === 'Embroidery' ? 'EMB' : IconComponent.displayName.toUpperCase()}
@@ -618,8 +637,7 @@ export default function KurtaMain() {
                                 ],
                             }}
                         >
-                            <TouchableOpacity style={styles.extrasTraySlot} activeOpacity={0.85} onPress={() => {}}>
-                                <BlurView tint="light" intensity={55} style={StyleSheet.absoluteFill} />
+                            <TouchableOpacity style={styles.extrasTraySlot} activeOpacity={0.85} onPress={() => { }}>
                                 <Icon width={40} height={40} />
                                 <Text style={styles.extrasTraySlotLabel}>{label}</Text>
                             </TouchableOpacity>
@@ -631,7 +649,6 @@ export default function KurtaMain() {
                     style={styles.iconButton}
                     onPress={toggleExtrasTray}
                 >
-                    <BlurView tint="light" intensity={10} style={StyleSheet.absoluteFill} />
                     <IconExtras size={28} color="#14213D" />
                     <Text style={[styles.iconText, { marginTop: 4 }]}>{extrasTrayOpen ? 'HIDE' : 'EXTRAS'}</Text>
                 </TouchableOpacity>
@@ -645,12 +662,11 @@ export default function KurtaMain() {
                         if (isPanelOpen) closePanel();
                     }}
                 >
-                    <BlurView tint="dark" intensity={15} style={StyleSheet.absoluteFill} />
+                    <View style={styles.overlayDim} />
                 </TouchableOpacity>
             )}
 
             <Animated.View style={[styles.sidePanel, { width: panelWidth, bottom: panelBottomOffset + insets.bottom, transform: [{ translateX: slideAnim }] }]}>
-                <BlurView tint="light" intensity={80} style={StyleSheet.absoluteFill} />
                 <View style={styles.panelHeader}>
                     <Text style={styles.panelTitle}>Select {activePanel}</Text>
                     <TouchableOpacity onPress={closePanel}><Text style={styles.closeBtn}>✕</Text></TouchableOpacity>
@@ -660,9 +676,7 @@ export default function KurtaMain() {
 
             {isButtonModalOpen && (
                 <View style={styles.buttonModalOverlay}>
-                    <BlurView tint="dark" intensity={20} style={StyleSheet.absoluteFill} />
                     <View style={styles.buttonModalContainer}>
-                        <BlurView tint="light" intensity={90} style={StyleSheet.absoluteFill} />
                         <View style={styles.buttonModalHeader}>
                             <Text style={styles.buttonModalTitle}>Select Button</Text>
                             <TouchableOpacity onPress={() => setButtonModalOpen(false)}>
@@ -719,9 +733,7 @@ export default function KurtaMain() {
 
             {isSadriButtonModalOpen && (
                 <View style={styles.buttonModalOverlay}>
-                    <BlurView tint="dark" intensity={20} style={StyleSheet.absoluteFill} />
                     <View style={styles.buttonModalContainer}>
-                        <BlurView tint="light" intensity={90} style={StyleSheet.absoluteFill} />
                         <View style={styles.buttonModalHeader}>
                             <Text style={styles.buttonModalTitle}>Select Sadri Button</Text>
                             <TouchableOpacity onPress={() => setSadriButtonModalOpen(false)}>
@@ -778,9 +790,7 @@ export default function KurtaMain() {
 
             {isCoatButtonModalOpen && (
                 <View style={styles.buttonModalOverlay}>
-                    <BlurView tint="dark" intensity={20} style={StyleSheet.absoluteFill} />
                     <View style={styles.buttonModalContainer}>
-                        <BlurView tint="light" intensity={90} style={StyleSheet.absoluteFill} />
                         <View style={styles.buttonModalHeader}>
                             <Text style={styles.buttonModalTitle}>Select Coat Button</Text>
                             <TouchableOpacity onPress={() => setCoatButtonModalOpen(false)}>
@@ -836,7 +846,6 @@ export default function KurtaMain() {
             )}
 
             <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-                <BlurView tint="light" intensity={55} style={StyleSheet.absoluteFill} />
                 <View style={styles.bottomBarTint} />
                 <View style={styles.bottomBarContent}>
                     <View style={styles.priceBlock}>
@@ -865,14 +874,14 @@ export default function KurtaMain() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: CustomTheme.backgroundSecondary },
     modelContainer: { flex: 1, zIndex: 1, position: 'relative', marginTop: -60 },
-    previewLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: CustomTheme.glassBgHeavy, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: CustomTheme.accentGold },
+    previewLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: '#ffffff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: CustomTheme.accentGold },
     previewLabelText: { color: CustomTheme.accentGold, fontSize: 12, fontWeight: '700' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, zIndex: 10 },
-    backButton: { padding: 10, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, borderRadius: 25, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5, width: 40, height: 40, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    backButton: { padding: 10, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 25, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5, width: 40, height: 40, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     backText: { fontSize: 18, fontWeight: 'bold', color: CustomTheme.textBrand, zIndex: 2 },
     brandText: { fontSize: 24, fontWeight: 'bold', letterSpacing: 2, color: CustomTheme.textBrand },
     rightMenu: { position: 'absolute', right: 20, top: '25%', zIndex: 100, alignItems: 'center' },
-    iconButton: { width: 60, height: 60, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 20, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8, overflow: 'hidden' },
+    iconButton: { width: 60, height: 60, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 20, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8, overflow: 'hidden' },
     iconButtonActive: { backgroundColor: 'rgba(252, 157, 3, 0.3)', borderColor: CustomTheme.accentGold, shadowColor: CustomTheme.accentGold, shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
     iconText: { fontSize: 11, color: CustomTheme.textBrand, fontWeight: 'bold', textAlign: 'center', zIndex: 2 },
     extrasTray: { alignItems: 'center' },
@@ -907,23 +916,24 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     extrasTrayAnchor: { marginTop: 2 },
-    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: CustomTheme.overlayLight, zIndex: 20 },
-    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 84, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, zIndex: 5000, elevation: 5000, paddingTop: 18, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, borderTopRightRadius: 0, borderBottomRightRadius: 0, overflow: 'hidden' },
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 20 },
+    overlayDim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
+    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 84, backgroundColor: 'rgba(255, 255, 255, 0.7)', borderWidth: 1, borderColor: '#e5e7eb', zIndex: 5000, elevation: 5000, paddingTop: 18, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, borderTopRightRadius: 0, borderBottomRightRadius: 0, overflow: 'hidden' },
     panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginBottom: 10, marginTop: -10 },
     panelTitle: { fontSize: 20, fontWeight: 'bold', color: CustomTheme.textBrand },
     closeBtn: { fontSize: 24, color: CustomTheme.accentGold, padding: 10 },
     panelContentArea: { flex: 1 },
     panelContent: { fontSize: 16, color: '#666', paddingHorizontal: 20 },
-    gridContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, justifyContent: 'space-between', paddingBottom: 20 },
-    fabricCard: { width: '80%', backgroundColor: 'rgba(255, 255, 255, 0.3)', borderRadius: 10, marginBottom: 15, alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
-    fabricCardActive: { borderColor: CustomTheme.accentGold, backgroundColor: 'rgba(252, 157, 3, 0.1)', shadowColor: CustomTheme.accentGold, shadowOpacity: 0.3, shadowRadius: 12, elevation: 12 },
+    gridContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, justifyContent: 'center', paddingBottom: 20 },
+    fabricCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 10, marginBottom: 15, alignItems: 'flex-start', overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
+    fabricCardActive: { borderColor: CustomTheme.accentGold, backgroundColor: 'rgba(185, 183, 183, 0.9)', shadowColor: CustomTheme.accentGold, shadowOpacity: 0.7, shadowRadius: 12, elevation: 12 },
     fabricImage: { width: '100%', height: 100, backgroundColor: 'transparent' },
-    fabricInfo: { padding: 5 },
+    fabricInfo: { padding: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
     fabricName: { fontSize: 14, fontWeight: 'bold', color: '#333' },
     fabricBrand: { fontSize: 10, color: CustomTheme.accentGold, marginTop: 2 },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: CustomTheme.textBrand },
     optionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-    styleOption: { width: '100%', aspectRatio: .8, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 5, overflow: 'hidden' },
+    styleOption: { width: '100%', aspectRatio: .8, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 5, overflow: 'hidden' },
     activeStyleOption: { backgroundColor: 'rgba(252, 157, 3, 0.15)', borderColor: CustomTheme.accentGold },
     optionLabel: { fontSize: 12, fontWeight: '600', color: '#333', textAlign: 'center', marginTop: 8 },
     bottomBar: {
@@ -1006,7 +1016,7 @@ const styles = StyleSheet.create({
     checkoutChevron: { color: CustomTheme.textPrimary, fontSize: 18, fontWeight: '800', marginLeft: 2, marginTop: -1 },
 
     // Fabric Tab Switcher
-    fabricSwitcher: { flexDirection: 'row', marginHorizontal: 15, marginTop: 10, marginBottom: 8, backgroundColor: CustomTheme.glassBgLight, borderRadius: 25, padding: 3, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
+    fabricSwitcher: { flexDirection: 'row', marginHorizontal: 15, marginTop: 10, marginBottom: 8, backgroundColor: '#ffffff', borderRadius: 25, padding: 3, borderWidth: 1, borderColor: '#e5e7eb' },
     fabricSwitcherTab: { flex: 1, paddingVertical: 7, borderRadius: 22, alignItems: 'center' },
     fabricSwitcherTabActive: { backgroundColor: CustomTheme.accentGold },
     fabricSwitcherText: { fontSize: 13, fontWeight: 'bold', color: CustomTheme.textBrand },
@@ -1017,15 +1027,15 @@ const styles = StyleSheet.create({
     buttonIconWrapper: { width: '100%', height: 60, alignItems: 'center', justifyContent: 'center' },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 3 },
     buttonModalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: CustomTheme.overlayLight, zIndex: 9999, elevation: 9999, justifyContent: 'center', alignItems: 'center' },
-    buttonModalContainer: { width: '85%', maxHeight: '70%', backgroundColor: CustomTheme.glassBgLight, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
+    buttonModalContainer: { width: '85%', maxHeight: '70%', backgroundColor: '#ffffff', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb' },
     buttonModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
     buttonModalTitle: { fontSize: 18, fontWeight: 'bold', color: CustomTheme.textBrand },
-    buttonModalTabs: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: CustomTheme.glassBgLight, paddingVertical: 10, borderBottomWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
+    buttonModalTabs: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: '#ffffff', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#e5e7eb' },
     buttonTab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 15 },
     buttonTabActive: { backgroundColor: CustomTheme.accentGold },
     buttonTabText: { fontSize: 12, fontWeight: 'bold', color: '#666' },
     buttonList: { padding: 20 },
-    buttonItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 15, marginBottom: 10, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
+    buttonItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 15, marginBottom: 10, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb' },
     buttonItemActive: { borderColor: CustomTheme.accentGold, backgroundColor: 'rgba(252, 157, 3, 0.1)' },
     buttonItemIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ccc', marginRight: 15 },
     buttonItemName: { fontSize: 14, fontWeight: 'bold', color: CustomTheme.textBrand },
@@ -1034,7 +1044,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 20,
         alignSelf: 'center',
-        backgroundColor: CustomTheme.glassBgHeavy,
+        backgroundColor: '#ffffff',
         borderWidth: 1,
         borderColor: CustomTheme.accentGold,
         borderRadius: 18,

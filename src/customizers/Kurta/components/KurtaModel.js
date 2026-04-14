@@ -19,7 +19,11 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
     const tokenRef = useRef(0);
 
     useEffect(() => {
-        if (!src) return;
+        if (!src) {
+            setDisplaySrc(null);
+            setPendingSrc(null);
+            return;
+        }
 
         if (!displaySrc) {
             setDisplaySrc(src);

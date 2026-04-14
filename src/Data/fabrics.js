@@ -18,6 +18,23 @@ export const FABRIC_PROFILES = [
         // React Native mein local image load karne ke liye require() use hota hai
         thumbnail: require('../../assets/images/fabrics/manila970.jpg') 
     },
+     {
+        fabricID: "FAB_003", // Ye wo ID hai jo render ko isse jodegi
+        name: "FAB_003",
+        brand: "Raymond",
+        description: "Premium ethnic wear fabric with a smooth finish.",
+        colors: ["Spicy Pink", "Grey"],
+        hexCodes: ["#c18b95", "#808080"],
+        weave: "plain",
+        composition: "Poly Viscose",
+        pattern: "Solid",
+        width: "58 inches",
+        weight: "120 GSM",
+        stock: 100,
+        price: 9600, // Base price + Fabric price calculate karne ke liye
+        // React Native mein local image load karne ke liye require() use hota hai
+        thumbnail: require('../../assets/images/fabrics/FAB_003.jpg') 
+    },
     {
         fabricID: "FAB_002",
         name: "Genius 61",

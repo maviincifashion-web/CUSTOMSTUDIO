@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { router } from 'expo-router';
 import { useResponsive } from '../../hooks/useResponsive';
-import { BlurView } from 'expo-blur';
 import { CustomTheme } from '../../constants/theme';
 
 export default function HomeScreen() {
@@ -28,7 +27,6 @@ export default function HomeScreen() {
                     onPress={() => router.push('/outfit')} 
                     activeOpacity={0.8}
                 >
-                    <BlurView tint="light" intensity={60} style={StyleSheet.absoluteFill} />
                     <Text style={[styles.cardTitle, { fontSize: normalize(22) }]}>Custom Kurta Set</Text>
                     <Text style={[styles.cardSub, { fontSize: normalize(14) }]}>Design Now {'>'}</Text>
                 </TouchableOpacity>
@@ -39,7 +37,6 @@ export default function HomeScreen() {
                     onPress={() => alert('Suit Customizer Coming Soon!')}
                     activeOpacity={0.8}
                 >
-                    <BlurView tint="light" intensity={60} style={StyleSheet.absoluteFill} />
                     <Text style={[styles.cardTitle, { fontSize: normalize(22) }]}>Custom Suit Set</Text>
                     <Text style={[styles.cardSub, { fontSize: normalize(14) }]}>Coming Soon</Text>
                 </TouchableOpacity>

@@ -63,6 +63,9 @@ import PajamaPant from '../../assets/images/style_icons/svg_style_icon/Pajama sv
 import PajamaBellbottom from '../../assets/images/style_icons/svg_style_icon/Pajama svg/BELLBOTTOM-01.svg';
 import PajamaRope from '../../assets/images/style_icons/svg_style_icon/Pajama svg/rope-01.svg';
 import PajamaElastic from '../../assets/images/style_icons/svg_style_icon/Pajama svg/elastic-01.svg';
+import SadriClassicLapel from '../../assets/images/style_icons/svg_style_icon/Sadri svg/Classic Lapel-01.svg';
+import SadriHeritage from '../../assets/images/style_icons/svg_style_icon/Sadri svg/Heritage-01.svg';
+import SadriUrbanSafari from '../../assets/images/style_icons/svg_style_icon/Sadri svg/Urban Safari-01.svg';
 
 
 // --- WRAPPER FUNCTION ---
@@ -160,6 +163,9 @@ export const IconSadriRoyalWrap = wrapSvgIcon(SadriRoyalWrap, 'IconSadriRoyalWra
 export const IconSadriModernRoyal = wrapSvgIcon(SadriModernRoyal, 'IconSadriModernRoyal');
 export const IconSadriRoyalAsym = wrapSvgIcon(SadriRoyalAsym, 'IconSadriRoyalAsym');
 export const IconSadriImperialSeamless = wrapSvgIcon(SadriImperialSeamless, 'IconSadriImperialSeamless');
+export const IconSadriClassicLapel = wrapSvgIcon(SadriClassicLapel, 'IconSadriClassicLapel');
+export const IconSadriHeritage = wrapSvgIcon(SadriHeritage, 'IconSadriHeritage');
+export const IconSadriUrbanSafari = wrapSvgIcon(SadriUrbanSafari, 'IconSadriUrbanSafari');
 export const IconPajamaSalwar = wrapSvgIcon(PajamaSalwar, 'IconPajamaSalwar');
 export const IconPajamaDhoti = wrapSvgIcon(PajamaDhoti, 'IconPajamaDhoti');
 export const IconPajamaPajama = wrapSvgIcon(PajamaPajama, 'IconPajamaPajama');

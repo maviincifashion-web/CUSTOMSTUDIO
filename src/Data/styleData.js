@@ -7,7 +7,7 @@ import {
     IconColStandard, IconColSemiSpread, IconColSpread, IconSleeveNocuff, IconSleeveCuff, IconCuffRound1, IconCuffNotch1, IconCuffSquare1, IconCuffRound2, IconCuffNotch2, IconCuffSquare2,
     IconSadriEssentialNehru, IconSadriSignatureCurve, IconSadriCommand, IconSadriRanger, IconSadriEliteMinimal,
     IconSadriMetroUtility, IconSadriAvantEdge, IconSadriOfficer, IconSadriRoyalWrap, IconSadriModernRoyal,
-    IconSadriRoyalAsym, IconSadriImperialSeamless,
+    IconSadriRoyalAsym, IconSadriImperialSeamless, IconSadriClassicLapel, IconSadriHeritage, IconSadriUrbanSafari,
     IconPajamaSalwar, IconPajamaDhoti, IconPajamaPajama, IconPajamaChudidar,
     IconPajamaPatiala, IconPajamaAligarhi, IconPajamaPant, IconPajamaBellbottom,
     IconPajamaRope, IconPajamaElastic
@@ -150,7 +150,10 @@ export const KURTA_STYLE_OPTIONS = [
             { label: "Royal Wrap", value: "FF", icon: IconSadriRoyalWrap },
             { label: "Modern Royal", value: "GG", icon: IconSadriModernRoyal },
             { label: "Royal Asym", value: "HH", icon: IconSadriRoyalAsym },
-            { label: "Imperial Seamless", value: "KK", icon: IconSadriImperialSeamless }
+            { label: "Imperial Seamless", value: "KK", icon: IconSadriImperialSeamless },
+            { label: "Classic Lapel", value: "M", icon: IconSadriClassicLapel },
+            { label: "Heritage", value: "L", icon: IconSadriHeritage },
+            { label: "Urban Safari", value: "N", icon: IconSadriUrbanSafari }
         ]
     },
     {
