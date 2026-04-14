@@ -1,8 +1,7 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, StyleSheet, FlatList, Dimensions, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const { width } = Dimensions.get('window');
+import { CustomTheme } from '../constants/theme';
 
 interface CarouselProps {
     data: React.ReactNode[];
@@ -12,7 +11,10 @@ export interface CarouselRef {
     scrollToIndex: (index: number) => void;
 }
 
+import { useWindowDimensions } from 'react-native';
+
 const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref) => {
+    const { width } = useWindowDimensions();
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
 
@@ -46,7 +48,7 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { width }]}>
             <FlatList
                 ref={flatListRef}
                 data={data}
@@ -55,7 +57,7 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref
                 showsHorizontalScrollIndicator={false}
                 keyExtractor={(_, index) => index.toString()}
                 renderItem={({ item }) => (
-                    <View style={styles.slide}>
+                    <View style={[styles.slide, { width }]}>
                         {item}
                     </View>
                 )}
@@ -67,14 +69,14 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref
             {/* Left Arrow (Hide if on first slide) */}
             {currentIndex > 0 && (
                 <TouchableOpacity style={[styles.arrowButton, styles.leftArrow]} onPress={handlePrev} activeOpacity={0.7}>
-                    <Ionicons name="chevron-back" size={24} color="#333" />
+                    <Ionicons name="chevron-back" size={24} color={CustomTheme.textBrand} />
                 </TouchableOpacity>
             )}
 
             {/* Right Arrow (Hide if on last slide) */}
             {currentIndex < data.length - 1 && (
                 <TouchableOpacity style={[styles.arrowButton, styles.rightArrow]} onPress={handleNext} activeOpacity={0.7}>
-                    <Ionicons name="chevron-forward" size={24} color="#333" />
+                    <Ionicons name="chevron-forward" size={24} color={CustomTheme.textBrand} />
                 </TouchableOpacity>
             )}
 
@@ -98,13 +100,11 @@ export default FullScreenCarousel;
 
 const styles = StyleSheet.create({
     container: {
-        width: width,
         flex: 1,
-        backgroundColor: '#E5e5e5', // Matches KurtaMain background completely
+        backgroundColor: CustomTheme.backgroundSecondary, // Matching KurtaMain
         position: 'relative'
     },
     slide: {
-        width: width,
         flex: 1,
         position: 'relative',
         justifyContent: 'center',
@@ -117,13 +117,15 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        backgroundColor: CustomTheme.glassBgMedium,
+        borderWidth: 1,
+        borderColor: CustomTheme.glassBorderSolid,
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
-        shadowColor: '#000',
+        shadowColor: CustomTheme.shadowDark,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3
     },
@@ -150,7 +152,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 5,
     },
     activeDot: {
-        backgroundColor: '#14213D', // Maviinci brand color
+        backgroundColor: CustomTheme.accentGold,
         width: 14,
         height: 14,
         borderRadius: 7,

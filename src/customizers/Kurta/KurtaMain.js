@@ -21,7 +21,8 @@ import ExtrasTrayPlaceholder from '../../../assets/images/extra_icons/add.png';
 
 const EXTRAS_TRAY_SOURCES = Array.from({ length: 4 }, (_, i) => ({ id: i, source: ExtrasTrayPlaceholder }));
 
-const { width } = Dimensions.get('window');
+import { useResponsive } from '../../../hooks/useResponsive';
+import { CustomTheme } from '../../../constants/theme';
 
 /** Slide panel scrollviews: thin visible scrollbar (iOS: black indicator + insets; Android: persistent bar). */
 const PANEL_SCROLL_PROPS = Platform.select({
@@ -38,6 +39,7 @@ const PANEL_SCROLL_PROPS = Platform.select({
 });
 
 export default function KurtaMain() {
+    const { width, isDesktop, normalize } = useResponsive();
     const insets = useSafeAreaInsets();
     const { selectedItems } = useOutfit();
     const [activePanel, setActivePanel] = useState(null);
@@ -64,8 +66,9 @@ export default function KurtaMain() {
     const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri'
     const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri'
 
+    const panelWidth = isDesktop ? Math.min(width * 0.5, 550) : width * 0.6;
     const carouselRef = useRef(null);
-    const slideAnim = useRef(new Animated.Value(-width)).current;
+    const slideAnim = useRef(new Animated.Value(-4000)).current;
 
     const estimatedDeliveryLabel = useMemo(() => {
         const d = new Date();
@@ -103,7 +106,7 @@ export default function KurtaMain() {
     };
 
     const closePanel = () => {
-        Animated.timing(slideAnim, { toValue: -width, duration: 250, easing: Easing.in(Easing.circle), useNativeDriver: true }).start(() => {
+        Animated.timing(slideAnim, { toValue: -4000, duration: 250, easing: Easing.in(Easing.circle), useNativeDriver: true }).start(() => {
             setIsPanelOpen(false); setActivePanel(null);
         });
     };
@@ -451,7 +454,7 @@ export default function KurtaMain() {
     const sadriCode = selections.sadriType || 'SR';
 
     const buildSlides = () => {
-        const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, hasSadri, sadriCode };
+        const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedPajamaFabric, selectedSadriFabric, hasSadri, sadriCode };
 
         if (hasOuterwear) {
             return [
@@ -611,7 +614,7 @@ export default function KurtaMain() {
                 </TouchableOpacity>
             )}
 
-            <Animated.View style={[styles.sidePanel, { bottom: 104 + insets.bottom, transform: [{ translateX: slideAnim }] }]}>
+            <Animated.View style={[styles.sidePanel, { width: panelWidth, bottom: 104 + insets.bottom, transform: [{ translateX: slideAnim }] }]}>
                 <BlurView tint="light" intensity={80} style={StyleSheet.absoluteFill} />
                 <View style={styles.panelHeader}>
                     <Text style={styles.panelTitle}>Select {activePanel}</Text>
@@ -825,18 +828,18 @@ export default function KurtaMain() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#EFECE8' },
+    container: { flex: 1, backgroundColor: CustomTheme.backgroundSecondary },
     modelContainer: { flex: 1, zIndex: 1, position: 'relative', marginTop: -60 },
-    previewLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(20,33,61,0.9)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-    previewLabelText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    previewLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: CustomTheme.glassBgHeavy, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: CustomTheme.accentGold },
+    previewLabelText: { color: CustomTheme.accentGold, fontSize: 12, fontWeight: '700' },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, zIndex: 10 },
-    backButton: { padding: 10, backgroundColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5, width: 40, height: 40, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-    backText: { fontSize: 18, fontWeight: 'bold', color: '#14213D', zIndex: 2 },
-    brandText: { fontSize: 24, fontWeight: 'bold', letterSpacing: 2, color: '#14213D' },
+    backButton: { padding: 10, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, borderRadius: 25, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5, width: 40, height: 40, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    backText: { fontSize: 18, fontWeight: 'bold', color: CustomTheme.textBrand, zIndex: 2 },
+    brandText: { fontSize: 24, fontWeight: 'bold', letterSpacing: 2, color: CustomTheme.textBrand },
     rightMenu: { position: 'absolute', right: 20, top: '25%', zIndex: 100, alignItems: 'center' },
-    iconButton: { width: 60, height: 60, backgroundColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8, overflow: 'hidden' },
-    iconButtonActive: { backgroundColor: '#14213D', shadowColor: '#14213D', shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
-    iconText: { fontSize: 11, color: '#14213D', fontWeight: 'bold', textAlign: 'center', zIndex: 2 },
+    iconButton: { width: 60, height: 60, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 20, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8, overflow: 'hidden' },
+    iconButtonActive: { backgroundColor: 'rgba(252, 157, 3, 0.2)', borderColor: CustomTheme.accentGold, shadowColor: CustomTheme.accentGold, shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
+    iconText: { fontSize: 11, color: CustomTheme.textBrand, fontWeight: 'bold', textAlign: 'center', zIndex: 2 },
     extrasTray: { alignItems: 'center' },
     extrasTrayFloating: {
         position: 'absolute',
@@ -863,24 +866,24 @@ const styles = StyleSheet.create({
     },
     extrasTraySlotImage: { width: 30, height: 30 },
     extrasTrayAnchor: { marginTop: 2 },
-    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 20 },
-    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 104, width: width * 0.6, backgroundColor: 'rgba(255, 255, 255, 0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', zIndex: 5000, elevation: 5000, paddingTop: 60, shadowColor: '#000', shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, borderTopRightRadius: 0, borderBottomRightRadius: 0, overflow: 'hidden' },
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: CustomTheme.overlayLight, zIndex: 20 },
+    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 104, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, zIndex: 5000, elevation: 5000, paddingTop: 60, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, borderTopRightRadius: 0, borderBottomRightRadius: 0, overflow: 'hidden' },
     panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginBottom: 10, marginTop: -10 },
-    panelTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-    closeBtn: { fontSize: 24, color: '#999', padding: 10 },
+    panelTitle: { fontSize: 20, fontWeight: 'bold', color: CustomTheme.textBrand },
+    closeBtn: { fontSize: 24, color: CustomTheme.accentGold, padding: 10 },
     panelContentArea: { flex: 1 },
     panelContent: { fontSize: 16, color: '#666', paddingHorizontal: 20 },
     gridContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, justifyContent: 'space-between', paddingBottom: 20 },
-    fabricCard: { width: '80%', backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: 10, marginBottom: 15, alignItems: 'center', overflow: 'hidden', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.6)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
-    fabricCardActive: { borderColor: '#14213D', shadowColor: '#14213D', shadowOpacity: 0.2, shadowRadius: 12, elevation: 12 },
+    fabricCard: { width: '80%', backgroundColor: 'rgba(255, 255, 255, 0.3)', borderRadius: 10, marginBottom: 15, alignItems: 'center', overflow: 'hidden', borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
+    fabricCardActive: { borderColor: CustomTheme.accentGold, backgroundColor: 'rgba(252, 157, 3, 0.1)', shadowColor: CustomTheme.accentGold, shadowOpacity: 0.3, shadowRadius: 12, elevation: 12 },
     fabricImage: { width: '100%', height: 100, backgroundColor: 'transparent' },
     fabricInfo: { padding: 5 },
     fabricName: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-    fabricBrand: { fontSize: 10, color: '#888', marginTop: 2 },
-    sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: '#333' },
+    fabricBrand: { fontSize: 10, color: CustomTheme.accentGold, marginTop: 2 },
+    sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: CustomTheme.textBrand },
     optionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-    styleOption: { width: '100%', aspectRatio: .8, backgroundColor: 'rgba(0, 0, 0, 0.1)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.6)', padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 5, overflow: 'hidden' },
-    activeStyleOption: { backgroundColor: 'rgba(0, 0, 0, 0.9)' },
+    styleOption: { width: '100%', aspectRatio: .8, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy, padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 5, overflow: 'hidden' },
+    activeStyleOption: { backgroundColor: 'rgba(252, 157, 3, 0.15)', borderColor: CustomTheme.accentGold },
     optionLabel: { fontSize: 12, fontWeight: '600', color: '#333', textAlign: 'center', marginTop: 8 },
     bottomBar: {
         position: 'absolute',
@@ -920,7 +923,7 @@ const styles = StyleSheet.create({
     },
     productName: {
         fontSize: 11,
-        color: '#78716c',
+        color: '#666',
         marginBottom: 3,
         fontWeight: '600',
         letterSpacing: 0.8,
@@ -929,12 +932,12 @@ const styles = StyleSheet.create({
     price: {
         fontSize: 22,
         fontWeight: '800',
-        color: '#0f172a',
+        color: '#14213D',
         letterSpacing: -0.5,
     },
     estDelivery: {
         fontSize: 10,
-        color: '#78716c',
+        color: '#666',
         marginTop: 4,
         fontWeight: '500',
         letterSpacing: 0.2,
@@ -945,60 +948,61 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#0f172a',
+        backgroundColor: CustomTheme.accentGold, // Orange button
         paddingVertical: 12,
         paddingHorizontal: 18,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.12)',
-        shadowColor: '#0f172a',
+        borderColor: CustomTheme.accentGold,
+        shadowColor: CustomTheme.accentGold,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
+        shadowOpacity: 0.3,
         shadowRadius: 10,
         elevation: 10,
         maxWidth: 148,
     },
-    checkoutText: { color: '#fafaf9', fontSize: 14, fontWeight: '700', letterSpacing: 0.4 },
-    checkoutChevron: { color: '#fafaf9', fontSize: 18, fontWeight: '300', marginLeft: 2, marginTop: -1 },
+    checkoutText: { color: CustomTheme.textPrimary, fontSize: 14, fontWeight: '800', letterSpacing: 0.4 },
+    checkoutChevron: { color: CustomTheme.textPrimary, fontSize: 18, fontWeight: '800', marginLeft: 2, marginTop: -1 },
 
     // Fabric Tab Switcher
-    fabricSwitcher: { flexDirection: 'row', marginHorizontal: 15, marginTop: 10, marginBottom: 8, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 25, padding: 3 },
+    fabricSwitcher: { flexDirection: 'row', marginHorizontal: 15, marginTop: 10, marginBottom: 8, backgroundColor: CustomTheme.glassBgLight, borderRadius: 25, padding: 3, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
     fabricSwitcherTab: { flex: 1, paddingVertical: 7, borderRadius: 22, alignItems: 'center' },
-    fabricSwitcherTabActive: { backgroundColor: '#14213D' },
-    fabricSwitcherText: { fontSize: 13, fontWeight: 'bold', color: '#14213D' },
+    fabricSwitcherTabActive: { backgroundColor: CustomTheme.accentGold },
+    fabricSwitcherText: { fontSize: 13, fontWeight: 'bold', color: CustomTheme.textBrand },
 
     // Button UI Styles
-    buttonBanner: { backgroundColor: '#14213d', paddingVertical: 10, borderRadius: 6, alignItems: 'center', marginBottom: 15, marginHorizontal: 5 },
-    buttonBannerText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+    buttonBanner: { backgroundColor: CustomTheme.accentGold, paddingVertical: 10, borderRadius: 6, alignItems: 'center', marginBottom: 15, marginHorizontal: 5 },
+    buttonBannerText: { color: CustomTheme.textPrimary, fontSize: 14, fontWeight: 'bold' },
     buttonIconWrapper: { width: '100%', height: 60, alignItems: 'center', justifyContent: 'center' },
-    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#222', marginHorizontal: 3 },
-    buttonModalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 9999, elevation: 9999, justifyContent: 'center', alignItems: 'center' },
-    buttonModalContainer: { width: '85%', maxHeight: '70%', backgroundColor: 'rgba(255, 255, 255, 0.4)', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.6)' },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 3 },
+    buttonModalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: CustomTheme.overlayLight, zIndex: 9999, elevation: 9999, justifyContent: 'center', alignItems: 'center' },
+    buttonModalContainer: { width: '85%', maxHeight: '70%', backgroundColor: CustomTheme.glassBgLight, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
     buttonModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
-    buttonModalTitle: { fontSize: 18, fontWeight: 'bold', color: '#14213D' },
-    buttonModalTabs: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: 'rgba(255, 255, 255, 0.3)', paddingVertical: 10 },
+    buttonModalTitle: { fontSize: 18, fontWeight: 'bold', color: CustomTheme.textBrand },
+    buttonModalTabs: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: CustomTheme.glassBgLight, paddingVertical: 10, borderBottomWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
     buttonTab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 15 },
-    buttonTabActive: { backgroundColor: '#14213D' },
+    buttonTabActive: { backgroundColor: CustomTheme.accentGold },
     buttonTabText: { fontSize: 12, fontWeight: 'bold', color: '#666' },
     buttonList: { padding: 20 },
-    buttonItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 15, marginBottom: 10, backgroundColor: 'rgba(255, 255, 255, 0.5)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.8)' },
-    buttonItemActive: { borderColor: '#14213D', backgroundColor: 'rgba(237, 242, 251, 0.8)' },
+    buttonItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 15, marginBottom: 10, backgroundColor: CustomTheme.glassBgLight, borderWidth: 1, borderColor: CustomTheme.glassBorderHeavy },
+    buttonItemActive: { borderColor: CustomTheme.accentGold, backgroundColor: 'rgba(252, 157, 3, 0.1)' },
     buttonItemIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ccc', marginRight: 15 },
-    buttonItemName: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-    recommendedBadge: { fontSize: 9, color: '#27ae60', fontWeight: 'bold', marginTop: 2 }
-    ,
+    buttonItemName: { fontSize: 14, fontWeight: 'bold', color: CustomTheme.textBrand },
+    recommendedBadge: { fontSize: 9, color: CustomTheme.accentGold, fontWeight: 'bold', marginTop: 2 },
     outerwearBadge: {
         position: 'absolute',
         top: 20,
         alignSelf: 'center',
-        backgroundColor: 'rgba(20,33,61,0.92)',
+        backgroundColor: CustomTheme.glassBgHeavy,
+        borderWidth: 1,
+        borderColor: CustomTheme.accentGold,
         borderRadius: 18,
         paddingHorizontal: 14,
         paddingVertical: 7,
         zIndex: 900,
     },
     outerwearBadgeText: {
-        color: '#fff',
+        color: CustomTheme.accentGold,
         fontSize: 12,
         fontWeight: '700',
         letterSpacing: 0.3,

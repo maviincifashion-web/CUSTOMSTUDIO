@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
+import { useResponsive } from '../../../../hooks/useResponsive';
 
 // ENGINE & DATA IMPORTS
 import { KURTA_RENDERS, EMBROIDERY_RENDERS, PAJAMA_RENDERS, SADRI_RENDERS, COAT_RENDERS } from '../../../Data/dummyData';
@@ -11,7 +12,7 @@ import kurta_hand_n from '../../../../assets/images/body/kurta_hand_n.webp';
 import kurta_hand_c from '../../../../assets/images/body/kurta_hand_c.webp';
 
 
-const SmartLayer = ({ src, zIndex }) => {
+const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
     const [displaySrc, setDisplaySrc] = useState(src || null);
     const [pendingSrc, setPendingSrc] = useState(null);
     const [pendingToken, setPendingToken] = useState(0);
@@ -38,14 +39,14 @@ const SmartLayer = ({ src, zIndex }) => {
         <>
             <Image
                 source={displaySrc}
-                style={[styles.modelLayer, { zIndex: zIndex }]}
+                style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
                 resizeMode="contain"
             />
             {pendingSrc ? (
                 <Image
                     key={`pending-${pendingToken}`}
                     source={pendingSrc}
-                    style={[styles.modelLayer, { zIndex: zIndex, opacity: 0 }]}
+                    style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex, opacity: 0 }]}
                     resizeMode="contain"
                     onLoad={() => {
                         if (pendingToken === tokenRef.current) {
@@ -151,9 +152,41 @@ const getCoatButtonCodes = (selections = {}, slideIndex = 0) => {
 };
 
 export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, hasCoat = false, hasSadri, sadriCode, slideIndex = 0 }) {
+    const { isMobile, isTablet, isDesktop } = useResponsive();
 
     // SAFETY CHECK: Jab tak data ready na ho, model render mat karo
     if (!selections || !selectedFabric) return null;
+
+    // Yahan aap apne screens ke hisab se width/height aur margins edit kar sakte hain
+    const getDynamicModelStyle = () => {
+        // # MOBILE SCREEN
+        if (isMobile) {
+            return {
+                width: '105%',
+                height: '95%',
+                marginBottom: 15
+            };
+        }
+        // # TABLET SCREEN
+        if (isTablet) {
+            return {
+                width: '100%',
+                height: '93%',
+                marginBottom: 10
+            };
+        }
+        // # TV SCREEN (Commercial Display)
+        if (isDesktop) {
+            return {
+                width: '120%', // Portrait screen ke liye thoda chauda dikhane ke liye
+                height: '120%',
+                marginBottom: 0
+            };
+        }
+        return {};
+    };
+
+    const dynamicStyle = getDynamicModelStyle();
 
     const handsImage = selections.sleeve === "SC" ? kurta_hand_c : kurta_hand_n;
 
@@ -171,6 +204,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                         key={`coat-style-${code}-${idx}`}
                         src={coatStyleRenders[code]}
                         zIndex={20 + idx}
+                        dynamicStyle={dynamicStyle}
                     />
                 ))}
                 {coatButtonCodes.map((code, idx) => (
@@ -178,6 +212,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                         key={`coat-style-button-${code}-${idx}`}
                         src={selectedCoatButton?.renders?.[code]}
                         zIndex={40 + idx}
+                        dynamicStyle={dynamicStyle}
                     />
                 ))}
             </View>
@@ -220,7 +255,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     return (
         <View style={styles.container}>
             {/* 1. Nanga Ladka (Z-Index: 1) */}
-            <Image source={kurta_body} style={[styles.modelLayer, { zIndex: 1 }]} resizeMode="contain" />
+            <Image source={kurta_body} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
 
             {/* 2. Kapde ki Layers (Z-Index: 10 se 90) */}
             {layersToRender.map((layerObj) => {
@@ -255,12 +290,13 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                         key={`layer-${layerObj.type}-${layerObj.zIndex}`}
                         src={imageSource}
                         zIndex={layerObj.zIndex}
+                        dynamicStyle={dynamicStyle}
                     />
                 );
             })}
 
             {/* 3. Hands Overlay (Z-Index: 100) */}
-            <Image source={handsImage} style={[styles.modelLayer, { zIndex: 100 }]} resizeMode="contain" />
+            <Image source={handsImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
 
         </View>
     );
@@ -272,10 +308,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    // Yeh default style hai, dynamicStyle isko overwrite karega upar se
     modelLayer: {
         position: 'absolute',
         width: '105%',
-        height: '130%',
-        marginBottom: 10
+        height: '95%',
+        marginBottom: 15
     }
 });

@@ -27,6 +27,40 @@ export const Colors = {
   },
 };
 
+export const CustomTheme = {
+  // Main Backgrounds
+  backgroundPrimary: '#f3f4f6', // App default bg
+  backgroundSecondary: '#cebfacff', // Studio bg
+
+  // Text Colors
+  textPrimary: '#000000',
+  textSecondary: '#6b7280',
+  textBrand: '#14213D',
+
+  // Accent & Active Colors
+  accentGold: '#ffc811ff', // Primary brand accent
+
+  // Glassmorphism (Light Mode)
+  glassBgLight: 'rgba(255, 255, 255, 0.4)',
+  glassBgMedium: 'rgba(255, 255, 255, 0.7)',
+  glassBgHeavy: 'rgba(255, 255, 255, 0.9)',
+  glassBgFaint: 'rgba(255, 255, 255, 0.05)',
+
+  // Glassmorphism Borders
+  glassBorderLight: 'rgba(255, 255, 255, 0.1)',
+  glassBorderMedium: 'rgba(255, 255, 255, 0.4)',
+  glassBorderHeavy: 'rgba(255, 255, 255, 0.8)',
+  glassBorderSolid: 'rgba(255, 255, 255, 1)',
+
+  // Shadows
+  shadowDark: '#000',
+  shadowLight: '#14213D',
+
+  // Overlays
+  overlayDark: 'rgba(0,0,0,0.5)',
+  overlayLight: 'rgba(0,0,0,0.3)',
+};
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

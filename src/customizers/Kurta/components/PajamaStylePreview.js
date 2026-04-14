@@ -1,14 +1,44 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Image, StyleSheet, Dimensions } from 'react-native';
+import { View, Image, StyleSheet } from 'react-native';
 import { PAJAMA_RENDERS } from '../../../Data/dummyData';
-
-const { width } = Dimensions.get('window');
+import { useResponsive } from '../../../../hooks/useResponsive';
 
 export default function PajamaStylePreview({ selections, selectedPajamaFabric }) {
+    const { isMobile, isTablet, isDesktop, width } = useResponsive();
+
     if (!selectedPajamaFabric) return null;
 
     const pajamaType = selections.pajamaType || "PJ";
     const beltType = selections.beltType || "R";
+
+    // Yahan aap apne screens ke hisab se width/height 
+    // manually edit kar sakte hain taaki testing aasan ho.
+    const getDynamicPajamaStyle = () => {
+        // # MOBILE SCREEN
+        if (isMobile) {
+            return {
+                width: width * 1.9,
+                height: width * 1.9,
+            };
+        }
+        // # TABLET SCREEN
+        if (isTablet) {
+            return {
+                width: width * 1.5,
+                height: width * 1.5,
+            };
+        }
+        // # TV SCREEN (Commercial Display)
+        if (isDesktop) {
+            return {
+                width: width * 1.2, // Portrait screen ke liye ise change karein
+                height: width * 1.2,
+            };
+        }
+        return {};
+    };
+
+    const dynamicStyle = getDynamicPajamaStyle();
 
     // Same logic as KurtaFolded to get the unified style image code
     const pajamaStyleCode = (pajamaType === 'PP' || pajamaType === 'PB')
@@ -42,17 +72,17 @@ export default function PajamaStylePreview({ selections, selectedPajamaFabric })
             {displaySource ? (
                 <Image
                     source={displaySource}
-                    style={styles.image}
+                    style={[styles.image, dynamicStyle]}
                     resizeMode="contain"
                 />
             ) : (
-                <View style={[styles.image, { backgroundColor: 'transparent' }]} />
+                <View style={[styles.image, dynamicStyle, { backgroundColor: 'transparent' }]} />
             )}
             {pendingSource ? (
                 <Image
                     key={`pending-${pendingToken}`}
                     source={pendingSource}
-                    style={[styles.image, styles.imageOverlay]}
+                    style={[styles.image, dynamicStyle, styles.imageOverlay]}
                     resizeMode="contain"
                     onLoad={() => {
                         if (pendingToken === tokenRef.current) {
@@ -80,9 +110,10 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    // Default image style. dynamicStyle ise overwrite karega.
     image: {
-        width: width * 1.9,
-        height: width * 1.9,
+        width: 300,
+        height: 300,
     },
     imageOverlay: {
         position: 'absolute',
