@@ -66,6 +66,17 @@ import PajamaElastic from '../../assets/images/style_icons/svg_style_icon/Pajama
 import SadriClassicLapel from '../../assets/images/style_icons/svg_style_icon/Sadri svg/Classic Lapel-01.svg';
 import SadriHeritage from '../../assets/images/style_icons/svg_style_icon/Sadri svg/Heritage-01.svg';
 import SadriUrbanSafari from '../../assets/images/style_icons/svg_style_icon/Sadri svg/Urban Safari-01.svg';
+import CoatSingleButton from '../../assets/images/style_icons/svg_style_icon/coat_svg/single_button.svg';
+import CoatDoubleButton from '../../assets/images/style_icons/svg_style_icon/coat_svg/double_button.svg';
+import CoatSeamlessJodhpuri from '../../assets/images/style_icons/svg_style_icon/coat_svg/seamless_jodhpuri.svg';
+import CoatRoundJodhpuri from '../../assets/images/style_icons/svg_style_icon/coat_svg/round_jodhpuri.svg';
+import CoatStraightJodhpuri from '../../assets/images/style_icons/svg_style_icon/coat_svg/staright_jodhpuri.svg';
+import CoatOpenJodhpuri from '../../assets/images/style_icons/svg_style_icon/coat_svg/open_jodhpuri.svg';
+import CoatNotchLapel from '../../assets/images/style_icons/svg_style_icon/coat_svg/notch_laple.svg';
+import CoatPeakLapel from '../../assets/images/style_icons/svg_style_icon/coat_svg/peak_laple.svg';
+import CoatNonVent from '../../assets/images/style_icons/svg_style_icon/coat_svg/non_vent.svg';
+import CoatSingleVent from '../../assets/images/style_icons/svg_style_icon/coat_svg/single_vent.svg';
+import CoatSideVent from '../../assets/images/style_icons/svg_style_icon/coat_svg/side_vent.svg';
 
 
 // --- WRAPPER FUNCTION ---
@@ -176,3 +187,14 @@ export const IconPajamaPant = wrapSvgIcon(PajamaPant, 'IconPajamaPant');
 export const IconPajamaBellbottom = wrapSvgIcon(PajamaBellbottom, 'IconPajamaBellbottom');
 export const IconPajamaRope = wrapSvgIcon(PajamaRope, 'IconPajamaRope');
 export const IconPajamaElastic = wrapSvgIcon(PajamaElastic, 'IconPajamaElastic');
+export const IconCoatSingleButton = wrapSvgIcon(CoatSingleButton, 'IconCoatSingleButton');
+export const IconCoatDoubleButton = wrapSvgIcon(CoatDoubleButton, 'IconCoatDoubleButton');
+export const IconCoatSeamlessJodhpuri = wrapSvgIcon(CoatSeamlessJodhpuri, 'IconCoatSeamlessJodhpuri');
+export const IconCoatRoundJodhpuri = wrapSvgIcon(CoatRoundJodhpuri, 'IconCoatRoundJodhpuri');
+export const IconCoatStraightJodhpuri = wrapSvgIcon(CoatStraightJodhpuri, 'IconCoatStraightJodhpuri');
+export const IconCoatOpenJodhpuri = wrapSvgIcon(CoatOpenJodhpuri, 'IconCoatOpenJodhpuri');
+export const IconCoatNotchLapel = wrapSvgIcon(CoatNotchLapel, 'IconCoatNotchLapel');
+export const IconCoatPeakLapel = wrapSvgIcon(CoatPeakLapel, 'IconCoatPeakLapel');
+export const IconCoatNonVent = wrapSvgIcon(CoatNonVent, 'IconCoatNonVent');
+export const IconCoatSingleVent = wrapSvgIcon(CoatSingleVent, 'IconCoatSingleVent');
+export const IconCoatSideVent = wrapSvgIcon(CoatSideVent, 'IconCoatSideVent');

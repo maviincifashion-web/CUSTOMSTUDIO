@@ -265,9 +265,14 @@ export const getKurtaLayerCodes = (
     // ── Epaulette (Z: 45) ────────────────────────────────────────────────
     // epaulette value is already 'SE0' if the universal override fired.
     if (epaulette === 'SE' || epaulette === 'SE0') {
-        addGarmentPart('Epaulette', epaulette, 45);
-        if (!isRing) layersToRender.push({ code: 'HE', zIndex: 49, type: 'fabric' });
-        layersToRender.push({ code: `BE${bSuffix}`, zIndex: 50, type: 'button' });
+        // SE0 should stay above sadri layers.
+        const epauletteZ = epaulette === 'SE0' ? 90 : 45;
+        addGarmentPart('Epaulette', epaulette, epauletteZ);
+        // For SE0, epaulette button should be hidden.
+        if (epaulette === 'SE') {
+            if (!isRing) layersToRender.push({ code: 'HE', zIndex: 49, type: 'fabric' });
+            layersToRender.push({ code: `BE${bSuffix}`, zIndex: 50, type: 'button' });
+        }
     }
 
     // ── Sleeves (Z: 55) ──────────────────────────────────────────────────

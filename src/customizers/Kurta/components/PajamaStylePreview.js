@@ -45,8 +45,13 @@ export default function PajamaStylePreview({ selections, selectedPajamaFabric })
         ? pajamaType                         // e.g. "PB"
         : `${pajamaType}-${beltType}`;       // e.g. "PA-E"
 
-    const pajamaStyleRenders = PAJAMA_RENDERS[selectedPajamaFabric.fabricID]?.style || {};
-    const imageSource = pajamaStyleRenders[pajamaStyleCode];
+    const selectedPajamaRenderMap = PAJAMA_RENDERS[selectedPajamaFabric.fabricID]?.style;
+    const defaultPajamaRenderMap = PAJAMA_RENDERS['FAB_001']?.style || {};
+    const pajamaStyleRenders =
+        selectedPajamaRenderMap && Object.keys(selectedPajamaRenderMap).length > 0
+            ? selectedPajamaRenderMap
+            : defaultPajamaRenderMap;
+    const imageSource = pajamaStyleRenders[pajamaStyleCode] || defaultPajamaRenderMap[pajamaStyleCode] || null;
     const [displaySource, setDisplaySource] = useState(imageSource || null);
     const [pendingSource, setPendingSource] = useState(null);
     const [pendingToken, setPendingToken] = useState(0);

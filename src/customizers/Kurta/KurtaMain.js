@@ -532,18 +532,10 @@ export default function KurtaMain() {
                 </View>,
                 <View key="outerwear_front" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                     <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={4} />
-                    {hasCoat ? (
-                        <View style={styles.outerwearBadge}>
-                            <Text style={styles.outerwearBadgeText}>Only Coat Front</Text>
-                        </View>
-                    ) : null}
                 </View>,
                 ...(hasCoat ? [
                     <View key="outerwear_back" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                         <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={5} />
-                        <View style={styles.outerwearBadge}>
-                            <Text style={styles.outerwearBadgeText}>Only Coat Back</Text>
-                        </View>
                     </View>
                 ] : []),
             ];
@@ -1040,22 +1032,4 @@ const styles = StyleSheet.create({
     buttonItemIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ccc', marginRight: 15 },
     buttonItemName: { fontSize: 14, fontWeight: 'bold', color: CustomTheme.textBrand },
     recommendedBadge: { fontSize: 9, color: CustomTheme.accentGold, fontWeight: 'bold', marginTop: 2 },
-    outerwearBadge: {
-        position: 'absolute',
-        top: 20,
-        alignSelf: 'center',
-        backgroundColor: '#ffffff',
-        borderWidth: 1,
-        borderColor: CustomTheme.accentGold,
-        borderRadius: 18,
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        zIndex: 900,
-    },
-    outerwearBadgeText: {
-        color: CustomTheme.accentGold,
-        fontSize: 12,
-        fontWeight: '700',
-        letterSpacing: 0.3,
-    }
 });

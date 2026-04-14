@@ -186,7 +186,7 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
     return (
         <View style={styles.container}>
             {/* Dynamic Folded Garment Layers (Z-Index 10 se 90 tak) */}
-            {getFoldedLayerCodes().map((layerObj) => {
+            {getFoldedLayerCodes().map((layerObj, index) => {
                 let imageSource = null;
                 if (layerObj.type === 'button') {
                     imageSource = selectedButton?.renders?.[layerObj.code];
@@ -200,7 +200,7 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
 
                 return (
                     <SmartLayer
-                        key={`folded-${layerObj.type}-${layerObj.zIndex}`}
+                        key={`folded-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`}
                         src={imageSource}
                         zIndex={layerObj.zIndex}
                     />
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#EAEAEA', // Same as background so it blends
+        backgroundColor: 'transparent',
     },
     modelLayer: {
         position: 'absolute',

@@ -133,17 +133,22 @@ const getStyleBackCoatCodes = (selections = {}) => {
 
 const getCoatButtonCodes = (selections = {}, slideIndex = 0) => {
     const coatType = selections.coatType || '1B';
-    if (coatType === 'JH') return [];
+    const hideFrontMainButtons = coatType === 'JH' || coatType === 'JO';
 
     if (slideIndex === 0) {
+        // Seamless/Open Jodhpuri: hide front/main coat buttons on composite front.
+        if (hideFrontMainButtons) return [];
         if (coatType === '1B' || coatType === '2B') return [`BC-${coatType}-F`];
         if (JODHPURI_TYPES.includes(coatType)) return ['BC-JH-F'];
     }
 
     if (slideIndex === 4) {
         const codes = [];
-        if (coatType === '1B' || coatType === '2B') codes.push(`BC-${coatType}-S`);
-        else if (JODHPURI_TYPES.includes(coatType)) codes.push('BC-JH-S');
+        // Seamless/Open Jodhpuri: no front/main button, only sleeve button.
+        if (!hideFrontMainButtons) {
+            if (coatType === '1B' || coatType === '2B') codes.push(`BC-${coatType}-S`);
+            else if (JODHPURI_TYPES.includes(coatType)) codes.push('BC-JH-S');
+        }
         codes.push('BCS-S');
         return codes;
     }
@@ -288,7 +293,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             <Image source={kurta_body} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
 
             {/* 2. Kapde ki Layers (Z-Index: 10 se 90) */}
-            {layersToRender.map((layerObj) => {
+            {layersToRender.map((layerObj, index) => {
                 if (!layerObj || !layerObj.code) return null;
 
                 // Resolve image based on type
@@ -317,7 +322,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
 
                 return (
                     <SmartLayer
-                        key={`layer-${layerObj.type}-${layerObj.zIndex}`}
+                        key={`layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`}
                         src={imageSource}
                         zIndex={layerObj.zIndex}
                         dynamicStyle={dynamicStyle}

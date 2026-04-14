@@ -113,20 +113,12 @@ const styles = StyleSheet.create({
     arrowButton: {
         position: 'absolute',
         bottom: 160, // Keep arrows near lower area
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: CustomTheme.glassBgMedium,
-        borderWidth: 1,
-        borderColor: CustomTheme.glassBorderSolid,
+        width: 28,
+        height: 28,
+        backgroundColor: 'transparent',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
-        shadowColor: CustomTheme.shadowDark,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3
     },
     leftArrow: {
         left: 20,
