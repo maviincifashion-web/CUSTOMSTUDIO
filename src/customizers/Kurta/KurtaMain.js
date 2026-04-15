@@ -1,8 +1,11 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform, Linking, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Reanimated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import { SvgCssUri } from 'react-native-svg/css';
 
 import { INITIAL_SELECTION, DUMMY_SADRI_BUTTONS, DUMMY_COAT_BUTTONS, EMBROIDERY_COLLECTIONS } from '../../Data/dummyData';
 import { useFirebaseCatalog } from '../../context/FirebaseCatalogContext';
@@ -45,6 +48,39 @@ const PANEL_SCROLL_PROPS = Platform.select({
     },
     default: { showsVerticalScrollIndicator: true },
 });
+
+function clamp(v, min, max) {
+    'worklet';
+    return Math.min(max, Math.max(min, v));
+}
+
+function ZoomableImage({ source, imageKey }) {
+    const scale = useSharedValue(1);
+    const baseScale = useSharedValue(1);
+
+    useEffect(() => {
+        scale.value = 1;
+        baseScale.value = 1;
+    }, [imageKey, scale, baseScale]);
+
+    const pinch = Gesture.Pinch()
+        .onUpdate((e) => {
+            scale.value = clamp(baseScale.value * e.scale, 1, 4);
+        })
+        .onEnd(() => {
+            baseScale.value = scale.value;
+        });
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    return (
+        <GestureDetector gesture={pinch}>
+            <Reanimated.Image source={source} style={[styles.viewerImage, animatedStyle]} resizeMode="contain" />
+        </GestureDetector>
+    );
+}
 
 export default function KurtaMain() {
     const {
@@ -92,6 +128,16 @@ export default function KurtaMain() {
     const [selectedCoatFabric, setSelectedCoatFabric] = useState(fabrics?.[0] || {});
     const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri' | 'Coat'
     const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri'
+    const [infoFabric, setInfoFabric] = useState(null);
+    const [infoImageIndex, setInfoImageIndex] = useState(0);
+    const [infoBrandLogoFailed, setInfoBrandLogoFailed] = useState(false);
+    const [brandNameWrapWidth, setBrandNameWrapWidth] = useState(0);
+    const [brandNameTextWidth, setBrandNameTextWidth] = useState(0);
+    const [isFabricViewerOpen, setIsFabricViewerOpen] = useState(false);
+    const [fabricViewerImages, setFabricViewerImages] = useState([]);
+    const [fabricViewerIndex, setFabricViewerIndex] = useState(0);
+    const brandNameTranslateX = useRef(new Animated.Value(0)).current;
+    const brandNameMarqueeRef = useRef(null);
 
     useEffect(() => {
         if (!fabricsByGarment) return;
@@ -154,13 +200,11 @@ export default function KurtaMain() {
     const estimatedDeliveryLabel = useMemo(() => {
         const d = new Date();
         d.setDate(d.getDate() + 12);
-        const dateStr = d.toLocaleDateString('en-IN', {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-        });
-        return `Estimated delivery by ${dateStr}`;
+        const weekday = d.toLocaleDateString('en-IN', { weekday: 'short' }).toLowerCase();
+        const day = d.toLocaleDateString('en-IN', { day: '2-digit' });
+        const month = d.toLocaleDateString('en-IN', { month: 'short' }).toLowerCase();
+        const year = d.toLocaleDateString('en-IN', { year: '2-digit' });
+        return `Est. delivery by ${weekday}, ${day} ${month} ${year}`;
     }, []);
 
     const togglePanel = (panelName) => {
@@ -201,6 +245,152 @@ export default function KurtaMain() {
         }
     };
 
+    const getInfoImages = useCallback((fabric) => {
+        if (!fabric) return [];
+        const out = [];
+        const push = (v) => {
+            if (!v) return;
+            if (typeof v === 'string' && v.length > 0) out.push({ uri: v });
+            else if (typeof v === 'number') out.push(v);
+            else if (typeof v === 'object' && v.uri) out.push(v);
+        };
+        if (Array.isArray(fabric.imageList)) fabric.imageList.forEach(push);
+        push(fabric.fabricImg);
+        push(fabric.src);
+        push(fabric.thumbnail);
+        const seen = new Set();
+        return out.filter((img) => {
+            const key = typeof img === 'number' ? `r:${img}` : `u:${img.uri}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }, []);
+
+    const openFabricInfo = useCallback((fabric) => {
+        const imgs = getInfoImages(fabric);
+        setInfoFabric(fabric);
+        setInfoImageIndex(imgs.length >= 2 ? 1 : 0); // second image first (if present)
+        setInfoBrandLogoFailed(false);
+    }, [getInfoImages]);
+
+    const normalizeRemoteImageUri = useCallback((rawUri) => {
+        if (typeof rawUri !== 'string') return null;
+        const uri = rawUri.trim();
+        if (!uri) return null;
+        if (/^https?:\/\//i.test(uri)) return uri;
+        if (/^\/\//.test(uri)) return `https:${uri}`;
+        if (/^gs:\/\//i.test(uri)) {
+            const rest = uri.replace(/^gs:\/\//i, '');
+            const slashIdx = rest.indexOf('/');
+            if (slashIdx > 0) {
+                const bucket = rest.slice(0, slashIdx);
+                const objectPath = rest.slice(slashIdx + 1);
+                if (objectPath) {
+                    return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(objectPath)}?alt=media`;
+                }
+            }
+        }
+        return null;
+    }, []);
+
+    const getBrandLogoSource = useCallback((fabric) => {
+        if (!fabric) return null;
+        const logo = fabric.brandImg || fabric.brandLogo || fabric.brandImage || fabric.logo || null;
+        if (!logo) return null;
+        if (typeof logo === 'string') {
+            const uri = normalizeRemoteImageUri(logo);
+            return uri ? { uri } : null;
+        }
+        if (logo && typeof logo === 'object' && !Array.isArray(logo)) {
+            const nested = logo.url || logo.src || logo.uri || logo.image || logo.downloadURL || logo.href || null;
+            const nestedUri = normalizeRemoteImageUri(nested);
+            if (nestedUri) return { uri: nestedUri };
+        }
+        return null;
+    }, [normalizeRemoteImageUri]);
+
+    const isSvgLogoSource = useCallback((source) => {
+        const uri = source && typeof source === 'object' ? source.uri : null;
+        return typeof uri === 'string' && /\.svg([\-?#]|$)/i.test(uri);
+    }, []);
+
+    useEffect(() => {
+        if (brandNameMarqueeRef.current) {
+            brandNameMarqueeRef.current.stop();
+            brandNameMarqueeRef.current = null;
+        }
+        brandNameTranslateX.setValue(0);
+        if (!infoFabric) return undefined;
+        const overflow = brandNameTextWidth - brandNameWrapWidth;
+        if (!(overflow > 8)) return undefined;
+        const travel = Math.ceil(overflow);
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.delay(700),
+                Animated.timing(brandNameTranslateX, {
+                    toValue: -travel,
+                    duration: Math.max(1800, travel * 24),
+                    useNativeDriver: true,
+                }),
+                Animated.delay(350),
+                Animated.timing(brandNameTranslateX, {
+                    toValue: 0,
+                    duration: Math.max(800, travel * 14),
+                    useNativeDriver: true,
+                }),
+                Animated.delay(400),
+            ])
+        );
+        brandNameMarqueeRef.current = loop;
+        loop.start();
+        return () => {
+            if (brandNameMarqueeRef.current) {
+                brandNameMarqueeRef.current.stop();
+                brandNameMarqueeRef.current = null;
+            }
+        };
+    }, [infoFabric, brandNameWrapWidth, brandNameTextWidth, brandNameTranslateX]);
+
+    const renderInfoDetailRow = (icon, label, value, opts = {}) => {
+        const multiline = !!opts.multiline;
+        return (
+            <View style={[styles.infoRow, multiline && styles.infoRowMultiline]}>
+                <View style={[styles.infoRowLeft, multiline && styles.infoRowLeftMultiline]}>
+                    <View style={styles.infoIconWrap}>
+                        <MaterialIcons name={icon} size={14} color={CustomTheme.accentGold} />
+                    </View>
+                    <Text style={styles.infoLabel}>{label}</Text>
+                </View>
+                <Text style={[styles.infoValue, multiline && styles.infoValueMultiline]}>{value || '-'}</Text>
+            </View>
+        );
+    };
+
+    const renderFabricCard = (fabric, isActive, onSelect, infoIconSize = 24) => (
+        <TouchableOpacity
+            key={fabric.fabricID}
+            style={[styles.fabricCard, isActive && styles.fabricCardActive]}
+            onPress={onSelect}
+            activeOpacity={0.9}
+        >
+            <Image source={fabric.thumbnail} style={styles.fabricImage} resizeMode="cover" />
+            <View style={styles.fabricInfo}>
+                <View style={styles.fabricInfoTextWrap}>
+                    <Text style={styles.fabricName} numberOfLines={1}>{fabric.name}</Text>
+                    <Text style={styles.fabricBrand} numberOfLines={1}>{fabric.brand}</Text>
+                </View>
+                <TouchableOpacity
+                    onPress={() => openFabricInfo(fabric)}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    style={styles.fabricInfoIconBtn}
+                >
+                    <MaterialIcons name="info-outline" size={infoIconSize} color="#475569" />
+                </TouchableOpacity>
+            </View>
+        </TouchableOpacity>
+    );
+
     const renderPanelContent = () => {
         const coatType = selections.coatType || 'NONE';
         const isJodhpuriMode = ['JH', 'JR', 'JS', 'JO'].includes(coatType);
@@ -225,72 +415,56 @@ export default function KurtaMain() {
                     {/* KURTA FABRICS */}
                     {fabricTab === 'Kurta' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Kurta').map((fabric) => (
-                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedFabric(fabric); }}>
-                                    <Image source={fabric.thumbnail} style={styles.fabricImage} />
-                                    <View style={styles.fabricInfo}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.fabricName}>{fabric.name}</Text>
-                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
-                                        </View>
-                                        <MaterialIcons name="info-outline" size={24} color="#666" style={{ padding: 4 }} />
-                                    </View>
-                                </TouchableOpacity>
-                            ))}
+                            {listForGarmentTab('Kurta').map((fabric) =>
+                                renderFabricCard(
+                                    fabric,
+                                    selectedFabric?.fabricID === fabric.fabricID,
+                                    () => { setSelectedFabric(fabric); },
+                                    24
+                                )
+                            )}
                         </ScrollView>
                     ) : null}
 
                     {/* PAJAMA FABRICS — same fabric list as Kurta, independent selection */}
                     {fabricTab === 'Pajama' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Pajama').map((fabric) => (
-                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedPajamaFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedPajamaFabric(fabric); }}>
-                                    <Image source={fabric.thumbnail} style={styles.fabricImage} />
-                                    <View style={styles.fabricInfo}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.fabricName}>{fabric.name}</Text>
-                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
-                                        </View>
-                                        <MaterialIcons name="info-outline" size={28} color="#666" style={{ padding: 4 }} />
-                                    </View>
-                                </TouchableOpacity>
-                            ))}
+                            {listForGarmentTab('Pajama').map((fabric) =>
+                                renderFabricCard(
+                                    fabric,
+                                    selectedPajamaFabric?.fabricID === fabric.fabricID,
+                                    () => { setSelectedPajamaFabric(fabric); },
+                                    28
+                                )
+                            )}
                         </ScrollView>
                     ) : null}
 
                     {/* SADRI FABRICS — same fabric list as Kurta, independent selection */}
                     {fabricTab === 'Sadri' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Sadri').map((fabric) => (
-                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedSadriFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedSadriFabric(fabric); }}>
-                                    <Image source={fabric.thumbnail} style={styles.fabricImage} />
-                                    <View style={styles.fabricInfo}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.fabricName}>{fabric.name}</Text>
-                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
-                                        </View>
-                                        <MaterialIcons name="info-outline" size={24} color="#666" style={{ padding: 4 }} />
-                                    </View>
-                                </TouchableOpacity>
-                            ))}
+                            {listForGarmentTab('Sadri').map((fabric) =>
+                                renderFabricCard(
+                                    fabric,
+                                    selectedSadriFabric?.fabricID === fabric.fabricID,
+                                    () => { setSelectedSadriFabric(fabric); },
+                                    24
+                                )
+                            )}
                         </ScrollView>
                     ) : null}
 
                     {/* COAT FABRICS — same fabric list as Kurta, independent selection */}
                     {fabricTab === 'Coat' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Coat').map((fabric) => (
-                                <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedCoatFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedCoatFabric(fabric); }}>
-                                    <Image source={fabric.thumbnail} style={styles.fabricImage} />
-                                    <View style={styles.fabricInfo}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.fabricName}>{fabric.name}</Text>
-                                            <Text style={styles.fabricBrand}>{fabric.brand}</Text>
-                                        </View>
-                                        <MaterialIcons name="info-outline" size={18} color="#666" style={{ padding: 4 }} />
-                                    </View>
-                                </TouchableOpacity>
-                            ))}
+                            {listForGarmentTab('Coat').map((fabric) =>
+                                renderFabricCard(
+                                    fabric,
+                                    selectedCoatFabric?.fabricID === fabric.fabricID,
+                                    () => { setSelectedCoatFabric(fabric); },
+                                    18
+                                )
+                            )}
                         </ScrollView>
                     ) : null}
 
@@ -899,6 +1073,187 @@ export default function KurtaMain() {
                 </View>
             )}
 
+            {infoFabric && (
+                <View style={styles.buttonModalOverlay}>
+                    <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setInfoFabric(null)} />
+                    <View style={styles.infoModalContainer}>
+                        <View style={styles.buttonModalHeader}>
+                            <Text style={styles.buttonModalTitle}>Fabric Info</Text>
+                            <TouchableOpacity onPress={() => setInfoFabric(null)}>
+                                <Text style={styles.closeBtn}>×</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView style={styles.infoScroll} contentContainerStyle={styles.infoContent}>
+                            <View style={styles.infoTitleBlock}>
+                                <View style={styles.infoBrandBanner}>
+                                    {(() => {
+                                        const logoSource = infoBrandLogoFailed ? null : getBrandLogoSource(infoFabric);
+                                        if (logoSource && isSvgLogoSource(logoSource)) {
+                                            return (
+                                                <View style={styles.infoBrandLogo}>
+                                                    <SvgCssUri
+                                                        uri={logoSource.uri}
+                                                        width="100%"
+                                                        height="100%"
+                                                        onError={() => setInfoBrandLogoFailed(true)}
+                                                    />
+                                                </View>
+                                            );
+                                        }
+                                        if (logoSource) {
+                                            return (
+                                                <Image
+                                                    source={logoSource}
+                                                    style={styles.infoBrandLogo}
+                                                    resizeMode="contain"
+                                                    onError={() => setInfoBrandLogoFailed(true)}
+                                                />
+                                            );
+                                        }
+                                        return (
+                                            <View style={styles.infoBrandLogoFallback}>
+                                                <Text style={styles.infoBrandLogoFallbackText} numberOfLines={1}>
+                                                    {(infoFabric.brand || 'Brand').toUpperCase()}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })()}
+                                    <View style={styles.infoBrandNameWrap}>
+                                        <View
+                                            style={styles.infoBrandNameViewport}
+                                            onLayout={(e) => setBrandNameWrapWidth(e.nativeEvent.layout.width)}
+                                        >
+                                            <Animated.Text
+                                                style={[styles.infoBrandName, { transform: [{ translateX: brandNameTranslateX }] }]}
+                                                numberOfLines={1}
+                                                onLayout={(e) => setBrandNameTextWidth(e.nativeEvent.layout.width)}
+                                            >
+                                                {infoFabric.name || 'Unnamed Fabric'}
+                                            </Animated.Text>
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {(() => {
+                                const images = getInfoImages(infoFabric);
+                                if (!images.length) return null;
+                                const idx = Math.min(infoImageIndex, images.length - 1);
+                                return (
+                                    <View style={styles.infoImageWrap}>
+                                        <TouchableOpacity
+                                            activeOpacity={0.95}
+                                            onPress={() => {
+                                                setFabricViewerImages(images);
+                                                setFabricViewerIndex(idx);
+                                                setIsFabricViewerOpen(true);
+                                            }}
+                                        >
+                                            <Image source={images[idx]} style={styles.infoImage} resizeMode="cover" />
+                                        </TouchableOpacity>
+                                        {images.length > 1 ? (
+                                            <View style={styles.infoImageControls}>
+                                                <TouchableOpacity
+                                                    style={styles.infoImageNav}
+                                                    onPress={() => setInfoImageIndex((p) => (p - 1 + images.length) % images.length)}
+                                                >
+                                                    <Text style={styles.infoImageNavText}>‹</Text>
+                                                </TouchableOpacity>
+                                                <Text style={styles.infoImageCounter}>{idx + 1}/{images.length}</Text>
+                                                <TouchableOpacity
+                                                    style={styles.infoImageNav}
+                                                    onPress={() => setInfoImageIndex((p) => (p + 1) % images.length)}
+                                                >
+                                                    <Text style={styles.infoImageNavText}>›</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                );
+                            })()}
+                            <View style={styles.infoDetailsCard}>
+                                {renderInfoDetailRow('description', 'Description', infoFabric.description || infoFabric.des || '-', { multiline: true })}
+                                {renderInfoDetailRow(
+                                    'palette',
+                                    'Color',
+                                    Array.isArray(infoFabric.colors) && infoFabric.colors.length
+                                        ? infoFabric.colors.join(', ')
+                                        : (infoFabric.color || '-')
+                                )}
+                                {renderInfoDetailRow('science', 'Composition', infoFabric.composition || '-', { multiline: true })}
+                                {renderInfoDetailRow('texture', 'Weave', infoFabric.weave || '-')}
+                                {renderInfoDetailRow('grid_view', 'Pattern', infoFabric.pattern || '-')}
+                                {renderInfoDetailRow('straighten', 'Width', infoFabric.width || '-')}
+                            </View>
+                            {typeof infoFabric.link === 'string' && infoFabric.link.length > 0 ? (
+                                <TouchableOpacity
+                                    style={styles.infoLinkBtn}
+                                    onPress={async () => {
+                                        const url = infoFabric.link;
+                                        if (await Linking.canOpenURL(url)) {
+                                            Linking.openURL(url);
+                                        }
+                                    }}
+                                >
+                                    <Text style={styles.infoLinkText}>Open Link</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </ScrollView>
+                    </View>
+                </View>
+            )}
+
+            <Modal
+                visible={isFabricViewerOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsFabricViewerOpen(false)}
+            >
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                <View style={styles.viewerOverlay}>
+                    <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setIsFabricViewerOpen(false)} />
+                    <View style={styles.viewerTopBar}>
+                        <Text style={styles.viewerCounter}>
+                            {fabricViewerImages.length ? `${fabricViewerIndex + 1}/${fabricViewerImages.length}` : '0/0'}
+                        </Text>
+                        <TouchableOpacity onPress={() => setIsFabricViewerOpen(false)}>
+                            <Text style={styles.viewerClose}>×</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.viewerBody}>
+                        {fabricViewerImages.length > 1 ? (
+                            <TouchableOpacity
+                                style={[styles.viewerSideArrow, styles.viewerLeftArrow]}
+                                onPress={() => setFabricViewerIndex((p) => (p - 1 + fabricViewerImages.length) % fabricViewerImages.length)}
+                            >
+                                <Text style={styles.viewerArrowText}>‹</Text>
+                            </TouchableOpacity>
+                        ) : null}
+
+                        <View style={styles.viewerImageScroll}>
+                            <View style={styles.viewerImageScrollContent}>
+                                {fabricViewerImages[fabricViewerIndex] ? (
+                                    <ZoomableImage
+                                        source={fabricViewerImages[fabricViewerIndex]}
+                                        imageKey={`${fabricViewerIndex}`}
+                                    />
+                                ) : null}
+                            </View>
+                        </View>
+
+                        {fabricViewerImages.length > 1 ? (
+                            <TouchableOpacity
+                                style={[styles.viewerSideArrow, styles.viewerRightArrow]}
+                                onPress={() => setFabricViewerIndex((p) => (p + 1) % fabricViewerImages.length)}
+                            >
+                                <Text style={styles.viewerArrowText}>›</Text>
+                            </TouchableOpacity>
+                        ) : null}
+                    </View>
+                </View>
+                </GestureHandlerRootView>
+            </Modal>
+
             <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
                 <View style={styles.bottomBarTint} />
                 <View style={styles.bottomBarContent}>
@@ -979,12 +1334,14 @@ const styles = StyleSheet.create({
     panelContentArea: { flex: 1 },
     panelContent: { fontSize: 16, color: '#666', paddingHorizontal: 20 },
     gridContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, justifyContent: 'center', paddingBottom: 20 },
-    fabricCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 10, marginBottom: 15, alignItems: 'flex-start', overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
-    fabricCardActive: { borderColor: CustomTheme.accentGold, backgroundColor: 'rgba(185, 183, 183, 0.9)', shadowColor: CustomTheme.accentGold, shadowOpacity: 0.7, shadowRadius: 12, elevation: 12 },
-    fabricImage: { width: '100%', height: 100, backgroundColor: 'transparent' },
-    fabricInfo: { padding: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
-    fabricName: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-    fabricBrand: { fontSize: 10, color: CustomTheme.accentGold, marginTop: 2 },
+    fabricCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 14, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 7, elevation: 4 },
+    fabricCardActive: { borderColor: CustomTheme.accentGold, backgroundColor: '#fffdf8', shadowColor: CustomTheme.accentGold, shadowOpacity: 0.35, shadowRadius: 10, elevation: 9 },
+    fabricImage: { width: '100%', height: 112, backgroundColor: '#f8fafc' },
+    fabricInfo: { paddingHorizontal: 10, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', minHeight: 58 },
+    fabricInfoTextWrap: { flex: 1, minWidth: 0, paddingRight: 8, justifyContent: 'center' },
+    fabricInfoIconBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
+    fabricName: { fontSize: 13, fontWeight: '700', color: '#0f172a', letterSpacing: 0.2 },
+    fabricBrand: { fontSize: 11, color: '#7c6a3a', marginTop: 3, fontWeight: '600' },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: CustomTheme.textBrand },
     optionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     styleOption: { width: '100%', aspectRatio: .8, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 5, overflow: 'hidden' },
@@ -1098,4 +1455,263 @@ const styles = StyleSheet.create({
     buttonItemIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ccc', marginRight: 15 },
     buttonItemName: { fontSize: 14, fontWeight: 'bold', color: CustomTheme.textBrand },
     recommendedBadge: { fontSize: 9, color: CustomTheme.accentGold, fontWeight: 'bold', marginTop: 2 },
+    infoModalContainer: {
+        width: '88%',
+        maxHeight: '80%',
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#dbe3ee',
+        shadowColor: '#0f172a',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.15,
+        shadowRadius: 24,
+        elevation: 10,
+    },
+    infoScroll: {
+        maxHeight: 460,
+    },
+    infoContent: {
+        padding: 16,
+        paddingBottom: 20,
+    },
+    infoTitleBlock: {
+        marginBottom: 12,
+    },
+    infoBrandBanner: {
+        flexDirection: 'row',
+        alignSelf: 'flex-start',
+        height: 36,
+        overflow: 'hidden',
+        backgroundColor: 'transparent',
+    },
+    infoBrandLogo: {
+        width: 132,
+        height: '100%',
+        backgroundColor: '#ffffff',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 0,
+        paddingVertical: 0,
+    },
+    infoBrandLogoFallback: {
+        width: 132,
+        height: '100%',
+        backgroundColor: '#ef4444',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 8,
+    },
+    infoBrandLogoFallbackText: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+    },
+    infoBrandNameWrap: {
+        width: 147,
+        backgroundColor: '#e5e5e5',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
+        height: '100%',
+    },
+    infoBrandNameViewport: {
+        width: '100%',
+        overflow: 'hidden',
+    },
+    infoBrandName: {
+        fontSize: 12,
+        fontWeight: '800',
+        color:'black',
+        alignSelf: 'flex-end',
+        textAlign: 'center',
+    },
+    infoSubTitle: {
+        marginTop: 8,
+        fontSize: 12,
+        color: '#64748b',
+        fontWeight: '700',
+        letterSpacing: 0.2,
+    },
+    infoImage: {
+        width: '100%',
+        height: 168,
+        borderRadius: 12,
+        backgroundColor: '#f1f5f9',
+    },
+    infoImageWrap: {
+        marginBottom: 14,
+    },
+    infoImageControls: {
+        marginTop: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+    },
+    infoImageNav: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#f1f5f9',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    infoImageNavText: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#334155',
+        marginTop: -2,
+    },
+    infoImageCounter: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#475569',
+        minWidth: 48,
+        textAlign: 'center',
+    },
+    infoDetailsCard: {
+        marginTop: 2,
+        backgroundColor: '#f8fafc',
+        borderRadius: 12,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+        paddingHorizontal: 2,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e5e7eb',
+    },
+    infoRowMultiline: {
+        alignItems: 'flex-start',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+        gap: 6,
+    },
+    infoRowLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        width: '44%',
+        minWidth: 116,
+        paddingRight: 10,
+    },
+    infoRowLeftMultiline: {
+        width: '100%',
+        minWidth: 0,
+        paddingRight: 0,
+    },
+    infoIconWrap: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#e2e8f0',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    infoLabel: {
+        fontSize: 12,
+        color: '#475569',
+        fontWeight: '700',
+    },
+    infoValue: {
+        flex: 1,
+        textAlign: 'right',
+        fontSize: 12,
+        color: '#14213D',
+        fontWeight: '600',
+        lineHeight: 17,
+    },
+    infoValueMultiline: {
+        width: '100%',
+        textAlign: 'left',
+        flex: 0,
+        fontSize: 13,
+        lineHeight: 20,
+    },
+    infoLinkBtn: {
+        marginTop: 14,
+        alignSelf: 'center',
+        backgroundColor: CustomTheme.accentGold,
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
+    },
+    infoLinkText: {
+        color: '#14213D',
+        fontWeight: '800',
+        fontSize: 12,
+    },
+    viewerOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.95)',
+        justifyContent: 'center',
+    },
+    viewerTopBar: {
+        position: 'absolute',
+        top: 42,
+        left: 12,
+        right: 12,
+        zIndex: 10,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    viewerCounter: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    viewerClose: {
+        color: '#fff',
+        fontSize: 34,
+        lineHeight: 34,
+        fontWeight: '600',
+    },
+    viewerBody: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    viewerImageScroll: {
+        flex: 1,
+    },
+    viewerImageScrollContent: {
+        flexGrow: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    viewerImage: {
+        width: '100%',
+        height: '78%',
+    },
+    viewerSideArrow: {
+        width: 46,
+        height: 46,
+        borderRadius: 23,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'absolute',
+        zIndex: 9,
+    },
+    viewerLeftArrow: {
+        left: 12,
+    },
+    viewerRightArrow: {
+        right: 12,
+    },
+    viewerArrowText: {
+        color: '#fff',
+        fontSize: 28,
+        fontWeight: '800',
+        marginTop: -2,
+    },
 });

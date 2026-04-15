@@ -29,6 +29,54 @@ export function readSrcField(data) {
   return null;
 }
 
+function parseMoney(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^\d.-]/g, '');
+    if (!cleaned) return 0;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function readFabricPrice(data) {
+  if (!data || typeof data !== 'object') return 0;
+  const directKeys = [
+    'price',
+    'Price',
+    'fabricPrice',
+    'fabric_price',
+    'amount',
+    'Amount',
+    'mrp',
+    'MRP',
+    'salePrice',
+    'sellingPrice',
+    'rate',
+    'Rate',
+    'cost',
+    'Cost',
+  ];
+  for (const key of directKeys) {
+    if (data[key] != null) {
+      const n = parseMoney(data[key]);
+      if (n > 0) return n;
+    }
+  }
+  const nested = [data.pricing, data.priceInfo, data.meta];
+  for (const obj of nested) {
+    if (!obj || typeof obj !== 'object') continue;
+    for (const key of ['price', 'amount', 'mrp', 'salePrice', 'sellingPrice']) {
+      if (obj[key] != null) {
+        const n = parseMoney(obj[key]);
+        if (n > 0) return n;
+      }
+    }
+  }
+  return 0;
+}
+
 /**
  * Layer doc id → React Native image source `{ uri }`.
  * @param {import('firebase/firestore').Firestore} db
@@ -194,6 +242,23 @@ export function mapFabricDocToProfile(docSnap, localFallbackThumb) {
   if (typeof thumbRaw === 'string' && thumbRaw.length > 0) {
     thumbnail = { uri: thumbRaw };
   }
+  const imageListRaw = [];
+  const pushImage = (v) => {
+    if (typeof v === 'string' && v.length > 0) imageListRaw.push(v);
+  };
+  pushImage(d.fabricImg);
+  pushImage(d.src);
+  pushImage(d.thumbnail);
+  if (Array.isArray(d.single)) d.single.forEach(pushImage);
+  if (Array.isArray(d.images)) d.images.forEach(pushImage);
+  if (Array.isArray(d.otherImages)) d.otherImages.forEach(pushImage);
+  if (Array.isArray(d.otherFabricImg)) d.otherFabricImg.forEach(pushImage);
+  const seenImages = new Set();
+  const imageList = imageListRaw.filter((u) => {
+    if (seenImages.has(u)) return false;
+    seenImages.add(u);
+    return true;
+  });
 
   const hexCodes = Array.isArray(d.hexCodes)
     ? d.hexCodes
@@ -212,14 +277,22 @@ export function mapFabricDocToProfile(docSnap, localFallbackThumb) {
 
   return {
     fabricID,
+    id: stylePathId,
+    doc: normalizeFabricKey(docSnap.id),
     websiteId,
     /** Same as docSnap.id — website `getData` merges `doc`; Kurta_style may key off this */
     firestoreDocId: normalizeFabricKey(docSnap.id),
     stylePathId,
     garmentSlots,
     name: displayName,
+    fabric: displayName,
     brand: (d.brand || '').toString(),
+    brandImg: d.brandImg || d.brandLogo || d.brandImage || '',
+    link: d.link || d.videoLink || '',
+    des: d.des || d.description || '',
     description: d.description || '',
+    color: d.color || '',
+    colorCode: Array.isArray(d.colorCode) ? d.colorCode : hexCodes,
     colors: Array.isArray(d.colors) ? d.colors : [],
     hexCodes,
     weave: d.weave || '',
@@ -228,7 +301,10 @@ export function mapFabricDocToProfile(docSnap, localFallbackThumb) {
     width: d.width || '',
     weight: d.weight || '',
     stock: d.stock ?? 0,
-    price: typeof d.price === 'number' ? d.price : Number(d.price) || 0,
+    price: readFabricPrice(d),
+    src: typeof d.src === 'string' ? d.src : typeof d.fabricImg === 'string' ? d.fabricImg : '',
+    fabricImg: typeof d.fabricImg === 'string' ? d.fabricImg : typeof d.src === 'string' ? d.src : '',
+    imageList,
     thumbnail,
     recommended_buttons: Array.isArray(d.recommended_buttons) ? d.recommended_buttons : undefined,
   };
