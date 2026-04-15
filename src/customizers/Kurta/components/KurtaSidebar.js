@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { KURTA_STYLE_OPTIONS } from '../../../Data/styleData';
-import { DUMMY_FABRICS } from '../../../Data/dummyData';
+import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 
 // Ye component 4 cheezein as a prop lega:
 // 1. activePanel (Kahan khula hai: 'Fabric' ya 'Style')
@@ -10,12 +10,14 @@ import { DUMMY_FABRICS } from '../../../Data/dummyData';
 // 4. onFabricSelect (Jab user fabric chune toh kya ho)
 
 export default function KurtaSidebar({ activePanel, selections, onStyleChange, selectedFabric, onFabricSelect }) {
+    const { fabrics, fabricsByGarment } = useFirebaseCatalog();
+    const kurtaFabrics = fabricsByGarment?.Kurta?.length ? fabricsByGarment.Kurta : fabrics;
 
     // --- 1. RENDER FABRIC LIST ---
     if (activePanel === 'Fabric') {
         return (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.gridContainer}>
-                {DUMMY_FABRICS.map((fabric) => (
+                {kurtaFabrics.map((fabric) => (
                     <TouchableOpacity
                         key={fabric.fabricID}
                         style={[styles.fabricCard, selectedFabric.fabricID === fabric.fabricID && styles.activeCard]}

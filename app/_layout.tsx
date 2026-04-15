@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { OutfitProvider } from '../src/context/OutfitContext';
+import { FirebaseCatalogProvider } from '../src/context/FirebaseCatalogContext';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -18,12 +19,14 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <OutfitProvider>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-        </OutfitProvider>
+        <FirebaseCatalogProvider>
+          <OutfitProvider>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+            </Stack>
+          </OutfitProvider>
+        </FirebaseCatalogProvider>
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>

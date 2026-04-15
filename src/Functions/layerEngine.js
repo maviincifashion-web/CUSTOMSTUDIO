@@ -34,7 +34,14 @@ const getKurtaBaseCode = (collar, lengthStr, bottomCut, hasOuterwear, forceManda
     return roundCut ? 'K' : 'L';
 };
 
-export const getSadriLayerCodes = (sadriCode, selections = {}, selectedSadriButton, viewMode = 0, slideIndex = 0) => {
+export const getSadriLayerCodes = (
+  sadriCode,
+  selections = {},
+  selectedSadriButton,
+  viewMode = 0,
+  slideIndex = 0,
+  embroideryRenders = EMBROIDERY_RENDERS
+) => {
     if (!sadriCode) return [];
 
     const bSuffix = viewMode === 0 ? '-F' : '-S';
@@ -58,7 +65,7 @@ export const getSadriLayerCodes = (sadriCode, selections = {}, selectedSadriButt
 
         if (selections.sadriEmbroideryID && ['SadriBase'].includes(partName)) {
             const embCode = `E-${finalSadriCode}`;
-            const coll = EMBROIDERY_RENDERS[selections.sadriEmbroideryID];
+            const coll = embroideryRenders[selections.sadriEmbroideryID];
             const leftAsset = coll?.sadriChestLeft?.[embCode];
             const rightAsset = coll?.sadriChestRight?.[embCode];
             if (leftAsset && rightAsset) {

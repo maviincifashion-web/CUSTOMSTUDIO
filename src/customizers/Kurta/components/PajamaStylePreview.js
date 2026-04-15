@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
-import { PAJAMA_RENDERS } from '../../../Data/dummyData';
+import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
+import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 import { useResponsive } from '../../../../hooks/useResponsive';
 
 export default function PajamaStylePreview({ selections, selectedPajamaFabric }) {
+    const { pajamaRenders: PAJAMA_RENDERS } = useFirebaseCatalog();
     const { isMobile, isTablet, isDesktop, width } = useResponsive();
 
-    if (!selectedPajamaFabric) return null;
-
-    const pajamaType = selections.pajamaType || "PJ";
-    const beltType = selections.beltType || "R";
+    const pajamaType = selections?.pajamaType || "PJ";
+    const beltType = selections?.beltType || "R";
 
     // Yahan aap apne screens ke hisab se width/height 
     // manually edit kar sakte hain taaki testing aasan ho.
@@ -45,13 +45,16 @@ export default function PajamaStylePreview({ selections, selectedPajamaFabric })
         ? pajamaType                         // e.g. "PB"
         : `${pajamaType}-${beltType}`;       // e.g. "PA-E"
 
-    const selectedPajamaRenderMap = PAJAMA_RENDERS[selectedPajamaFabric.fabricID]?.style;
+    const pajamaEntry = pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric);
+    const selectedPajamaRenderMap = pajamaEntry?.style && Object.keys(pajamaEntry.style).length > 0 ? pajamaEntry.style : null;
     const defaultPajamaRenderMap = PAJAMA_RENDERS['FAB_001']?.style || {};
     const pajamaStyleRenders =
         selectedPajamaRenderMap && Object.keys(selectedPajamaRenderMap).length > 0
             ? selectedPajamaRenderMap
             : defaultPajamaRenderMap;
-    const imageSource = pajamaStyleRenders[pajamaStyleCode] || defaultPajamaRenderMap[pajamaStyleCode] || null;
+    const imageSource = selectedPajamaFabric
+        ? pajamaStyleRenders[pajamaStyleCode] || defaultPajamaRenderMap[pajamaStyleCode] || null
+        : null;
     const [displaySource, setDisplaySource] = useState(imageSource || null);
     const [pendingSource, setPendingSource] = useState(null);
     const [pendingToken, setPendingToken] = useState(0);
@@ -71,6 +74,8 @@ export default function PajamaStylePreview({ selections, selectedPajamaFabric })
             setPendingToken(tokenRef.current);
         }
     }, [imageSource, displaySource, pendingSource]);
+
+    if (!selectedPajamaFabric) return null;
 
     return (
         <View style={styles.container}>

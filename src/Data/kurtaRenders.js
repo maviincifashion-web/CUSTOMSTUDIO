@@ -155,6 +155,7 @@ export const KURTA_RENDERS = {
             "BHT": require('../../assets/images/renders/FAB_002/display/BHT.webp'),
             "CBH": require('../../assets/images/renders/FAB_002/display/CBH.webp'),
             "HE": require('../../assets/images/renders/FAB_002/display/HE.webp'),
+            "CC": require('../../assets/images/renders/FAB_002/display/CC.webp'),
         },
         style: {
             "BASE": require('../../assets/images/renders/FAB_002/style/BASE.webp'),
@@ -256,6 +257,7 @@ export const KURTA_RENDERS = {
             "BHT": require('../../assets/images/renders/FAB_003/display/BHT.webp'),
             "CBH": require('../../assets/images/renders/FAB_003/display/CBH.webp'),
             "HE": require('../../assets/images/renders/FAB_003/display/HE.webp'),
+            "CC": require('../../assets/images/renders/FAB_003/display/CC.webp'),
         },
         style: {
             "BASE": require('../../assets/images/renders/FAB_003/style/BASE.webp'),

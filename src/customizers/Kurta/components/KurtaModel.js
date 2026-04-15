@@ -3,7 +3,8 @@ import { View, Image, StyleSheet } from 'react-native';
 import { useResponsive } from '../../../../hooks/useResponsive';
 
 // ENGINE & DATA IMPORTS
-import { KURTA_RENDERS, EMBROIDERY_RENDERS, PAJAMA_RENDERS, SADRI_RENDERS, COAT_RENDERS } from '../../../Data/dummyData';
+import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
+import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 import { getKurtaLayerCodes, getSadriLayerCodes } from '../../../Functions/layerEngine';
 
 // ASSETS IMPORTS
@@ -160,8 +161,25 @@ const getCoatButtonCodes = (selections = {}, slideIndex = 0) => {
     return [];
 };
 
-export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, hasCoat = false, hasSadri, sadriCode, slideIndex = 0 }) {
+function pickWithSadriSuffixFallback(map, code) {
+    if (!map || !code) return null;
+    if (map[code]) return map[code];
+    if (code.endsWith('-F') || code.endsWith('-S')) {
+        const base = code.slice(0, -2);
+        if (map[base]) return map[base];
+    }
+    return null;
+}
+
+export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, selectedCoatFabric, hasCoat = false, hasSadri, sadriCode, slideIndex = 0 }) {
     const { isMobile, isTablet, isDesktop } = useResponsive();
+    const {
+        kurtaRenders: KURTA_RENDERS,
+        pajamaRenders: PAJAMA_RENDERS,
+        sadriRenders: SADRI_RENDERS,
+        coatRenders: COAT_RENDERS,
+        embroideryRenders: EMBROIDERY_RENDERS,
+    } = useFirebaseCatalog();
 
     // SAFETY CHECK: Jab tak data ready na ho, model render mat karo
     if (!selections || !selectedFabric) return null;
@@ -225,7 +243,12 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
 
     const handsImage = selections.sleeve === "SC" ? kurta_hand_c : kurta_hand_n;
 
-    const coatRenderSet = COAT_RENDERS['FAB_001'] || { display: {}, style: {} };
+    const coatFabricId = selectedCoatFabric?.fabricID || 'FAB_001';
+    const coatRenderSet =
+        pickFabricRenderEntry(COAT_RENDERS, selectedCoatFabric) ||
+        COAT_RENDERS[coatFabricId] ||
+        COAT_RENDERS['FAB_001'] ||
+        { display: {}, style: {} };
     const coatDisplayRenders = coatRenderSet.display || {};
     const coatStyleRenders = coatRenderSet.style || {};
 
@@ -260,7 +283,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     // ENGINE KO BULAO: Sadri Arrays
     let sadriLayers = [];
     if (hasSadri && (slideIndex === 0 || slideIndex === 4 || slideIndex === 5)) {
-        sadriLayers = getSadriLayerCodes(sadriCode, selections, selectedSadriButton, 0, slideIndex) || [];
+        sadriLayers = getSadriLayerCodes(sadriCode, selections, selectedSadriButton, 0, slideIndex, EMBROIDERY_RENDERS) || [];
     }
 
     const coatDisplayLayers = hasCoat && slideIndex === 0
@@ -281,11 +304,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     const layersToRender = [...kurtaLayers, ...sadriLayers, ...coatDisplayLayers, ...coatDisplayButtonLayers].sort((a, b) => a.zIndex - b.zIndex);
 
     // DATABASE: Us kapde ki saari images yahan se nikalo
-    const fabricRenders = KURTA_RENDERS[selectedFabric.fabricID]?.display || {};
+    const fabricRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {};
     // Pajama renders by fabricID (same fabric can have a matching pajama render)
-    const pajamaRenders = PAJAMA_RENDERS[selectedPajamaFabric?.fabricID]?.display || {};
+    const pajamaRenders = pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.display || {};
     // Sadri renders by fabricID, fallback to FAB_001 until all fabrics are mapped
-    const sadriRenders = SADRI_RENDERS[selectedSadriFabric?.fabricID]?.display || SADRI_RENDERS["FAB_001"]?.display || {};
+    const sadriRenders =
+        pickFabricRenderEntry(SADRI_RENDERS, selectedSadriFabric)?.display ||
+        SADRI_RENDERS['FAB_001']?.display ||
+        {};
 
     return (
         <View style={styles.container}>
@@ -311,7 +337,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                 } else if (layerObj.type === 'sadri_button') {
                     imageSource = selectedSadriButton?.renders?.[layerObj.code];
                 } else if (layerObj.type === 'sadri_fabric') {
-                    imageSource = sadriRenders[layerObj.code];
+                    imageSource = pickWithSadriSuffixFallback(sadriRenders, layerObj.code);
                 } else if (layerObj.type === 'coat_display') {
                     imageSource = coatDisplayRenders[layerObj.code];
                 } else if (layerObj.type === 'coat_button') {

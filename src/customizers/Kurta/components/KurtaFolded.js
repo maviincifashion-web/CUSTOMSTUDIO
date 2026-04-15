@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 
 // ENGINE & DATA IMPORTS
-import { KURTA_RENDERS, EMBROIDERY_RENDERS, PAJAMA_RENDERS } from '../../../Data/dummyData';
+import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
+import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 
 // --- FLICKER-FREE LAYER COMPONENT ---
 const SmartLayer = ({ src, zIndex }) => {
@@ -62,6 +63,11 @@ const SmartLayer = ({ src, zIndex }) => {
 };
 
 export default function KurtaFolded({ selections, selectedFabric, selectedButton, selectedPajamaFabric }) {
+    const {
+        kurtaRenders: KURTA_RENDERS,
+        pajamaRenders: PAJAMA_RENDERS,
+        embroideryRenders: EMBROIDERY_RENDERS,
+    } = useFirebaseCatalog();
 
     // --- ENGINE: Folded View (Style Images) Logic ---
     const getFoldedLayerCodes = () => {
@@ -179,9 +185,9 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
     };
 
     // 3. Selected Fabric ke 'style' (Folded) folder dhoondho
-    const fabricStyleRenders = KURTA_RENDERS[selectedFabric.fabricID]?.style || {};
+    const fabricStyleRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.style || {};
     // Pajama style renders by fabricID
-    const pajamaStyleRenders = PAJAMA_RENDERS[selectedPajamaFabric?.fabricID]?.style || {};
+    const pajamaStyleRenders = pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.style || {};
 
     return (
         <View style={styles.container}>

@@ -1,1 +1,34 @@
-<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 612 792"><defs><style>.cls-1,.cls-2{fill:#fff;}.cls-1,.cls-3,.cls-4,.cls-5,.cls-6,.cls-7{stroke:#010101;stroke-miterlimit:10;}.cls-1{stroke-width:3px;}.cls-3,.cls-4,.cls-5,.cls-6,.cls-7{fill:none;stroke-width:0.75px;}.cls-4{stroke-dasharray:3.05 3.05;}.cls-5{stroke-dasharray:3.02 3.02;}.cls-6{stroke-dasharray:3.05 3.05;}.cls-7{stroke-dasharray:2.96 2.96;}.cls-8{fill:#010101;}</style></defs><rect class="cls-1" x="303.61" y="331.86" width="155.96" height="130.23"/><polyline class="cls-2" points="454.87 457.39 308.31 457.39 308.31 336.56 454.87 336.56"/><line class="cls-3" x1="454.87" y1="457.39" x2="453.37" y2="457.39"/><line class="cls-4" x1="450.32" y1="457.39" x2="311.34" y2="457.39"/><polyline class="cls-3" points="309.81 457.39 308.31 457.39 308.31 455.89"/><line class="cls-5" x1="308.31" y1="452.87" x2="308.31" y2="339.57"/><polyline class="cls-3" points="308.31 338.06 308.31 336.56 309.81 336.56"/><line class="cls-4" x1="312.87" y1="336.56" x2="451.84" y2="336.56"/><line class="cls-3" x1="453.37" y1="336.56" x2="454.87" y2="336.56"/><rect class="cls-1" x="176.24" y="330.67" width="149.63" height="132.61"/><polyline class="cls-2" points="180.95 335.37 321.17 335.37 321.17 458.58 180.95 458.58"/><line class="cls-3" x1="180.95" y1="335.37" x2="182.45" y2="335.37"/><line class="cls-6" x1="185.5" y1="335.37" x2="318.14" y2="335.37"/><polyline class="cls-3" points="319.67 335.37 321.17 335.37 321.17 336.87"/><line class="cls-7" x1="321.17" y1="339.83" x2="321.17" y2="455.6"/><polyline class="cls-3" points="321.17 457.08 321.17 458.58 319.67 458.58"/><line class="cls-6" x1="316.62" y1="458.58" x2="183.97" y2="458.58"/><line class="cls-3" x1="182.45" y1="458.58" x2="180.95" y2="458.58"/><rect class="cls-8" x="261.23" y="393.21" width="39.5" height="3.76"/><circle class="cls-8" cx="275.21" cy="395.1" r="15.52"/></svg>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 26.0.1, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 612 792" style="enable-background:new 0 0 612 792;" xml:space="preserve">
+<style type="text/css">
+	.st0{fill:#FFFFFF;stroke:#010101;stroke-width:3;stroke-miterlimit:10;}
+	.st1{fill:#FFFFFF;}
+	.st2{fill:none;stroke:#010101;stroke-width:0.75;stroke-miterlimit:10;}
+	.st3{fill:none;stroke:#010101;stroke-width:2;stroke-miterlimit:10;stroke-dasharray:3.05,3.05;}
+	.st4{fill:none;stroke:#010101;stroke-width:0.75;stroke-miterlimit:10;stroke-dasharray:3.02,3.02;}
+	.st5{fill:none;stroke:#010101;stroke-width:2;stroke-miterlimit:10;stroke-dasharray:2.96,2.96;}
+	.st6{fill:#010101;}
+</style>
+<rect x="279.3" y="274.2" class="st0" width="291.7" height="243.6"/>
+<polyline class="st1" points="562.2,509 288.1,509 288.1,283 562.2,283 "/>
+<line class="st2" x1="562.2" y1="509" x2="559.4" y2="509"/>
+<line class="st3" x1="553.7" y1="509" x2="293.7" y2="509"/>
+<polyline class="st2" points="290.9,509 288.1,509 288.1,506.2 "/>
+<line class="st4" x1="288.1" y1="500.6" x2="288.1" y2="288.6"/>
+<polyline class="st2" points="288.1,285.8 288.1,283 290.9,283 "/>
+<line class="st3" x1="296.6" y1="283" x2="556.5" y2="283"/>
+<line class="st2" x1="559.4" y1="283" x2="562.2" y2="283"/>
+<rect x="41" y="272" class="st0" width="279.9" height="248.1"/>
+<polyline class="st1" points="49.8,280.8 312.1,280.8 312.1,511.2 49.8,511.2 "/>
+<line class="st2" x1="49.8" y1="280.8" x2="52.6" y2="280.8"/>
+<line class="st3" x1="58.3" y1="280.8" x2="306.4" y2="280.8"/>
+<polyline class="st2" points="309.3,280.8 312.1,280.8 312.1,283.6 "/>
+<line class="st5" x1="312.1" y1="289.1" x2="312.1" y2="505.7"/>
+<polyline class="st2" points="312.1,508.4 312.1,511.2 309.3,511.2 "/>
+<line class="st3" x1="303.6" y1="511.2" x2="55.5" y2="511.2"/>
+<line class="st2" x1="52.6" y1="511.2" x2="49.8" y2="511.2"/>
+<rect x="200" y="389" class="st6" width="73.9" height="7"/>
+<circle class="st6" cx="226.1" cy="392.5" r="29"/>
+</svg>

@@ -1,10 +1,11 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 
-import { DUMMY_FABRICS, INITIAL_SELECTION, DUMMY_BUTTONS, DUMMY_SADRI_BUTTONS, DUMMY_COAT_BUTTONS, EMBROIDERY_COLLECTIONS, EMBROIDERY_RENDERS } from '../../Data/dummyData';
+import { INITIAL_SELECTION, DUMMY_SADRI_BUTTONS, DUMMY_COAT_BUTTONS, EMBROIDERY_COLLECTIONS } from '../../Data/dummyData';
+import { useFirebaseCatalog } from '../../context/FirebaseCatalogContext';
 import { KURTA_STYLE_OPTIONS } from '../../Data/styleData';
 import { useOutfit } from '../../context/OutfitContext';
 
@@ -46,7 +47,25 @@ const PANEL_SCROLL_PROPS = Platform.select({
 });
 
 export default function KurtaMain() {
+    const {
+        fabrics,
+        fabricsByGarment,
+        buttons,
+        embroideryRenders,
+        prefetchFabricRenders,
+        loadError,
+        fabricsLoading,
+    } = useFirebaseCatalog();
+
+    const listForGarmentTab = useCallback(
+        (tab) => {
+            const sub = fabricsByGarment?.[tab];
+            return sub?.length ? sub : fabrics;
+        },
+        [fabrics, fabricsByGarment]
+    );
     const { width, isDesktop, normalize } = useResponsive();
+    const isTabletViewport = !isDesktop && width >= 768;
     const insets = useSafeAreaInsets();
     const { selectedItems } = useOutfit();
     const [activePanel, setActivePanel] = useState(null);
@@ -55,11 +74,11 @@ export default function KurtaMain() {
     const extrasTrayAnim = useRef(new Animated.Value(0)).current;
 
     // STATE MANAGEMENT
-    const [selectedFabric, setSelectedFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
+    const [selectedFabric, setSelectedFabric] = useState(fabrics?.[0] || {});
     const [selections, setSelections] = useState(INITIAL_SELECTION || {
         bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', embroideryID: null, sadriEmbroideryID: null
     });
-    const [selectedButton, setSelectedButton] = useState(INITIAL_SELECTION?.button || (DUMMY_BUTTONS ? DUMMY_BUTTONS[0] : null));
+    const [selectedButton, setSelectedButton] = useState(INITIAL_SELECTION?.button || (buttons?.[0] ?? null));
     const [selectedSadriButton, setSelectedSadriButton] = useState(DUMMY_SADRI_BUTTONS ? DUMMY_SADRI_BUTTONS[0] : null);
     const [selectedCoatButton, setSelectedCoatButton] = useState(DUMMY_COAT_BUTTONS ? DUMMY_COAT_BUTTONS[0] : null);
     const [isButtonModalOpen, setButtonModalOpen] = useState(false);
@@ -68,11 +87,48 @@ export default function KurtaMain() {
     const [buttonModalTab, setButtonModalTab] = useState('Plastic');
     const [sadriButtonModalTab, setSadriButtonModalTab] = useState('Plastic');
     const [coatButtonModalTab, setCoatButtonModalTab] = useState('Plastic');
-    const [selectedPajamaFabric, setSelectedPajamaFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
-    const [selectedSadriFabric, setSelectedSadriFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
-    const [selectedCoatFabric, setSelectedCoatFabric] = useState(DUMMY_FABRICS ? DUMMY_FABRICS[0] : {});
+    const [selectedPajamaFabric, setSelectedPajamaFabric] = useState(fabrics?.[0] || {});
+    const [selectedSadriFabric, setSelectedSadriFabric] = useState(fabrics?.[0] || {});
+    const [selectedCoatFabric, setSelectedCoatFabric] = useState(fabrics?.[0] || {});
     const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri' | 'Coat'
     const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri'
+
+    useEffect(() => {
+        if (!fabricsByGarment) return;
+        const fix = (sel, tab) => {
+            const list = listForGarmentTab(tab);
+            if (!list?.length) return sel;
+            return sel && list.some((x) => x.fabricID === sel.fabricID) ? sel : list[0];
+        };
+        setSelectedFabric((f) => fix(f, 'Kurta'));
+        setSelectedPajamaFabric((f) => fix(f, 'Pajama'));
+        setSelectedSadriFabric((f) => fix(f, 'Sadri'));
+        setSelectedCoatFabric((f) => fix(f, 'Coat'));
+    }, [fabrics, fabricsByGarment, listForGarmentTab]);
+
+    useEffect(() => {
+        const picks = [
+            selectedFabric,
+            selectedPajamaFabric,
+            selectedSadriFabric,
+            selectedCoatFabric,
+        ].filter(Boolean);
+        const seen = new Set();
+        picks.forEach((sel) => {
+            if (!sel.fabricID || seen.has(sel.fabricID)) return;
+            seen.add(sel.fabricID);
+            const profile =
+                fabrics.find((f) => String(f.fabricID) === String(sel.fabricID)) || sel;
+            prefetchFabricRenders(profile);
+        });
+    }, [
+        fabrics,
+        selectedFabric,
+        selectedPajamaFabric,
+        selectedSadriFabric,
+        selectedCoatFabric,
+        prefetchFabricRenders,
+    ]);
 
     // Yahan aap apne screens ke hisab se Side Panel ki width set kar sakte hain
     const getDynamicPanelWidth = () => {
@@ -167,9 +223,9 @@ export default function KurtaMain() {
                     </View>
 
                     {/* KURTA FABRICS */}
-                    {fabricTab === 'Kurta' && DUMMY_FABRICS ? (
+                    {fabricTab === 'Kurta' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {DUMMY_FABRICS.map((fabric) => (
+                            {listForGarmentTab('Kurta').map((fabric) => (
                                 <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedFabric(fabric); }}>
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
@@ -185,9 +241,9 @@ export default function KurtaMain() {
                     ) : null}
 
                     {/* PAJAMA FABRICS — same fabric list as Kurta, independent selection */}
-                    {fabricTab === 'Pajama' && DUMMY_FABRICS ? (
+                    {fabricTab === 'Pajama' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {DUMMY_FABRICS.map((fabric) => (
+                            {listForGarmentTab('Pajama').map((fabric) => (
                                 <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedPajamaFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedPajamaFabric(fabric); }}>
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
@@ -203,9 +259,9 @@ export default function KurtaMain() {
                     ) : null}
 
                     {/* SADRI FABRICS — same fabric list as Kurta, independent selection */}
-                    {fabricTab === 'Sadri' && DUMMY_FABRICS ? (
+                    {fabricTab === 'Sadri' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {DUMMY_FABRICS.map((fabric) => (
+                            {listForGarmentTab('Sadri').map((fabric) => (
                                 <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedSadriFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedSadriFabric(fabric); }}>
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
@@ -221,9 +277,9 @@ export default function KurtaMain() {
                     ) : null}
 
                     {/* COAT FABRICS — same fabric list as Kurta, independent selection */}
-                    {fabricTab === 'Coat' && DUMMY_FABRICS ? (
+                    {fabricTab === 'Coat' && fabrics ? (
                         <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {DUMMY_FABRICS.map((fabric) => (
+                            {listForGarmentTab('Coat').map((fabric) => (
                                 <TouchableOpacity key={fabric.fabricID} style={[styles.fabricCard, selectedCoatFabric?.fabricID === fabric.fabricID && styles.fabricCardActive]} onPress={() => { setSelectedCoatFabric(fabric); }}>
                                     <Image source={fabric.thumbnail} style={styles.fabricImage} />
                                     <View style={styles.fabricInfo}>
@@ -238,7 +294,8 @@ export default function KurtaMain() {
                         </ScrollView>
                     ) : null}
 
-                    {!DUMMY_FABRICS && <Text style={styles.panelContent}>Loading Fabrics...</Text>}
+                    {fabricsLoading && <Text style={styles.panelContent}>Loading fabrics from Firebase…</Text>}
+                    {loadError ? <Text style={[styles.panelContent, { color: '#c0392b' }]}>{loadError}</Text> : null}
                 </View>
 
                 {/* --- STYLE PANEL --- */}
@@ -442,7 +499,7 @@ export default function KurtaMain() {
                                     </View>
                                 </TouchableOpacity>
                                 {(embroideryPanelTab === 'Sadri'
-                                    ? EMBROIDERY_COLLECTIONS.filter((e) => EMBROIDERY_RENDERS[e.id]?.sadriChestLeft)
+                                    ? EMBROIDERY_COLLECTIONS.filter((e) => embroideryRenders[e.id]?.sadriChestLeft)
                                     : EMBROIDERY_COLLECTIONS
                                 ).map((embroidery) => {
                                     const profileThumb = embroideryPanelTab === 'Sadri'
@@ -490,19 +547,24 @@ export default function KurtaMain() {
     };
 
 
-    const basePrice = (selectedFabric?.price || 0) + 4500;
-    const pajamaFabricPrice = selectedPajamaFabric?.price || 0;
+    const toNumber = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+    };
     const hasCoat = selectedItems.includes('coat');
     const hasSadri = selectedItems.includes('sadri');
     const hasOuterwear = hasCoat || hasSadri;
-    const sadriFabricPrice = hasSadri ? (selectedSadriFabric?.price || 0) : 0;
-    const coatFabricPrice = hasCoat ? (selectedCoatFabric?.price || 0) : 0;
-    const kurtaEmbroideryPrice = selections.embroideryID ? (EMBROIDERY_COLLECTIONS.find(e => e.id === selections.embroideryID)?.price || 0) : 0;
+    // Website-style total: selected garment collection prices only.
+    const kurtaTotal = toNumber(selectedFabric?.price);
+    const pajamaTotal = toNumber(selectedPajamaFabric?.price);
+    const sadriTotal = hasSadri ? toNumber(selectedSadriFabric?.price) : 0;
+    const coatTotal = hasCoat ? toNumber(selectedCoatFabric?.price) : 0;
+    const kurtaEmbroideryPrice = selections.embroideryID ? toNumber(EMBROIDERY_COLLECTIONS.find(e => e.id === selections.embroideryID)?.price) : 0;
     const sadriEmbroideryPrice = hasSadri && selections.sadriEmbroideryID
-        ? (EMBROIDERY_COLLECTIONS.find(e => e.id === selections.sadriEmbroideryID)?.price || 0)
+        ? toNumber(EMBROIDERY_COLLECTIONS.find(e => e.id === selections.sadriEmbroideryID)?.price)
         : 0;
     const embroideryPrice = kurtaEmbroideryPrice + sadriEmbroideryPrice;
-    const totalPrice = basePrice + pajamaFabricPrice + sadriFabricPrice + coatFabricPrice + embroideryPrice;
+    const totalPrice = kurtaTotal + pajamaTotal + sadriTotal + coatTotal + embroideryPrice;
 
     const sadriCode = selections.sadriType || 'SR';
     const firstCoatTypeIndex = KURTA_STYLE_OPTIONS.findIndex((section) => section.key === 'coatType');
@@ -687,7 +749,7 @@ export default function KurtaMain() {
                             ))}
                         </View>
                         <ScrollView {...PANEL_SCROLL_PROPS} style={styles.buttonList}>
-                            {require('../../Data/dummyData').DUMMY_BUTTONS
+                            {buttons
                                 .filter(b => b.material === buttonModalTab)
                                 .sort((a, b) => {
                                     if (a.material === 'Fabric' && b.material === 'Fabric') {
@@ -850,11 +912,11 @@ export default function KurtaMain() {
                         </Text>
                     </View>
                     <TouchableOpacity
-                        style={styles.checkoutBtn}
+                        style={[styles.checkoutBtn, isTabletViewport && styles.checkoutBtnTablet]}
                         activeOpacity={0.88}
                         onPress={() => alert('Measurements Screen!')}
                     >
-                        <Text style={styles.checkoutText}>Dress up</Text>
+                        <Text style={styles.checkoutText}>Lets Dress Up</Text>
                         <Text style={styles.checkoutChevron}>›</Text>
                     </TouchableOpacity>
                 </View>
@@ -890,15 +952,15 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.55)',
-        backgroundColor: 'rgba(255,255,255,0.12)',
+        borderColor: '#e5e7eb',
+        backgroundColor: '#ffffff',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.12,
-        shadowRadius: 6,
-        elevation: 6,
+        shadowColor: CustomTheme.shadowDark,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 5,
     },
     extrasTraySlotLabel: {
         marginTop: 2,
@@ -1003,6 +1065,10 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 10,
         maxWidth: 148,
+    },
+    checkoutBtnTablet: {
+        maxWidth: 220,
+        paddingHorizontal:60
     },
     checkoutText: { color: CustomTheme.textPrimary, fontSize: 14, fontWeight: '800', letterSpacing: 0.4 },
     checkoutChevron: { color: CustomTheme.textPrimary, fontSize: 18, fontWeight: '800', marginLeft: 2, marginTop: -1 },

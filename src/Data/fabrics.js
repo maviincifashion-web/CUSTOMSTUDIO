@@ -3,6 +3,7 @@
 export const FABRIC_PROFILES = [
     {
         fabricID: "FAB_001", // Ye wo ID hai jo render ko isse jodegi
+        stylePathId: "FAB_001", // website: Fabric/kurta/Kurta_style/{id}; local same as fabricID
         name: "Manila 970",
         brand: "Siyarams",
         description: "Premium ethnic wear fabric with a smooth finish.",
@@ -20,6 +21,7 @@ export const FABRIC_PROFILES = [
     },
      {
         fabricID: "FAB_003", // Ye wo ID hai jo render ko isse jodegi
+        stylePathId: "FAB_003",
         name: "FAB_003",
         brand: "Raymond",
         description: "Premium ethnic wear fabric with a smooth finish.",
@@ -37,6 +39,7 @@ export const FABRIC_PROFILES = [
     },
     {
         fabricID: "FAB_002",
+        stylePathId: "FAB_002",
         name: "Genius 61",
         brand: "MAVIINCI",
         description: "Vibrant and lightweight for summer weddings.",
