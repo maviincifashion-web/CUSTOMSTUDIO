@@ -1,6 +1,17 @@
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { fabricGarmentPath, KURTA_FABRIC_LIST_PATH_CANDIDATES, kurtaFabricListPath } from './paths';
 
+// ==========================================
+// OPTIMIZATION: In-Memory Cache
+// Prevents re-fetching the same layers constantly when scrolling
+// ==========================================
+const renderBundleCache = new Map();
+
+/** Dev / reload: optional manual clear if you need to force-refresh after Firestore edits. */
+export function clearRenderBundleCache() {
+  renderBundleCache.clear();
+}
+
 /** Same string key for object lookups (fabricID vs website `id` often differ). */
 export function normalizeFabricKey(v) {
   if (v == null) return '';
@@ -22,7 +33,20 @@ export function readSrcField(data) {
       if (typeof inner === 'string' && inner.length > 0) return inner;
     }
   }
-  for (const key of ['url', 'imageUrl', 'downloadURL', 'image', 'uri', 'link']) {
+  for (const key of [
+    'url',
+    'imageUrl',
+    'imageURL',
+    'downloadURL',
+    'image',
+    'uri',
+    'link',
+    'fileUrl',
+    'publicUrl',
+    'storageUrl',
+    'photoUrl',
+    'path',
+  ]) {
     const v = data[key];
     if (typeof v === 'string' && v.length > 0) return v;
   }
@@ -153,6 +177,41 @@ async function fetchGarmentRenderBundleWithSuitsFallback(db, garment, stylePathI
   return layerCount(alt) > 0 ? alt : primary;
 }
 
+const GARMENT_STYLE_DOC_PREFIX = {
+  kurta: 'Kurta',
+  pajama: 'Pajama',
+  sadri: 'Sadri',
+  coat: 'Coat',
+};
+
+/**
+ * Style layer folders in Firestore are often named `Kurta-1773…` while fabric rows
+ * only expose numeric `id` / `fabricID`. Try both raw and prefixed paths to avoid
+ * empty lookups and extra latency.
+ * @param {'kurta'|'pajama'|'sadri'|'coat'} garment
+ * @param {string[]} candidateIds
+ */
+function expandStylePathCandidates(garment, candidateIds) {
+  const prefix = GARMENT_STYLE_DOC_PREFIX[garment];
+  const out = [];
+  const seen = new Set();
+  const push = (v) => {
+    const s = v == null ? '' : String(v).trim();
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    out.push(s);
+  };
+  for (const raw of candidateIds || []) {
+    if (raw == null || String(raw).trim() === '') continue;
+    const id = String(raw).trim();
+    push(id);
+    if (prefix && !id.startsWith(`${prefix}-`)) {
+      push(`${prefix}-${id}`);
+    }
+  }
+  return out;
+}
+
 /**
  * Tries each candidate id until display/style has at least one layer URL.
  * Master `Suits/fabrics` rows often key `Kurta_style` by Firestore doc id while `fabricID` is a SKU.
@@ -161,24 +220,36 @@ async function fetchGarmentRenderBundleWithSuitsFallback(db, garment, stylePathI
  * @param {string[]} candidateIds e.g. [stylePathId, fabricID, firestoreDocId]
  */
 export async function fetchGarmentRenderBundleWithFallback(db, garment, candidateIds) {
-  const ids = [...new Set((candidateIds || []).filter(Boolean).map(String))];
+  // OPTIMIZATION 1: Check Cache Before Doing Network Calls
+  const uniqueCandidates = [...new Set((candidateIds || []).filter(Boolean).map(String))];
+  const cacheKey = `${garment}-${uniqueCandidates.join('-')}`;
+  
+  if (renderBundleCache.has(cacheKey)) {
+    return renderBundleCache.get(cacheKey);
+  }
+
+  const ids = expandStylePathCandidates(garment, uniqueCandidates);
   if (ids.length === 0) return { display: {}, style: {} };
+  
   /** @type {{ display: Record<string, { uri: string }>, style: Record<string, { uri: string }> }} */
   let last = { display: {}, style: {} };
+  
   for (const id of ids) {
     const bundle = await fetchGarmentRenderBundleWithSuitsFallback(db, garment, id);
-    const n =
-      Object.keys(bundle.display || {}).length + Object.keys(bundle.style || {}).length;
+    const n = Object.keys(bundle.display || {}).length + Object.keys(bundle.style || {}).length;
     last = bundle;
+
     if (n > 0) {
       if (typeof __DEV__ !== 'undefined' && __DEV__) {
         console.log(
           `[Maviinci] ${garment} renders: id="${id}" (${Object.keys(bundle.display).length} display, ${Object.keys(bundle.style).length} style)`
         );
       }
+      renderBundleCache.set(cacheKey, bundle);
       return bundle;
     }
   }
+  
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
     console.warn(`[Maviinci] No ${garment} renders for tried ids: ${ids.join(', ')}`);
   }
@@ -190,22 +261,30 @@ export async function fetchGarmentRenderBundleWithFallback(db, garment, candidat
  * @param {import('firebase/firestore').Firestore} db
  */
 export async function fetchKurtaFabricDocuments(db) {
-  for (const segments of KURTA_FABRIC_LIST_PATH_CANDIDATES) {
-    const colRef = collection(db, ...segments);
-    const snap = await getDocs(colRef);
-    if (snap.size > 0) {
+  // OPTIMIZATION 2: Run all path checks in PARALLEL instead of one-by-one
+  const promises = KURTA_FABRIC_LIST_PATH_CANDIDATES.map((segments) => 
+    getDocs(collection(db, ...segments)).catch(() => ({ size: 0, docs: [] }))
+  );
+
+  const snaps = await Promise.all(promises);
+
+  // Pick the first successful path
+  for (let i = 0; i < snaps.length; i++) {
+    if (snaps[i].size > 0) {
       if (typeof __DEV__ !== 'undefined' && __DEV__) {
-        console.log(`[Maviinci] Firestore fabric list: ${segments.join('/')} (${snap.size} docs)`);
+        console.log(`[Maviinci] Firestore fabric list: ${KURTA_FABRIC_LIST_PATH_CANDIDATES[i].join('/')} (${snaps[i].size} docs)`);
       }
-      return snap.docs;
+      return snaps[i].docs;
     }
   }
+
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
     console.warn(
       '[Maviinci] No fabric docs in tried paths:',
       KURTA_FABRIC_LIST_PATH_CANDIDATES.map((s) => s.join('/')).join(', ')
     );
   }
+  
   const fallback = await getDocs(collection(db, ...kurtaFabricListPath()));
   return fallback.docs;
 }
@@ -341,32 +420,70 @@ export function pickFabricRenderEntry(map, fabric) {
 }
 
 /**
- * Buttons collection: doc fields `name`, `material`, `renders` map code→URL, optional `iconUrl`, `linkedFabricID`
+ * Normalize admin `material` (metal, plastic, …) to UI-friendly label.
+ */
+function normalizeButtonMaterial(m) {
+  if (m == null || String(m).trim() === '') return 'Plastic';
+  const s = String(m).trim();
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+/**
+ * Merge render maps: admin may use top-level `renders`, duplicate `resources` object,
+ * and/or `Buttons/{id}/style/{layerCode}` docs with `{ src }` (Button_upload.jsx).
+ */
+function mergeButtonRenderEntry(d, styleSnap) {
+  /** @type {Record<string, { uri: string }>} */
+  const renders = {};
+  const addFromObject = (obj) => {
+    if (!obj || typeof obj !== 'object') return;
+    Object.entries(obj).forEach(([code, url]) => {
+      if (typeof url === 'string' && url.length > 0) renders[code] = { uri: url };
+    });
+  };
+  addFromObject(d.renders);
+  addFromObject(d.resources);
+  if (styleSnap) {
+    styleSnap.forEach((layerDoc) => {
+      const url = readSrcField(layerDoc.data());
+      if (url) renders[layerDoc.id] = { uri: url };
+    });
+  }
+  return renders;
+}
+
+/**
+ * Buttons collection: legacy `renders` on doc; admin panel also uses `resources` + subcollection `style`.
+ * Icon: `iconUrl` or admin `src`. Link: `linkedFabricID` or admin `fabricId` (often fabric name).
  * @param {import('firebase/firestore').Firestore} db
  */
 export async function fetchButtonsCollection(db) {
   const snap = await getDocs(collection(db, 'Buttons'));
-  /** @type {Array<{ id: string, name: string, material: string, icon: { uri: string }|null, linkedFabricID?: string, renders: Record<string, { uri: string }> }>} */
-  const list = [];
-  snap.forEach((docSnap) => {
+  const docs = snap.docs;
+  const styleSnaps = await Promise.all(
+    docs.map((docSnap) =>
+      getDocs(collection(db, 'Buttons', docSnap.id, 'style')).catch(() => null)
+    )
+  );
+
+  return docs.map((docSnap, idx) => {
     const d = docSnap.data() || {};
-    const renders = {};
-    const raw = d.renders;
-    if (raw && typeof raw === 'object') {
-      Object.entries(raw).forEach(([code, url]) => {
-        if (typeof url === 'string' && url.length > 0) renders[code] = { uri: url };
-      });
-    }
-    list.push({
+    const renders = mergeButtonRenderEntry(d, styleSnaps[idx]);
+    const iconRaw = d.iconUrl || d.src;
+    const icon = typeof iconRaw === 'string' && iconRaw.length ? { uri: iconRaw } : null;
+    return {
       id: docSnap.id,
       name: d.name || docSnap.id,
-      material: d.material || 'Plastic',
-      icon: typeof d.iconUrl === 'string' && d.iconUrl.length ? { uri: d.iconUrl } : null,
-      linkedFabricID: d.linkedFabricID,
+      material: normalizeButtonMaterial(d.material),
+      icon,
+      linkedFabricID: d.linkedFabricID ?? d.fabricId ?? undefined,
+      targetType: d.targetType,
+      parentCategory: d.parentCategory ?? d.type,
+      style: d.style,
+      color: d.color,
       renders,
-    });
+    };
   });
-  return list;
 }
 
 /**
@@ -380,4 +497,289 @@ export async function getSrcFromDocPath(db, pathSegments) {
   if (!snap.exists()) return null;
   const url = readSrcField(snap.data());
   return url ? { uri: url } : null;
+}
+
+/**
+ * Subcollections under `Fabric/embroidery/{segment}` where admin EmbroideryForm writes * design docs (parent has `style` = style catalog doc id, plus `style` subcoll with layer `{src}`).
+ */
+export const APP_EMBROIDERY_LAYOUT_SEGMENTS = [
+  'kurta_kurta_base',
+  'kurta_kurta_sleeve',
+  'kurta_kurta_lapel',
+  'kurta_kurta_collar',
+  'kurta_kurta_pocket',
+  'kurta_kurta_epaulette',
+  'kurta_sadri_base',
+];
+
+function isSadriEmbroiderySegment(segment) {
+  return String(segment).toLowerCase().includes('_sadri_');
+}
+
+function normalizeEmbroideryLookupKey(value) {
+  if (value == null) return '';
+  return String(value).trim().toLowerCase();
+}
+
+function makeEmbroiderySelectionKey(typeKey, docId) {
+  const type = normalizeEmbroideryLookupKey(typeKey);
+  const id = normalizeEmbroideryLookupKey(docId);
+  if (!type || !id) return '';
+  return `${type}::${id}`;
+}
+
+function embroideryCodeAliases(segment, code) {
+  const raw = String(code || '').trim();
+  if (!raw) return [];
+
+  const out = [];
+  const seen = new Set();
+  const push = (value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    out.push(normalized);
+  };
+
+  push(raw);
+
+  if (isSadriEmbroiderySegment(segment)) {
+    // Keep app logic on documented `E-${finalSadriCode}` while accepting
+    // Firebase/admin assets that may be stored as `EBB`, `ELR`, etc.
+    if (/^E-[A-Za-z0-9]+$/.test(raw)) {
+      push(`E${raw.slice(2)}`);
+    } else if (/^E[A-Za-z0-9]+$/.test(raw)) {
+      push(`E-${raw.slice(1)}`);
+    }
+  }
+
+  return out;
+}
+
+/** Style catalog: `Fabric/embroidery/styles/{id}` */
+export async function fetchEmbroideryStyleDocuments(db) {
+  const snap = await getDocs(collection(db, 'Fabric', 'embroidery', 'styles'));
+  return snap.docs;
+}
+
+/**
+ * Load all layer URLs for one embroidery style id (matches parent design doc field `style`).
+ */
+export async function fetchEmbroideryRendersForStyleId(
+  db,
+  styleId,
+  segments = APP_EMBROIDERY_LAYOUT_SEGMENTS
+) {
+  const sid = normalizeFabricKey(styleId);
+  if (!sid) {
+    return { display: {}, sadriChestLeft: {}, sadriChestRight: {}, folded: {}, uploadsByDocId: {}, uploadsByType: {}, uploadsBySelectionKey: {} };
+  }
+
+  const display = {};
+  const sadriChestLeft = {};
+  const sadriChestRight = {};
+  const uploadsByDocId = {};
+  const uploadsByType = {};
+  const uploadsBySelectionKey = {};
+
+  const applyLayer = (target, segment, code, url) => {
+    if (!code || typeof url !== 'string' || !url.length) return;
+    const src = { uri: url };
+    const aliases = embroideryCodeAliases(segment, code);
+    if (isSadriEmbroiderySegment(segment)) {
+      aliases.forEach((alias) => {
+        target.sadriChestLeft[alias] = src;
+        target.sadriChestRight[alias] = src;
+      });
+    } else {
+      aliases.forEach((alias) => {
+        target.display[alias] = src;
+      });
+    }
+  };
+
+  for (const segment of segments) {
+    let collSnap;
+    try {
+      collSnap = await getDocs(collection(db, 'Fabric', 'embroidery', segment));
+    } catch {
+      continue;
+    }
+    for (const docSnap of collSnap.docs) {
+      const data = docSnap.data() || {};
+      const linked = normalizeFabricKey(data.style);
+      if (!linked || linked !== sid) continue;
+      const docBundle = { display: {}, sadriChestLeft: {}, sadriChestRight: {}, folded: {} };
+
+      const res = data.resources;
+      if (res && typeof res === 'object') {
+        Object.entries(res).forEach(([code, url]) => {
+          if (typeof url === 'string') {
+            applyLayer({ display, sadriChestLeft, sadriChestRight }, segment, code, url);
+            applyLayer(docBundle, segment, code, url);
+          }
+        });
+      }
+
+      try {
+        const styleSnap = await getDocs(
+          collection(db, 'Fabric', 'embroidery', segment, docSnap.id, 'style')
+        );
+        styleSnap.forEach((layerDoc) => {
+          const url = readSrcField(layerDoc.data());
+          if (url) {
+            applyLayer({ display, sadriChestLeft, sadriChestRight }, segment, layerDoc.id, url);
+            applyLayer(docBundle, segment, layerDoc.id, url);
+          }
+        });
+      } catch {
+        /* no style subcoll */
+      }
+
+      uploadsByDocId[docSnap.id] = {
+        ...docBundle,
+        docId: docSnap.id,
+        segment,
+        type: data.type || '',
+        part: data.part || '',
+        name: data.name || docSnap.id,
+      };
+      const selectionKey = makeEmbroiderySelectionKey(segment, docSnap.id);
+      if (selectionKey) {
+        uploadsBySelectionKey[selectionKey] = uploadsByDocId[docSnap.id];
+      }
+
+      const keys = [
+        data.type,
+        data.part,
+        data.name,
+        docSnap.id,
+        segment,
+      ].map(normalizeEmbroideryLookupKey);
+
+      keys.forEach((key) => {
+        if (!key) return;
+        const prev = uploadsByType[key] || { display: {}, sadriChestLeft: {}, sadriChestRight: {}, folded: {} };
+        uploadsByType[key] = {
+          ...prev,
+          display: { ...(prev.display || {}), ...(docBundle.display || {}) },
+          sadriChestLeft: { ...(prev.sadriChestLeft || {}), ...(docBundle.sadriChestLeft || {}) },
+          sadriChestRight: { ...(prev.sadriChestRight || {}), ...(docBundle.sadriChestRight || {}) },
+          folded: { ...(prev.folded || {}), ...(docBundle.folded || {}) },
+        };
+      });
+    }
+  }
+
+  return { display, sadriChestLeft, sadriChestRight, folded: {}, uploadsByDocId, uploadsByType, uploadsBySelectionKey };
+}
+
+/**
+ * Website admin `COLLECTION_TYPES`: docs under `Fabric/embroidery/{value}` with `values[]` linking to style + render type.
+ */
+export const EMBROIDERY_UPLOAD_COLLECTIONS = [
+  { value: 'Suits_collections', label: 'Suit' },
+  { value: 'formal_collections', label: 'Formal' },
+  { value: 'blazer_collections', label: 'Blazer' },
+  { value: 'kurta_collections', label: 'Kurta' },
+];
+
+function embroideryValueTypeMatchesPanel(typeKey, panelMode) {
+  const t = String(typeKey || '').toLowerCase();
+  if (panelMode === 'Sadri') return t.includes('_sadri_');
+  return t.includes('kurta_kurta');
+}
+
+function uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode) {
+  const vals = Array.isArray(data.values) ? data.values : [];
+  const forStyle = vals.filter((v) => v && normalizeFabricKey(v.style) === sid);
+  if (!forStyle.length) return false;
+  return forStyle.some((v) => embroideryValueTypeMatchesPanel(v.type, panelMode));
+}
+
+function matchingUploadedCollectionValues(data, sid, panelMode) {
+  const vals = Array.isArray(data?.values) ? data.values : [];
+  return vals.filter((v) => {
+    if (!v || typeof v !== 'object') return false;
+    return normalizeFabricKey(v.style) === sid && embroideryValueTypeMatchesPanel(v.type, panelMode);
+  });
+}
+
+/**
+ * Admin embroidery “collection” cards for one style id (`Embroidery_collection.jsx` list when a style is opened).
+ */
+export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, panelMode = 'Kurta') {
+  const sid = normalizeFabricKey(styleId);
+  if (!sid) return [];
+
+  const out = [];
+  for (const { value, label } of EMBROIDERY_UPLOAD_COLLECTIONS) {
+    let snap;
+    try {
+      snap = await getDocs(collection(db, 'Fabric', 'embroidery', value));
+    } catch {
+      continue;
+    }
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data() || {};
+      if (!uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode)) continue;
+
+      const vals = matchingUploadedCollectionValues(data, sid, panelMode);
+      const thumb =
+        (typeof data.src === 'string' && data.src.length > 0 && data.src) || readSrcField(data);
+      const price = parseMoney(data.price ?? data.Price);
+
+      out.push({
+        id: docSnap.id,
+        segment: value,
+        name: data.name || docSnap.id,
+        type: label,
+        price,
+        renderCount: vals.length,
+        imageUri: thumb || null,
+        matchingValues: matchingUploadedCollectionValues(data, sid, panelMode),
+      });
+    }
+  }
+
+  out.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' }));
+  return out;
+}
+
+/**
+ * Merge local embroidery map with remote `{ [styleId]: partial bundle }` (local is often `{}`).
+ */
+export function mergeEmbroideryRenderMaps(localMap, remoteMap) {
+  const ids = new Set([
+    ...Object.keys(localMap || {}),
+    ...Object.keys(remoteMap || {}),
+  ]);
+  const out = {};
+  for (const id of ids) {
+    const loc = localMap?.[id];
+    const rem = remoteMap?.[id];
+    const hasRemote =
+      rem &&
+      (Object.keys(rem.display || {}).length > 0 ||
+        Object.keys(rem.sadriChestLeft || {}).length > 0 ||
+        Object.keys(rem.sadriChestRight || {}).length > 0 ||
+        Object.keys(rem.folded || {}).length > 0 ||
+        Object.keys(rem.uploadsByDocId || {}).length > 0 ||
+        Object.keys(rem.uploadsByType || {}).length > 0 ||
+        Object.keys(rem.uploadsBySelectionKey || {}).length > 0);
+    if (!hasRemote) {
+      if (loc) out[id] = loc;
+      continue;
+    }
+    out[id] = {
+      display: { ...(loc?.display || {}), ...(rem.display || {}) },
+      sadriChestLeft: { ...(loc?.sadriChestLeft || {}), ...(rem.sadriChestLeft || {}) },
+      sadriChestRight: { ...(loc?.sadriChestRight || {}), ...(rem.sadriChestRight || {}) },
+      folded: { ...(loc?.folded || {}), ...(rem.folded || {}) },
+      uploadsByDocId: { ...(loc?.uploadsByDocId || {}), ...(rem.uploadsByDocId || {}) },
+      uploadsByType: { ...(loc?.uploadsByType || {}), ...(rem.uploadsByType || {}) },
+      uploadsBySelectionKey: { ...(loc?.uploadsBySelectionKey || {}), ...(rem.uploadsBySelectionKey || {}) },
+    };
+  }
+  return out;
 }

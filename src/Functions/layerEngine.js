@@ -1,5 +1,3 @@
-import { EMBROIDERY_RENDERS } from '../Data/dummyData';
-
 const SHIRT_COLLARS = ['CR', 'CB', 'CT', 'CS', 'CE'];
 const MANDARIN_COLLARS = ['CM', 'CC', 'CN'];
 const CATEGORY_A_SADRI = ['SR', 'RR', 'SS', 'AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'KK'];
@@ -40,7 +38,7 @@ export const getSadriLayerCodes = (
   selectedSadriButton,
   viewMode = 0,
   slideIndex = 0,
-  embroideryRenders = EMBROIDERY_RENDERS
+  embroideryRenders = {}
 ) => {
     if (!sadriCode) return [];
 

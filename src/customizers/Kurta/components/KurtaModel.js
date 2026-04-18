@@ -171,6 +171,73 @@ function pickWithSadriSuffixFallback(map, code) {
     return null;
 }
 
+const normalizeEmbKey = (value) => (value == null ? '' : String(value).trim().toLowerCase());
+
+const makeEmbSelectionKey = (value) => {
+    const typeKey = normalizeEmbKey(value?.type);
+    const docId = normalizeEmbKey(value?.id);
+    return typeKey && docId ? `${typeKey}::${docId}` : '';
+};
+
+const collectionValueMatchesLayer = (value, layerObj) => {
+    const typeKey = normalizeEmbKey(value?.type);
+    if (!typeKey) return false;
+    const isSadri = String(layerObj?.type || '').startsWith('sadri_embroidery_');
+
+    if (isSadri) {
+        return typeKey.endsWith('_sadri_base');
+    }
+
+    if (layerObj?.part === 'Collar') return typeKey.endsWith('_collar') || typeKey.endsWith('_lapel');
+    if (layerObj?.part === 'Sleeve') return typeKey.endsWith('_sleeve');
+    if (layerObj?.part === 'Chest') return typeKey.endsWith('_base');
+    return false;
+};
+
+const appendUniqueSource = (list, source) => {
+    if (!source) return;
+    const key = typeof source === 'number' ? `asset:${source}` : `uri:${source?.uri || JSON.stringify(source)}`;
+    if (list.some((item) => {
+        const itemKey = typeof item === 'number' ? `asset:${item}` : `uri:${item?.uri || JSON.stringify(item)}`;
+        return itemKey === key;
+    })) return;
+    list.push(source);
+};
+
+const pickEmbroiderySourcesForLayer = (bundle, collection, layerObj) => {
+    if (!bundle || !layerObj?.code) return [];
+    const hasCollection = Array.isArray(collection?.matchingValues) && collection.matchingValues.length > 0;
+    if (!hasCollection) {
+        const single =
+            layerObj.type === 'embroidery'
+                ? bundle.display?.[layerObj.code]
+                : layerObj.type === 'sadri_embroidery_left'
+                    ? bundle.sadriChestLeft?.[layerObj.code]
+                    : layerObj.type === 'sadri_embroidery_right'
+                        ? bundle.sadriChestRight?.[layerObj.code]
+                        : null;
+        return single ? [single] : [];
+    }
+
+    const values = collection.matchingValues.filter((value) => collectionValueMatchesLayer(value, layerObj));
+    const bySelectionKey = bundle.uploadsBySelectionKey || {};
+    const sources = [];
+    for (const value of values) {
+        const uploadBundle = bySelectionKey[makeEmbSelectionKey(value)];
+        if (!uploadBundle) continue;
+        if (layerObj.type === 'embroidery' && uploadBundle.display?.[layerObj.code]) {
+            appendUniqueSource(sources, uploadBundle.display[layerObj.code]);
+        }
+        if (layerObj.type === 'sadri_embroidery_left' && uploadBundle.sadriChestLeft?.[layerObj.code]) {
+            appendUniqueSource(sources, uploadBundle.sadriChestLeft[layerObj.code]);
+        }
+        if (layerObj.type === 'sadri_embroidery_right' && uploadBundle.sadriChestRight?.[layerObj.code]) {
+            appendUniqueSource(sources, uploadBundle.sadriChestRight[layerObj.code]);
+        }
+    }
+    return sources;
+};
+
 export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, selectedCoatFabric, hasCoat = false, hasSadri, sadriCode, slideIndex = 0 }) {
     const { isMobile, isTablet, isDesktop } = useResponsive();
     const {
@@ -324,14 +391,27 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
 
                 // Resolve image based on type
                 let imageSource = null;
+                let imageSources = null;
                 if (layerObj.type === 'button') {
                     imageSource = selectedButton?.renders?.[layerObj.code];
                 } else if (layerObj.type === 'embroidery') {
-                    imageSource = EMBROIDERY_RENDERS[layerObj.collectionID]?.display?.[layerObj.code];
+                    imageSources = pickEmbroiderySourcesForLayer(
+                        EMBROIDERY_RENDERS[layerObj.collectionID],
+                        selections.embroideryCollection,
+                        layerObj
+                    );
                 } else if (layerObj.type === 'sadri_embroidery_left') {
-                    imageSource = EMBROIDERY_RENDERS[layerObj.collectionID]?.sadriChestLeft?.[layerObj.code];
+                    imageSources = pickEmbroiderySourcesForLayer(
+                        EMBROIDERY_RENDERS[layerObj.collectionID],
+                        selections.sadriEmbroideryCollection,
+                        layerObj
+                    );
                 } else if (layerObj.type === 'sadri_embroidery_right') {
-                    imageSource = EMBROIDERY_RENDERS[layerObj.collectionID]?.sadriChestRight?.[layerObj.code];
+                    imageSources = pickEmbroiderySourcesForLayer(
+                        EMBROIDERY_RENDERS[layerObj.collectionID],
+                        selections.sadriEmbroideryCollection,
+                        layerObj
+                    );
                 } else if (layerObj.type === 'pajama') {
                     imageSource = pajamaRenders[layerObj.code];
                 } else if (layerObj.type === 'sadri_button') {
@@ -344,6 +424,17 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     imageSource = selectedCoatButton?.renders?.[layerObj.code];
                 } else {
                     imageSource = fabricRenders[layerObj.code];
+                }
+
+                if (Array.isArray(imageSources) && imageSources.length > 0) {
+                    return imageSources.map((src, sourceIndex) => (
+                        <SmartLayer
+                            key={`layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`}
+                            src={src}
+                            zIndex={layerObj.zIndex + sourceIndex * 0.01}
+                            dynamicStyle={dynamicStyle}
+                        />
+                    ));
                 }
 
                 return (

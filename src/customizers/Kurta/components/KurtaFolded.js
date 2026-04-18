@@ -7,6 +7,49 @@ import { View, Image, StyleSheet } from 'react-native';
 import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 
+const normalizeEmbKey = (value) => (value == null ? '' : String(value).trim().toLowerCase());
+
+const makeEmbSelectionKey = (value) => {
+    const typeKey = normalizeEmbKey(value?.type);
+    const docId = normalizeEmbKey(value?.id);
+    return typeKey && docId ? `${typeKey}::${docId}` : '';
+};
+
+const collectionValueMatchesFoldedPart = (value, part) => {
+    const typeKey = normalizeEmbKey(value?.type);
+    if (!typeKey) return false;
+    if (part === 'Collar') return typeKey.endsWith('_collar') || typeKey.endsWith('_lapel');
+    if (part === 'Sleeve') return typeKey.endsWith('_sleeve');
+    if (part === 'Chest') return typeKey.endsWith('_base');
+    return false;
+};
+
+const appendUniqueSource = (list, source) => {
+    if (!source) return;
+    const key = typeof source === 'number' ? `asset:${source}` : `uri:${source?.uri || JSON.stringify(source)}`;
+    if (list.some((item) => {
+        const itemKey = typeof item === 'number' ? `asset:${item}` : `uri:${item?.uri || JSON.stringify(item)}`;
+        return itemKey === key;
+    })) return;
+    list.push(source);
+};
+
+const pickFoldedEmbroiderySources = (bundle, collection, layerObj) => {
+    if (!bundle || !layerObj?.code) return [];
+    const hasCollection = Array.isArray(collection?.matchingValues) && collection.matchingValues.length > 0;
+    if (!hasCollection) return bundle.folded?.[layerObj.code] ? [bundle.folded[layerObj.code]] : [];
+
+    const values = collection.matchingValues.filter((value) => collectionValueMatchesFoldedPart(value, layerObj.part));
+    const bySelectionKey = bundle.uploadsBySelectionKey || {};
+    const sources = [];
+
+    for (const value of values) {
+        const uploadBundle = bySelectionKey[makeEmbSelectionKey(value)];
+        if (uploadBundle?.folded?.[layerObj.code]) appendUniqueSource(sources, uploadBundle.folded[layerObj.code]);
+    }
+    return sources;
+};
+
 // --- FLICKER-FREE LAYER COMPONENT ---
 const SmartLayer = ({ src, zIndex }) => {
     const [displaySrc, setDisplaySrc] = useState(src || null);
@@ -15,7 +58,11 @@ const SmartLayer = ({ src, zIndex }) => {
     const tokenRef = useRef(0);
 
     useEffect(() => {
-        if (!src) return;
+        if (!src) {
+            setDisplaySrc(null);
+            setPendingSrc(null);
+            return;
+        }
 
         if (!displaySrc) {
             setDisplaySrc(src);
@@ -194,14 +241,29 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
             {/* Dynamic Folded Garment Layers (Z-Index 10 se 90 tak) */}
             {getFoldedLayerCodes().map((layerObj, index) => {
                 let imageSource = null;
+                let imageSources = null;
                 if (layerObj.type === 'button') {
                     imageSource = selectedButton?.renders?.[layerObj.code];
                 } else if (layerObj.type === 'embroidery') {
-                    imageSource = EMBROIDERY_RENDERS[layerObj.collectionID]?.folded?.[layerObj.code];
+                    imageSources = pickFoldedEmbroiderySources(
+                        EMBROIDERY_RENDERS[layerObj.collectionID],
+                        selections.embroideryCollection,
+                        layerObj
+                    );
                 } else if (layerObj.type === 'pajama') {
                     imageSource = pajamaStyleRenders[layerObj.code];
                 } else {
                     imageSource = fabricStyleRenders[layerObj.code];
+                }
+
+                if (Array.isArray(imageSources) && imageSources.length > 0) {
+                    return imageSources.map((src, sourceIndex) => (
+                        <SmartLayer
+                            key={`folded-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`}
+                            src={src}
+                            zIndex={layerObj.zIndex + sourceIndex * 0.01}
+                        />
+                    ));
                 }
 
                 return (

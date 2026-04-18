@@ -175,25 +175,6 @@ export const DUMMY_COAT_BUTTONS = [
     }
 ];
 
-export const EMBROIDERY_COLLECTIONS = [
-    {
-        id: "DDF01",
-        name: "Naqsh E Darbaar",
-        price: 3500,
-        profileImage: require('../../assets/kurta/Embroidery/Profiles/DDF01.jpg'),
-        profileImageSadri: null,
-        availableRegions: ["Chest", "Collar", "Sleeve"]
-    },
-    {
-        id: "DDF02",
-        name: "Sadri Chest Embroidery",
-        price: 3500,
-        profileImage: require('../../assets/Sadri/Embroidery/Profiles/DDF02.jpg'),
-        profileImageSadri: require('../../assets/Sadri/Embroidery/Profiles/DDF02.jpg'),
-        availableRegions: ["Chest"]
-    }
-];
-
 export const INITIAL_SELECTION = {
     button: DUMMY_BUTTONS[0],
     length: 'K',
@@ -208,7 +189,9 @@ export const INITIAL_SELECTION = {
     sleeve: 'SN',
     cuffStyle: 'US1',
     embroideryID: null, // Kurta embroidery
+    embroideryCollection: null, // Selected kurta embroidery collection doc
     sadriEmbroideryID: null, // Sadri chest (left+right asset folders)
+    sadriEmbroideryCollection: null, // Selected sadri embroidery collection doc
     pajamaType: 'PJ',
     beltType: 'R',
     sadriType: 'SR',
@@ -251,70 +234,6 @@ export const PAJAMA_RENDERS = {
         display: {},
         style: {}
     },
-};
-// Sadri chest layer codes: `E-{finalSadriCode}` — only styles listed here have embroidery (LEFT+RIGHT both required on disk).
-// If a sadri style is missing from these maps, no embroidery is shown for that style (see layerEngine).
-
-const DDF02_SADRI_LEFT_CORE = {
-    'E-SR': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/ESR.webp'),
-    'E-RR': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/ERR.webp'),
-    'E-BB': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EBB.webp'),
-    'E-FF': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EFF.webp'),
-    'E-GG': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EGG.webp'),
-    'E-HH': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EHH.webp'),
-    'E-KK': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EKK.webp'),
-    'E-LR': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/ELR.webp'),
-    'E-LS': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/ELS.webp'),
-    'E-LC': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/ELC.webp'),
-    'E-MR': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EMR.webp'),
-    'E-MS': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EMS.webp'),
-    'E-MC': require('../../assets/Sadri/Embroidery/Renders/DDF02/LEFT/EMC.webp')
-};
-const DDF02_SADRI_RIGHT_CORE = {
-    'E-SR': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/ESR.webp'),
-    'E-RR': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/ERR.webp'),
-    'E-BB': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EBB.webp'),
-    'E-FF': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EFF.webp'),
-    'E-GG': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EGG.webp'),
-    'E-HH': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EHH.webp'),
-    'E-KK': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EKK.webp'),
-    'E-LR': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/ELR.webp'),
-    'E-LS': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/ELS.webp'),
-    'E-LC': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/ELC.webp'),
-    'E-MR': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EMR.webp'),
-    'E-MS': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EMS.webp'),
-    'E-MC': require('../../assets/Sadri/Embroidery/Renders/DDF02/RIGHT/EMC.webp')
-};
-
-export const EMBROIDERY_RENDERS = {
-    "DDF01": {
-        display: {
-            "E-D-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-D-F.webp'),
-            "E-D0-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-D0-F.webp'),
-            "E-K-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-K-F.webp'),
-            "E-L-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-L-F.webp'),
-            "E-P-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-P-F.webp'),
-            "E-P0-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-P0-F.webp'),
-            "E-Q-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-Q-F.webp'),
-            "E-Q0-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-Q0-F.webp'),
-            "E-R-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-R-F.webp'),
-            "E-S-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-S-F.webp'),
-            "E-T-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-T-F.webp'),
-            "E-T0-F": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-T0-F.webp')
-        },
-        folded: {
-            "E-BASE-S": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-BASE-S.webp'),
-            "E-BASE_C-S": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-BASE-S.webp'),
-            "E-BASE_M-S": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-BASE-S.webp'),
-            "E-BASE_R-S": require('../../assets/kurta/Embroidery/Renders/DDF01/Chest/E-BASE_R-S.webp')
-        }
-    },
-    "DDF02": {
-        display: {},
-        sadriChestLeft: DDF02_SADRI_LEFT_CORE,
-        sadriChestRight: DDF02_SADRI_RIGHT_CORE,
-        folded: {}
-    }
 };
 
 export const SADRI_RENDERS = {

@@ -14,13 +14,18 @@ import { getFirestoreDb } from '../../firebase/config';
 import { captureRef } from 'react-native-view-shot';
 import QRCode from 'react-native-qrcode-svg';
 
-import { INITIAL_SELECTION, DUMMY_SADRI_BUTTONS, DUMMY_COAT_BUTTONS, EMBROIDERY_COLLECTIONS } from '../../Data/dummyData';
+import {
+    INITIAL_SELECTION,
+    DUMMY_SADRI_BUTTONS,
+    DUMMY_COAT_BUTTONS,
+} from '../../Data/dummyData';
 import { useFirebaseCatalog } from '../../context/FirebaseCatalogContext';
 import { KURTA_STYLE_OPTIONS } from '../../Data/styleData';
 import { useOutfit } from '../../context/OutfitContext';
 
 // --- YAHAN MODEL COMPONENT IMPORT HUA HAI ---
 import KurtaModel from './components/KurtaModel';
+import EmbroideryPreviewModal from './components/EmbroideryPreviewModal';
 import KurtaFolded from './components/KurtaFolded';
 import PajamaStylePreview from './components/PajamaStylePreview';
 import FullScreenCarousel from '../../../components/FullScreenCarousel';
@@ -210,6 +215,57 @@ function normalizeId(v) {
     return String(v).trim();
 }
 
+/** Admin stores `fabricId` as fabric name; legacy dummy uses `linkedFabricID` = SKU — match any known id on the fabric profile. */
+function buttonLinkedToFabric(button, fabric) {
+    const link = normalizeId(button?.linkedFabricID);
+    if (!link || !fabric) return false;
+    const linkLc = link.toLowerCase();
+    const candidates = [
+        fabric.fabricID,
+        fabric.id,
+        fabric.name,
+        fabric.fabric,
+        fabric.websiteId,
+        fabric.stylePathId,
+        fabric.firestoreDocId,
+        fabric.doc,
+    ]
+        .map(normalizeId)
+        .filter(Boolean);
+    return candidates.some((c) => c.toLowerCase() === linkLc);
+}
+
+/** Firebase buttons with `targetType` Sadri/Coat merged into local dummy lists (by id, remote wins fields). */
+function mergeRemoteButtonsByTarget(localList, remoteList, targetLabel) {
+    const t = String(targetLabel || '').toLowerCase();
+    const remote = (remoteList || []).filter(
+        (b) => String(b?.targetType || '').toLowerCase() === t
+    );
+    if (!remote.length) return localList;
+    const byId = new Map(
+        localList.map((b) => [b.id, { ...b, renders: { ...(b.renders || {}) } }])
+    );
+    for (const b of remote) {
+        const prev = byId.get(b.id);
+        if (prev) {
+            byId.set(b.id, {
+                ...prev,
+                ...b,
+                renders: { ...(prev.renders || {}), ...(b.renders || {}) },
+            });
+        } else {
+            byId.set(b.id, b);
+        }
+    }
+    return Array.from(byId.values());
+}
+
+/** Main kurta picker: only Kurta-target (or legacy rows with no targetType). */
+function buttonTargetsKurta(b) {
+    const tt = String(b?.targetType || '').toLowerCase();
+    return !tt || tt === 'kurta';
+}
+
 import { useResponsive } from '../../../hooks/useResponsive';
 import { CustomTheme } from '../../../constants/theme';
 
@@ -260,16 +316,47 @@ function ZoomableImage({ source, imageKey }) {
     );
 }
 
+/**
+ * Kurta → Sadri (dono set hon to dono slides, chahe URL same ho).
+ * Uske baad Firebase “other” / gallery (`profileExtraImages`) — duplicate URL pehle wale slides se skip.
+ */
+function buildEmbroideryProfileCarouselSources(emb) {
+    if (!emb) return [];
+    const norm = (src) => {
+        if (!src || typeof src !== 'object') return null;
+        const uri = src.uri != null ? String(src.uri).trim() : '';
+        return uri ? { uri } : null;
+    };
+    const slides = [];
+    const k = norm(emb.profileImage);
+    const s = norm(emb.profileImageSadri);
+    if (k) slides.push(k);
+    if (s) slides.push(s);
+    const seen = new Set(slides.map((x) => x.uri));
+    const extras = Array.isArray(emb.profileExtraImages) ? emb.profileExtraImages : [];
+    for (const ex of extras) {
+        const n = norm(ex);
+        if (!n || seen.has(n.uri)) continue;
+        seen.add(n.uri);
+        slides.push(n);
+    }
+    return slides;
+}
+
 export default function KurtaMain({ presetParam, presetIdParam }) {
     const {
         fabrics,
         fabricsByGarment,
         buttons,
         embroideryRenders,
+        embroideryCollections: embroideryCollectionsFromCtx,
         prefetchFabricRenders,
+        prefetchEmbroideryRenders,
         loadError,
         fabricsLoading,
     } = useFirebaseCatalog();
+
+    const embroideryCollections = embroideryCollectionsFromCtx;
 
     const listForGarmentTab = useCallback(
         (tab) => {
@@ -309,7 +396,28 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
     const [selectedCoatFabric, setSelectedCoatFabric] = useState(fabrics?.[0] || {});
     const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri' | 'Coat'
     const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri'
+    const [embroideryPreview, setEmbroideryPreview] = useState(null); // { item, panelMode } | null
+
+    useEffect(() => {
+        setEmbroideryPreview(null);
+        setInfoEmbroidery(null);
+    }, [embroideryPanelTab]);
+
     const [infoFabric, setInfoFabric] = useState(null);
+    /** { item, panelMode } | null — embroidery detail sheet (not collections). */
+    const [infoEmbroidery, setInfoEmbroidery] = useState(null);
+    const [embInfoImageIndex, setEmbInfoImageIndex] = useState(0);
+
+    useEffect(() => {
+        if (!infoEmbroidery?.item) {
+            setEmbInfoImageIndex(0);
+            return;
+        }
+        const slides = buildEmbroideryProfileCarouselSources(infoEmbroidery.item);
+        const pm = infoEmbroidery.panelMode || 'Kurta';
+        if (pm === 'Sadri' && slides.length > 1) setEmbInfoImageIndex(1);
+        else setEmbInfoImageIndex(0);
+    }, [infoEmbroidery]);
     const [infoImageIndex, setInfoImageIndex] = useState(0);
     const [infoBrandLogoFailed, setInfoBrandLogoFailed] = useState(false);
     const [brandNameWrapWidth, setBrandNameWrapWidth] = useState(0);
@@ -384,6 +492,42 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
         (DUMMY_COAT_BUTTONS || []).forEach((b) => map.set(normalizeId(b?.id), b));
         return map;
     }, [buttons]);
+
+    const sadriButtonsMerged = useMemo(
+        () => mergeRemoteButtonsByTarget(DUMMY_SADRI_BUTTONS, buttons, 'Sadri'),
+        [buttons]
+    );
+    const coatButtonsMerged = useMemo(
+        () => mergeRemoteButtonsByTarget(DUMMY_COAT_BUTTONS, buttons, 'Coat'),
+        [buttons]
+    );
+
+    useEffect(() => {
+        if (selections?.embroideryID) prefetchEmbroideryRenders(selections.embroideryID);
+    }, [selections?.embroideryID, prefetchEmbroideryRenders]);
+
+    useEffect(() => {
+        if (selections?.sadriEmbroideryID) prefetchEmbroideryRenders(selections.sadriEmbroideryID);
+    }, [selections?.sadriEmbroideryID, prefetchEmbroideryRenders]);
+
+    /** Kurta tab: `kurta_kurta_*` segments → `display` / `folded`. Sadri tab: `kurta_sadri_base` → `sadriChestLeft`. */
+    const embroideryListKurtaTarget = useMemo(() => {
+        if (!Array.isArray(embroideryCollections)) return [];
+        return embroideryCollections.filter((e) => {
+            const bundle = embroideryRenders?.[e.id];
+            const nd = bundle?.display && typeof bundle.display === 'object' ? Object.keys(bundle.display).length : 0;
+            const nf = bundle?.folded && typeof bundle.folded === 'object' ? Object.keys(bundle.folded).length : 0;
+            return nd + nf > 0;
+        });
+    }, [embroideryCollections, embroideryRenders]);
+
+    const embroideryListSadriTarget = useMemo(() => {
+        if (!Array.isArray(embroideryCollections)) return [];
+        return embroideryCollections.filter((e) => {
+            const m = embroideryRenders?.[e.id]?.sadriChestLeft;
+            return m && typeof m === 'object' && Object.keys(m).length > 0;
+        });
+    }, [embroideryCollections, embroideryRenders]);
 
     useEffect(() => {
         if (!fabricsByGarment) return;
@@ -1177,7 +1321,7 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
 
                 {/* --- EMBROIDERY PANEL --- */}
                 <View style={[StyleSheet.absoluteFill, { opacity: activePanel === 'Embroidery' ? 1 : 0, zIndex: activePanel === 'Embroidery' ? 10 : 0 }]} pointerEvents={activePanel === 'Embroidery' ? 'auto' : 'none'}>
-                    {EMBROIDERY_COLLECTIONS ? (
+                    {embroideryCollections ? (
                         <>
                             <View style={[styles.fabricSwitcher, { marginTop: 4 }]}>
                                 {['Kurta', 'Sadri'].map((tab) => (
@@ -1191,53 +1335,53 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                 ))}
                             </View>
                             <ScrollView {...PANEL_SCROLL_PROPS} style={{ flex: 1 }} contentContainerStyle={styles.gridContainer}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.fabricCard,
-                                        (embroideryPanelTab === 'Kurta' ? !selections.embroideryID : !selections.sadriEmbroideryID) && styles.fabricCardActive
-                                    ]}
-                                    onPress={() => {
-                                        if (embroideryPanelTab === 'Kurta') handleStyleChange('embroideryID', null);
-                                        else handleStyleChange('sadriEmbroideryID', null);
-                                    }}
-                                >
-                                    <View style={[styles.fabricImage, { backgroundColor: '#ddd', justifyContent: 'center', alignItems: 'center' }]}>
-                                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#555' }}>None</Text>
-                                    </View>
-                                    <View style={styles.fabricInfo}>
-                                        <Text style={styles.fabricName}>No Embroidery</Text>
-                                        <Text style={styles.fabricBrand}>+ ₹ 0</Text>
-                                    </View>
-                                </TouchableOpacity>
-                                {(embroideryPanelTab === 'Sadri'
-                                    ? EMBROIDERY_COLLECTIONS.filter((e) => embroideryRenders[e.id]?.sadriChestLeft)
-                                    : EMBROIDERY_COLLECTIONS
-                                ).map((embroidery) => {
+                                {(embroideryPanelTab === 'Sadri' ? embroideryListSadriTarget : embroideryListKurtaTarget).map((embroidery) => {
                                     const profileThumb = embroideryPanelTab === 'Sadri'
                                         ? (embroidery.profileImageSadri || embroidery.profileImage)
                                         : embroidery.profileImage;
                                     const isActive = embroideryPanelTab === 'Kurta'
                                         ? selections.embroideryID === embroidery.id
                                         : selections.sadriEmbroideryID === embroidery.id;
+                                    const embPrice = Number(embroidery.price);
+                                    const showEmbPrice = Number.isFinite(embPrice) && embPrice > 0;
                                     return (
-                                        <TouchableOpacity
-                                            key={embroidery.id}
-                                            style={[styles.fabricCard, isActive && styles.fabricCardActive]}
-                                            onPress={() => {
-                                                if (embroideryPanelTab === 'Kurta') handleStyleChange('embroideryID', embroidery.id);
-                                                else handleStyleChange('sadriEmbroideryID', embroidery.id);
-                                            }}
-                                        >
-                                            {profileThumb ? (
-                                                <Image source={profileThumb} style={styles.fabricImage} />
-                                            ) : (
-                                                <View style={[styles.fabricImage, { backgroundColor: '#f0e6d2' }]} />
-                                            )}
+                                        <View key={embroidery.id} style={[styles.fabricCard, isActive && styles.fabricCardActive]}>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    setEmbroideryPreview({ item: embroidery, panelMode: embroideryPanelTab });
+                                                }}
+                                                activeOpacity={0.9}
+                                            >
+                                                {profileThumb ? (
+                                                    <Image source={profileThumb} style={styles.fabricImage} resizeMode="cover" />
+                                                ) : (
+                                                    <View style={[styles.fabricImage, { backgroundColor: '#f0e6d2' }]} />
+                                                )}
+                                            </TouchableOpacity>
                                             <View style={styles.fabricInfo}>
-                                                <Text style={styles.fabricName}>{embroidery.name}</Text>
-                                                <Text style={[styles.fabricBrand, { color: '#27ae60', fontWeight: 'bold' }]}>+ ₹ {embroidery.price}</Text>
+                                                <TouchableOpacity
+                                                    style={styles.fabricInfoTextWrap}
+                                                    onPress={() => setEmbroideryPreview({ item: embroidery, panelMode: embroideryPanelTab })}
+                                                    activeOpacity={0.85}
+                                                >
+                                                    <Text style={styles.fabricName} numberOfLines={2}>{embroidery.name}</Text>
+                                                    {showEmbPrice ? (
+                                                        <Text style={[styles.fabricBrand, { color: '#27ae60', fontWeight: 'bold' }]}>
+                                                            + ₹ {embroidery.price}
+                                                        </Text>
+                                                    ) : null}
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => {
+                                                        setInfoEmbroidery({ item: embroidery, panelMode: embroideryPanelTab });
+                                                    }}
+                                                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                                    style={styles.fabricInfoIconBtn}
+                                                >
+                                                    <MaterialIcons name="info-outline" size={24} color="#475569" />
+                                                </TouchableOpacity>
                                             </View>
-                                        </TouchableOpacity>
+                                        </View>
                                     );
                                 })}
                             </ScrollView>
@@ -1270,9 +1414,9 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
     const pajamaTotal = toNumber(selectedPajamaFabric?.price);
     const sadriTotal = hasSadri ? toNumber(selectedSadriFabric?.price) : 0;
     const coatTotal = hasCoat ? toNumber(selectedCoatFabric?.price) : 0;
-    const kurtaEmbroideryPrice = selections.embroideryID ? toNumber(EMBROIDERY_COLLECTIONS.find(e => e.id === selections.embroideryID)?.price) : 0;
-    const sadriEmbroideryPrice = hasSadri && selections.sadriEmbroideryID
-        ? toNumber(EMBROIDERY_COLLECTIONS.find(e => e.id === selections.sadriEmbroideryID)?.price)
+    const kurtaEmbroideryPrice = selections.embroideryCollection ? toNumber(selections.embroideryCollection?.price) : 0;
+    const sadriEmbroideryPrice = hasSadri && selections.sadriEmbroideryCollection
+        ? toNumber(selections.sadriEmbroideryCollection?.price)
         : 0;
     const embroideryPrice = kurtaEmbroideryPrice + sadriEmbroideryPrice;
     const totalPrice = kurtaTotal + pajamaTotal + sadriTotal + coatTotal + embroideryPrice;
@@ -1519,16 +1663,17 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                         </View>
                         <ScrollView {...PANEL_SCROLL_PROPS} style={styles.buttonList}>
                             {buttons
+                                .filter(buttonTargetsKurta)
                                 .filter(b => b.material === buttonModalTab)
                                 .sort((a, b) => {
                                     if (a.material === 'Fabric' && b.material === 'Fabric') {
-                                        if (a.linkedFabricID === selectedFabric.fabricID) return -1;
-                                        if (b.linkedFabricID === selectedFabric.fabricID) return 1;
+                                        if (buttonLinkedToFabric(a, selectedFabric)) return -1;
+                                        if (buttonLinkedToFabric(b, selectedFabric)) return 1;
                                     }
                                     return 0;
                                 })
                                 .map(btn => {
-                                    const isRecommended = btn.material === 'Fabric' && btn.linkedFabricID === selectedFabric.fabricID;
+                                    const isRecommended = btn.material === 'Fabric' && buttonLinkedToFabric(btn, selectedFabric);
                                     const isSelected = selectedButton?.id === btn.id;
                                     return (
                                         <TouchableOpacity
@@ -1575,17 +1720,17 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                             ))}
                         </View>
                         <ScrollView {...PANEL_SCROLL_PROPS} style={styles.buttonList}>
-                            {DUMMY_SADRI_BUTTONS
+                            {sadriButtonsMerged
                                 .filter(b => b.material === sadriButtonModalTab)
                                 .sort((a, b) => {
                                     if (a.material === 'Fabric' && b.material === 'Fabric') {
-                                        if (a.linkedFabricID === selectedSadriFabric?.fabricID) return -1;
-                                        if (b.linkedFabricID === selectedSadriFabric?.fabricID) return 1;
+                                        if (buttonLinkedToFabric(a, selectedSadriFabric)) return -1;
+                                        if (buttonLinkedToFabric(b, selectedSadriFabric)) return 1;
                                     }
                                     return 0;
                                 })
                                 .map(btn => {
-                                    const isRecommended = btn.material === 'Fabric' && btn.linkedFabricID === selectedSadriFabric?.fabricID;
+                                    const isRecommended = btn.material === 'Fabric' && buttonLinkedToFabric(btn, selectedSadriFabric);
                                     const isSelected = selectedSadriButton?.id === btn.id;
                                     return (
                                         <TouchableOpacity
@@ -1632,17 +1777,17 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                             ))}
                         </View>
                         <ScrollView {...PANEL_SCROLL_PROPS} style={styles.buttonList}>
-                            {DUMMY_COAT_BUTTONS
+                            {coatButtonsMerged
                                 .filter(b => b.material === coatButtonModalTab)
                                 .sort((a, b) => {
                                     if (a.material === 'Fabric' && b.material === 'Fabric') {
-                                        if (a.linkedFabricID === selectedFabric.fabricID) return -1;
-                                        if (b.linkedFabricID === selectedFabric.fabricID) return 1;
+                                        if (buttonLinkedToFabric(a, selectedCoatFabric)) return -1;
+                                        if (buttonLinkedToFabric(b, selectedCoatFabric)) return 1;
                                     }
                                     return 0;
                                 })
                                 .map(btn => {
-                                    const isRecommended = btn.material === 'Fabric' && btn.linkedFabricID === selectedFabric.fabricID;
+                                    const isRecommended = btn.material === 'Fabric' && buttonLinkedToFabric(btn, selectedCoatFabric);
                                     const isSelected = selectedCoatButton?.id === btn.id;
                                     return (
                                         <TouchableOpacity
@@ -1798,6 +1943,124 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                 </View>
             )}
 
+            {infoEmbroidery?.item && (
+                <View style={styles.buttonModalOverlay}>
+                    <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setInfoEmbroidery(null)} />
+                    <View style={styles.infoModalContainer}>
+                        <View style={styles.buttonModalHeader}>
+                            <Text style={styles.buttonModalTitle}>Embroidery Info</Text>
+                            <TouchableOpacity onPress={() => setInfoEmbroidery(null)}>
+                                <Text style={styles.closeBtn}>×</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView
+                            style={[styles.infoScroll, styles.embInfoScroll]}
+                            contentContainerStyle={styles.infoContent}
+                        >
+                            {(() => {
+                                const emb = infoEmbroidery.item;
+                                const slides = buildEmbroideryProfileCarouselSources(emb);
+                                const idx = slides.length
+                                    ? Math.min(embInfoImageIndex, slides.length - 1)
+                                    : 0;
+                                const hero = slides.length ? slides[idx] : null;
+                                const desc =
+                                    typeof emb.description === 'string' && emb.description.trim().length > 0
+                                        ? emb.description.trim()
+                                        : '—';
+                                return (
+                                    <>
+                                        <View style={styles.embInfoCarouselOuter}>
+                                            <View style={styles.embInfoHeroWrap}>
+                                                {hero ? (
+                                                    <Image
+                                                        source={hero}
+                                                        style={styles.embInfoHeroImage}
+                                                        resizeMode="cover"
+                                                    />
+                                                ) : (
+                                                    <View
+                                                        style={[
+                                                            styles.embInfoHeroImage,
+                                                            { backgroundColor: '#f0e6d2' },
+                                                        ]}
+                                                    />
+                                                )}
+                                                {slides.length > 1 ? (
+                                                    <>
+                                                        <TouchableOpacity
+                                                            style={[styles.embInfoNavArrow, styles.embInfoNavArrowLeft]}
+                                                            accessibilityRole="button"
+                                                            accessibilityLabel="Previous image"
+                                                            hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
+                                                            onPress={() =>
+                                                                setEmbInfoImageIndex(
+                                                                    (p) => (p - 1 + slides.length) % slides.length
+                                                                )
+                                                            }
+                                                        >
+                                                            <MaterialIcons name="chevron-left" size={30} color="#0f172a" />
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity
+                                                            style={[styles.embInfoNavArrow, styles.embInfoNavArrowRight]}
+                                                            accessibilityRole="button"
+                                                            accessibilityLabel="Next image"
+                                                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
+                                                            onPress={() =>
+                                                                setEmbInfoImageIndex((p) => (p + 1) % slides.length)
+                                                            }
+                                                        >
+                                                            <MaterialIcons name="chevron-right" size={30} color="#0f172a" />
+                                                        </TouchableOpacity>
+                                                        <View style={styles.embInfoSlideCounter} pointerEvents="none">
+                                                            <View style={styles.embInfoSlideCounterPill}>
+                                                                <Text style={styles.embInfoSlideCounterText}>
+                                                                    {idx + 1}/{slides.length}
+                                                                </Text>
+                                                            </View>
+                                                        </View>
+                                                    </>
+                                                ) : null}
+                                            </View>
+                                        </View>
+                                        <Text style={styles.embInfoTitle}>{emb.name || 'Embroidery'}</Text>
+                                        <Text style={styles.embInfoDesc}>{desc}</Text>
+                                    </>
+                                );
+                            })()}
+                        </ScrollView>
+                    </View>
+                </View>
+            )}
+
+            <EmbroideryPreviewModal
+                visible={!!embroideryPreview}
+                onClose={() => setEmbroideryPreview(null)}
+                embroidery={embroideryPreview?.item}
+                panelMode={embroideryPreview?.panelMode || 'Kurta'}
+                selectedCollectionId={
+                    embroideryPreview?.panelMode === 'Sadri'
+                        ? selections.sadriEmbroideryCollection?.id
+                        : selections.embroideryCollection?.id
+                }
+                onApply={(collection, embroidery, panelMode) => {
+                    if (!collection || !embroidery?.id) return;
+                    if (panelMode === 'Sadri') {
+                        setSelections((prev) => ({
+                            ...prev,
+                            sadriEmbroideryID: embroidery.id,
+                            sadriEmbroideryCollection: collection,
+                        }));
+                    } else {
+                        setSelections((prev) => ({
+                            ...prev,
+                            embroideryID: embroidery.id,
+                            embroideryCollection: collection,
+                        }));
+                    }
+                }}
+            />
+
             {isSummaryOpen && (
                 <View style={styles.buttonModalOverlay}>
                     <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => setSummaryOpen(false)} />
@@ -1878,8 +2141,8 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                     </Text>
                                     <Text style={styles.summaryMetaRow}>
                                         Embroidery: {summaryTab === 'Sadri'
-                                            ? (EMBROIDERY_COLLECTIONS.find((e) => e.id === selections.sadriEmbroideryID)?.name || 'None')
-                                            : (EMBROIDERY_COLLECTIONS.find((e) => e.id === selections.embroideryID)?.name || 'None')}
+                                            ? (selections.sadriEmbroideryCollection?.name || 'None')
+                                            : (selections.embroideryCollection?.name || 'None')}
                                     </Text>
                                 </View>
                             ) : null}
@@ -2218,6 +2481,80 @@ const styles = StyleSheet.create({
     },
     infoScroll: {
         maxHeight: 460,
+    },
+    embInfoScroll: {
+        maxHeight: 580,
+    },
+    embInfoCarouselOuter: {
+        marginBottom: 16,
+    },
+    embInfoHeroWrap: {
+        width: '100%',
+        borderRadius: 14,
+        overflow: 'hidden',
+        position: 'relative',
+        backgroundColor: '#f1f5f9',
+    },
+    embInfoNavArrow: {
+        position: 'absolute',
+        top: '50%',
+        marginTop: -24,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(255,255,255,0.96)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+        shadowColor: '#0f172a',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.18,
+        shadowRadius: 4,
+        elevation: 8,
+    },
+    embInfoNavArrowLeft: {
+        left: 10,
+        paddingRight: 2,
+    },
+    embInfoNavArrowRight: {
+        right: 10,
+        paddingLeft: 2,
+    },
+    embInfoSlideCounter: {
+        position: 'absolute',
+        bottom: 12,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    embInfoSlideCounterPill: {
+        backgroundColor: 'rgba(15,23,42,0.72)',
+        paddingHorizontal: 14,
+        paddingVertical: 5,
+        borderRadius: 14,
+    },
+    embInfoSlideCounterText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    embInfoHeroImage: {
+        width: '100%',
+        aspectRatio: 4 / 5,
+        backgroundColor: '#f1f5f9',
+    },
+    embInfoTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#0f172a',
+        marginBottom: 10,
+        letterSpacing: -0.3,
+    },
+    embInfoDesc: {
+        fontSize: 15,
+        lineHeight: 22,
+        color: '#475569',
     },
     infoContent: {
         padding: 16,
