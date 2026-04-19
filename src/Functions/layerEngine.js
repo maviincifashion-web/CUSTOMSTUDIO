@@ -89,7 +89,7 @@ export const getSadriLayerCodes = (
 
     const hideSadriButtons = finalSadriCode === 'KK';
     if (!hideSadriButtons && selectedSadriButton?.material !== 'Ring') {
-        layersToRender.push({ code: `B${finalSadriCode}${bSuffix}`, zIndex: 80, type: 'sadri_button' });
+        layersToRender.push({ code: `B${finalSadriCode}`, zIndex: 80, type: 'sadri_button' });
     }
 
     return layersToRender;
@@ -210,7 +210,7 @@ export const getKurtaLayerCodes = (
 
         if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve'].includes(partName)) {
             layersToRender.push({
-                code: `E-${fabricCode}${bSuffix}`,
+                code: `E-${fabricCode}`,
                 zIndex: baseZIndex + 1,
                 type: 'embroidery',
                 collectionID: selections.embroideryID,

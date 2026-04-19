@@ -22,6 +22,8 @@ import {
 import { useFirebaseCatalog } from '../../context/FirebaseCatalogContext';
 import { KURTA_STYLE_OPTIONS } from '../../Data/styleData';
 import { useOutfit } from '../../context/OutfitContext';
+import { useDeepLinkHandler } from '../../hooks/useDeepLinkHandler';
+import { useRemoteControl } from '../../context/RemoteControlContext';
 
 // --- YAHAN MODEL COMPONENT IMPORT HUA HAI ---
 import KurtaModel from './components/KurtaModel';
@@ -37,6 +39,9 @@ import ExtrasFavourite from '../../../assets/images/extra_icons/favourite-01.svg
 import ExtrasShare from '../../../assets/images/extra_icons/share-01.svg';
 import ExtrasSkinTone from '../../../assets/images/extra_icons/skin tone-01.svg';
 import appLogo from '../../../assets/images/icon.png';
+
+import { useResponsive } from '../../../hooks/useResponsive';
+import { CustomTheme } from '../../../constants/theme';
 
 const EXTRAS_TRAY_ITEMS = [
     { id: 0, Icon: ExtrasSummary, label: 'Summary' },
@@ -248,10 +253,15 @@ function mergeRemoteButtonsByTarget(localList, remoteList, targetLabel) {
     for (const b of remote) {
         const prev = byId.get(b.id);
         if (prev) {
+            // Merge renders: keep local require() assets, fill gaps with Firebase URLs
+            const mergedRenders = { ...(b.renders || {}) };
+            for (const [code, val] of Object.entries(prev.renders || {})) {
+                if (val != null) mergedRenders[code] = val;
+            }
             byId.set(b.id, {
                 ...prev,
                 ...b,
-                renders: { ...(prev.renders || {}), ...(b.renders || {}) },
+                renders: mergedRenders,
             });
         } else {
             byId.set(b.id, b);
@@ -265,9 +275,6 @@ function buttonTargetsKurta(b) {
     const tt = String(b?.targetType || '').toLowerCase();
     return !tt || tt === 'kurta';
 }
-
-import { useResponsive } from '../../../hooks/useResponsive';
-import { CustomTheme } from '../../../constants/theme';
 
 /** Slide panel scrollviews: thin visible scrollbar (iOS: black indicator + insets; Android: persistent bar). */
 const PANEL_SCROLL_PROPS = Platform.select({
@@ -323,7 +330,12 @@ function ZoomableImage({ source, imageKey }) {
 function buildEmbroideryProfileCarouselSources(emb) {
     if (!emb) return [];
     const norm = (src) => {
-        if (!src || typeof src !== 'object') return null;
+        if (!src) return null;
+        if (typeof src === 'string') {
+            const t = src.trim();
+            return t ? { uri: t } : null;
+        }
+        if (typeof src !== 'object') return null;
         const uri = src.uri != null ? String(src.uri).trim() : '';
         return uri ? { uri } : null;
     };
@@ -333,7 +345,12 @@ function buildEmbroideryProfileCarouselSources(emb) {
     if (k) slides.push(k);
     if (s) slides.push(s);
     const seen = new Set(slides.map((x) => x.uri));
-    const extras = Array.isArray(emb.profileExtraImages) ? emb.profileExtraImages : [];
+    const extras = [
+        ...(Array.isArray(emb.profileExtraImages) ? emb.profileExtraImages : []),
+        ...(Array.isArray(emb.other_images) ? emb.other_images : []),
+        ...(Array.isArray(emb.otherImages) ? emb.otherImages : []),
+        ...(emb.otherImage ? [emb.otherImage] : []),
+    ];
     for (const ex of extras) {
         const n = norm(ex);
         if (!n || seen.has(n.uri)) continue;
@@ -343,7 +360,7 @@ function buildEmbroideryProfileCarouselSources(emb) {
     return slides;
 }
 
-export default function KurtaMain({ presetParam, presetIdParam }) {
+export default function KurtaMain({ presetParam, presetIdParam, isTVView = false, initialPanel = 'Fabric', onNavigate }) {
     const {
         fabrics,
         fabricsByGarment,
@@ -378,7 +395,7 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
     // STATE MANAGEMENT
     const [selectedFabric, setSelectedFabric] = useState(fabrics?.[0] || {});
     const [selections, setSelections] = useState(INITIAL_SELECTION || {
-        bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', embroideryID: null, sadriEmbroideryID: null
+        bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', embroideryID: null, sadriEmbroideryID: null, coatEmbroideryID: null
     });
     const [selectedButton, setSelectedButton] = useState(INITIAL_SELECTION?.button || (buttons?.[0] ?? null));
     const [selectedSadriButton, setSelectedSadriButton] = useState(DUMMY_SADRI_BUTTONS ? DUMMY_SADRI_BUTTONS[0] : null);
@@ -388,20 +405,62 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
     const [isCoatButtonModalOpen, setCoatButtonModalOpen] = useState(false);
     const [isSummaryOpen, setSummaryOpen] = useState(false);
     const [summaryTab, setSummaryTab] = useState('Kurta');
-    const [buttonModalTab, setButtonModalTab] = useState('Plastic');
-    const [sadriButtonModalTab, setSadriButtonModalTab] = useState('Plastic');
-    const [coatButtonModalTab, setCoatButtonModalTab] = useState('Plastic');
+    const [buttonModalTab, setButtonModalTab] = useState('Recommended');
+    const [sadriButtonModalTab, setSadriButtonModalTab] = useState('Recommended');
+    const [coatButtonModalTab, setCoatButtonModalTab] = useState('Recommended');
     const [selectedPajamaFabric, setSelectedPajamaFabric] = useState(fabrics?.[0] || {});
     const [selectedSadriFabric, setSelectedSadriFabric] = useState(fabrics?.[0] || {});
     const [selectedCoatFabric, setSelectedCoatFabric] = useState(fabrics?.[0] || {});
     const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri' | 'Coat'
-    const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri'
+    const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri' | 'Coat'
     const [embroideryPreview, setEmbroideryPreview] = useState(null); // { item, panelMode } | null
+
+    const [pendingKurtaBtnId, setPendingKurtaBtnId] = useState(null);
+    const [pendingSadriBtnId, setPendingSadriBtnId] = useState(null);
+    const [pendingCoatBtnId, setPendingCoatBtnId] = useState(null);
+
+    useEffect(() => {
+        if (pendingKurtaBtnId && buttonById) {
+            const b = buttonById.get(pendingKurtaBtnId);
+            if (b) {
+                setSelectedButton(b);
+                setPendingKurtaBtnId(null);
+            }
+        }
+    }, [pendingKurtaBtnId, buttonById]);
+
+    useEffect(() => {
+        if (pendingSadriBtnId && buttonById) {
+            const b = buttonById.get(pendingSadriBtnId);
+            if (b) {
+                setSelectedSadriButton(b);
+                setPendingSadriBtnId(null);
+            }
+        }
+    }, [pendingSadriBtnId, buttonById]);
+
+    useEffect(() => {
+        if (pendingCoatBtnId && buttonById) {
+            const b = buttonById.get(pendingCoatBtnId);
+            if (b) {
+                setSelectedCoatButton(b);
+                setPendingCoatBtnId(null);
+            }
+        }
+    }, [pendingCoatBtnId, buttonById]);
 
     useEffect(() => {
         setEmbroideryPreview(null);
         setInfoEmbroidery(null);
     }, [embroideryPanelTab]);
+
+    // --- REMOTE COMMAND LOGIC (Game Controller Model) ---
+    const { tvSessionId, sendCommand, subscribeToCommands } = useRemoteControl();
+    useDeepLinkHandler();
+
+    // Refs for lookup maps are assigned after fabricsByAnyId/buttonById are defined (see below)
+    const fabricsByAnyIdRef = useRef(null);
+    const buttonByIdRef = useRef(null);
 
     const [infoFabric, setInfoFabric] = useState(null);
     /** { item, panelMode } | null — embroidery detail sheet (not collections). */
@@ -485,14 +544,6 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
         return map;
     }, [fabrics]);
 
-    const buttonById = useMemo(() => {
-        const map = new Map();
-        (buttons || []).forEach((b) => map.set(normalizeId(b?.id), b));
-        (DUMMY_SADRI_BUTTONS || []).forEach((b) => map.set(normalizeId(b?.id), b));
-        (DUMMY_COAT_BUTTONS || []).forEach((b) => map.set(normalizeId(b?.id), b));
-        return map;
-    }, [buttons]);
-
     const sadriButtonsMerged = useMemo(
         () => mergeRemoteButtonsByTarget(DUMMY_SADRI_BUTTONS, buttons, 'Sadri'),
         [buttons]
@@ -502,6 +553,126 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
         [buttons]
     );
 
+    const buttonById = useMemo(() => {
+        const map = new Map();
+        (buttons || []).forEach((b) => map.set(normalizeId(b?.id), b));
+        (sadriButtonsMerged || []).forEach((b) => map.set(normalizeId(b?.id), b));
+        (coatButtonsMerged || []).forEach((b) => map.set(normalizeId(b?.id), b));
+        return map;
+    }, [buttons, sadriButtonsMerged, coatButtonsMerged]);
+
+    // Keep refs in sync with latest maps
+    fabricsByAnyIdRef.current = fabricsByAnyId;
+    buttonByIdRef.current = buttonById;
+
+    // Command listener: apply incoming commands from the other device
+    useEffect(() => {
+        if (!tvSessionId) return;
+
+        const unsubscribe = subscribeToCommands((cmd) => {
+            switch (cmd.type) {
+                case 'SELECT_FABRIC': {
+                    const fid = normalizeId(cmd.payload?.fabricId);
+                    const fabric = fabricsByAnyIdRef.current?.get(fid);
+                    if (fabric) {
+                        const garment = cmd.payload.garment || 'kurta';
+                        if (garment === 'kurta') setSelectedFabric(fabric);
+                        else if (garment === 'pajama') setSelectedPajamaFabric(fabric);
+                        else if (garment === 'sadri') setSelectedSadriFabric(fabric);
+                        else if (garment === 'coat') setSelectedCoatFabric(fabric);
+                    } else {
+                        console.warn('[RemoteCmd] SELECT_FABRIC: fabric not found for id:', fid);
+                    }
+                    break;
+                }
+                case 'SELECT_BUTTON': {
+                    const btn = buttonByIdRef.current?.get(normalizeId(cmd.payload?.buttonId));
+                    if (btn) setSelectedButton(btn);
+                    break;
+                }
+                case 'SELECT_SADRI_BUTTON': {
+                    const btn = buttonByIdRef.current?.get(normalizeId(cmd.payload?.buttonId));
+                    if (btn) setSelectedSadriButton(btn);
+                    break;
+                }
+                case 'SELECT_COAT_BUTTON': {
+                    const btn = buttonByIdRef.current?.get(normalizeId(cmd.payload?.buttonId));
+                    if (btn) setSelectedCoatButton(btn);
+                    break;
+                }
+                case 'STYLE_CHANGE': {
+                    if (cmd.payload?.type && cmd.payload?.value !== undefined) {
+                        setSelections(prev => ({ ...prev, [cmd.payload.type]: cmd.payload.value }));
+                    }
+                    break;
+                }
+                case 'TOGGLE_ITEM': {
+                    if (cmd.payload?.itemId) setSelectedItems(prev => {
+                        if (prev.includes(cmd.payload.itemId)) return prev.filter(i => i !== cmd.payload.itemId);
+                        return [...prev, cmd.payload.itemId];
+                    });
+                    break;
+                }
+                case 'SET_PANEL': {
+                    if (cmd.payload?.panel) {
+                        setActivePanel(cmd.payload.panel);
+                        setIsPanelOpen(true);
+                        Animated.timing(slideAnim, { toValue: 0, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+                    }
+                    break;
+                }
+                case 'CLOSE_PANEL': {
+                    Animated.timing(slideAnim, { toValue: -4000, duration: 250, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
+                        setIsPanelOpen(false); setActivePanel(null);
+                    });
+                    break;
+                }
+                case 'SET_FABRIC_TAB': {
+                    if (cmd.payload?.tab) setFabricTab(cmd.payload.tab);
+                    break;
+                }
+                case 'CAROUSEL_SCROLL': {
+                    if (cmd.payload?.index != null) {
+                        isRemoteScrolling.current = true;
+                        carouselRef.current?.scrollToIndex(cmd.payload.index);
+                        setTimeout(() => { isRemoteScrolling.current = false; }, 500);
+                    }
+                    break;
+                }
+                case 'PANEL_SCROLL': {
+                    const key = cmd.payload?.panel === 'Fabric'
+                        ? `fabric_${cmd.payload.tab}` : cmd.payload?.panel;
+                    if (cmd.payload?.y != null && key && panelScrollRefs.current[key]) {
+                        isRemoteScrolling.current = true;
+                        panelScrollRefs.current[key].scrollTo({ y: cmd.payload.y, animated: true });
+                        setTimeout(() => { isRemoteScrolling.current = false; }, 500);
+                    }
+                    break;
+                }
+            }
+        });
+        return unsubscribe;
+    }, [tvSessionId, subscribeToCommands, setSelectedItems, slideAnim]);
+
+    // Update selectedSadriButton / selectedCoatButton when Firebase data arrives
+    useEffect(() => {
+        if (!sadriButtonsMerged?.length) return;
+        setSelectedSadriButton(prev => {
+            if (!prev) return sadriButtonsMerged[0];
+            const merged = sadriButtonsMerged.find(b => b.id === prev.id);
+            return merged || prev;
+        });
+    }, [sadriButtonsMerged]);
+
+    useEffect(() => {
+        if (!coatButtonsMerged?.length) return;
+        setSelectedCoatButton(prev => {
+            if (!prev) return coatButtonsMerged[0];
+            const merged = coatButtonsMerged.find(b => b.id === prev.id);
+            return merged || prev;
+        });
+    }, [coatButtonsMerged]);
+
     useEffect(() => {
         if (selections?.embroideryID) prefetchEmbroideryRenders(selections.embroideryID);
     }, [selections?.embroideryID, prefetchEmbroideryRenders]);
@@ -510,14 +681,36 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
         if (selections?.sadriEmbroideryID) prefetchEmbroideryRenders(selections.sadriEmbroideryID);
     }, [selections?.sadriEmbroideryID, prefetchEmbroideryRenders]);
 
+    useEffect(() => {
+        if (selections?.coatEmbroideryID) prefetchEmbroideryRenders(selections.coatEmbroideryID);
+    }, [selections?.coatEmbroideryID, prefetchEmbroideryRenders]);
+
     /** Kurta tab: `kurta_kurta_*` segments → `display` / `folded`. Sadri tab: `kurta_sadri_base` → `sadriChestLeft`. */
     const embroideryListKurtaTarget = useMemo(() => {
         if (!Array.isArray(embroideryCollections)) return [];
         return embroideryCollections.filter((e) => {
             const bundle = embroideryRenders?.[e.id];
-            const nd = bundle?.display && typeof bundle.display === 'object' ? Object.keys(bundle.display).length : 0;
-            const nf = bundle?.folded && typeof bundle.folded === 'object' ? Object.keys(bundle.folded).length : 0;
-            return nd + nf > 0;
+            if (!bundle) return false;
+            const nd = bundle.display && typeof bundle.display === 'object' ? Object.keys(bundle.display).length : 0;
+            const nf = bundle.folded && typeof bundle.folded === 'object' ? Object.keys(bundle.folded).length : 0;
+            if (nd + nf > 0) return true;
+
+            const uploads = bundle.uploadsByDocId;
+            if (uploads && typeof uploads === 'object') {
+                return Object.values(uploads).some((doc) => {
+                    const seg = String(doc?.segment || '').toLowerCase();
+                    // We only want collections specifically made for kurta.
+                    // This explicitly checks for kurta_collections segment or explicit kurta types.
+                    if (seg === 'kurta_collections') return true;
+                    if (seg.includes('kurta') && !seg.includes('_sadri_')) return true;
+
+                    const t = String(doc?.type || '').toLowerCase();
+                    if (t.includes('kurta') && !t.includes('_sadri_')) return true;
+
+                    return false;
+                });
+            }
+            return false;
         });
     }, [embroideryCollections, embroideryRenders]);
 
@@ -529,18 +722,58 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
         });
     }, [embroideryCollections, embroideryRenders]);
 
+    const embroideryListCoatTarget = useMemo(() => {
+        if (!Array.isArray(embroideryCollections)) return [];
+        return embroideryCollections.filter((e) => {
+            const m = embroideryRenders?.[e.id]?.coatChestLeft;
+            return m && typeof m === 'object' && Object.keys(m).length > 0;
+        });
+    }, [embroideryCollections, embroideryRenders]);
+
+    // Reset embroidery panel tab if current tab is not available
+    useEffect(() => {
+        const availableTabs = [
+            'Kurta',
+            ...(selectedItems.includes('sadri') ? ['Sadri'] : []),
+            ...(selectedItems.includes('coat') ? ['Coat'] : [])
+        ];
+        if (!availableTabs.includes(embroideryPanelTab)) {
+            setEmbroideryPanelTab('Kurta');
+        }
+    }, [selectedItems, embroideryPanelTab]);
+
+    const hasAutoDefaultedKurtaRef = useRef(false);
+    const hasAutoDefaultedSadriRef = useRef(false);
+    const hasAutoDefaultedCoatRef = useRef(false);
+
     useEffect(() => {
         if (!fabricsByGarment) return;
-        const fix = (sel, tab) => {
+        const fix = (sel, tab, hasSyncedRef, setPendingBtnId) => {
             const list = listForGarmentTab(tab);
             if (!list?.length) return sel;
-            return sel && list.some((x) => x.fabricID === sel.fabricID) ? sel : list[0];
+            const newSel = sel && list.some((x) => x.fabricID === sel.fabricID) ? sel : list[0];
+
+            if (hasSyncedRef && !hasSyncedRef.current && newSel) {
+                console.log(`[DEBUG MAVI] Initializing ${tab} default button for fabric:`, newSel.fabricID, 'Default:', newSel.default_recommended_button, 'Recommended:', newSel.recommended_buttons);
+                hasSyncedRef.current = true;
+                if (!presetData) {
+                    let targetBtnId = newSel.default_recommended_button;
+                    if (!targetBtnId && Array.isArray(newSel.recommended_buttons) && newSel.recommended_buttons.length > 0) {
+                        targetBtnId = newSel.recommended_buttons[0];
+                    }
+                    if (targetBtnId && setPendingBtnId) {
+                        console.log(`[DEBUG MAVI] Set pending button to:`, targetBtnId);
+                        setPendingBtnId(normalizeId(targetBtnId));
+                    }
+                }
+            }
+            return newSel;
         };
-        setSelectedFabric((f) => fix(f, 'Kurta'));
-        setSelectedPajamaFabric((f) => fix(f, 'Pajama'));
-        setSelectedSadriFabric((f) => fix(f, 'Sadri'));
-        setSelectedCoatFabric((f) => fix(f, 'Coat'));
-    }, [fabrics, fabricsByGarment, listForGarmentTab]);
+        setSelectedFabric((f) => fix(f, 'Kurta', hasAutoDefaultedKurtaRef, setPendingKurtaBtnId));
+        setSelectedPajamaFabric((f) => fix(f, 'Pajama', null, null));
+        setSelectedSadriFabric((f) => fix(f, 'Sadri', hasAutoDefaultedSadriRef, setPendingSadriBtnId));
+        setSelectedCoatFabric((f) => fix(f, 'Coat', hasAutoDefaultedCoatRef, setPendingCoatBtnId));
+    }, [fabrics, fabricsByGarment, listForGarmentTab, presetData]);
 
     useEffect(() => {
         const picks = [
@@ -595,14 +828,14 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
         const bKurta = buttonById.get(normalizeId(presetData?.buttons?.kurta));
         const bSadri = buttonById.get(normalizeId(presetData?.buttons?.sadri));
         const bCoat = buttonById.get(normalizeId(presetData?.buttons?.coat));
-        if (bKurta) setSelectedButton(bKurta);
-        if (bSadri) setSelectedSadriButton(bSadri);
-        if (bCoat) setSelectedCoatButton(bCoat);
+        if (bKurta) { setSelectedButton(bKurta); setPendingKurtaBtnId(null); }
+        if (bSadri) { setSelectedSadriButton(bSadri); setPendingSadriBtnId(null); }
+        if (bCoat) { setSelectedCoatButton(bCoat); setPendingCoatBtnId(null); }
 
         const tab = presetData?.fabricTab;
         if (['Kurta', 'Pajama', 'Sadri', 'Coat'].includes(tab)) setFabricTab(tab);
         const embTab = presetData?.embroideryTab;
-        if (['Kurta', 'Sadri'].includes(embTab)) setEmbroideryPanelTab(embTab);
+        if (['Kurta', 'Sadri', 'Coat'].includes(embTab)) setEmbroideryPanelTab(embTab);
 
         appliedPresetRef.current = presetKey;
     }, [presetData, fabrics, fabricsByAnyId, buttonById, setSelectedItems]);
@@ -626,7 +859,14 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
 
     const panelWidth = getDynamicPanelWidth();
     const carouselRef = useRef(null);
+    const panelScrollRefs = useRef({});
+    const panelScrollTimer = useRef(null);
+    const isRemoteScrolling = useRef(false);
     const slideAnim = useRef(new Animated.Value(-4000)).current;
+
+    useEffect(() => {
+        // TV mode no longer auto-opens panel — panel opens via user interaction or SET_PANEL command
+    }, [initialPanel, isTVView, slideAnim]);
 
     const estimatedDeliveryLabel = useMemo(() => {
         const d = new Date();
@@ -779,10 +1019,12 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
 
     const togglePanel = (panelName) => {
         if (extrasTrayOpen) animateExtrasTray(false);
-        if (activePanel === panelName && isPanelOpen) closePanel();
-        else {
+        if (activePanel === panelName && isPanelOpen) {
+            closePanel();
+        } else {
             setActivePanel(panelName); setIsPanelOpen(true);
             Animated.timing(slideAnim, { toValue: 0, duration: 300, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+            if (tvSessionId) sendCommand('SET_PANEL', { panel: panelName });
         }
     };
 
@@ -797,10 +1039,21 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
         Animated.timing(slideAnim, { toValue: -4000, duration: 250, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
             setIsPanelOpen(false); setActivePanel(null);
         });
+        if (tvSessionId) sendCommand('CLOSE_PANEL');
+    };
+
+    const handlePanelScroll = (panel, tab) => (e) => {
+        if (!tvSessionId || isRemoteScrolling.current) return;
+        const y = e.nativeEvent.contentOffset.y;
+        clearTimeout(panelScrollTimer.current);
+        panelScrollTimer.current = setTimeout(() => {
+            sendCommand('PANEL_SCROLL', { y: Math.round(y), panel, tab });
+        }, 200);
     };
 
     const handleStyleChange = (type, value) => {
         setSelections(prev => ({ ...prev, [type]: value }));
+        if (tvSessionId) sendCommand('STYLE_CHANGE', { type, value });
         if (type === 'cuffStyle') {
             carouselRef.current?.scrollToIndex(1);
         } else if (type === 'sadriType') {
@@ -1048,6 +1301,35 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
             .filter(Boolean);
     }, [selections]);
 
+    const getSummaryEmbroideryImage = useCallback((tab) => {
+        const embroideryId = tab === 'Sadri'
+            ? selections.sadriEmbroideryID
+            : tab === 'Coat'
+                ? selections.coatEmbroideryID
+                : selections.embroideryID;
+        if (!embroideryId || !Array.isArray(embroideryCollections)) return null;
+        const embroideryItem = embroideryCollections.find(e => e.id === embroideryId);
+        if (!embroideryItem) return null;
+        const imageSource = tab === 'Sadri' || tab === 'Coat'
+            ? embroideryItem.profileImageSadri || embroideryItem.profileImage
+            : embroideryRenders[embroideryId]?.display['K'] || embroideryItem.profileImage;
+        if (!imageSource) return null;
+        if (typeof imageSource === 'string') {
+            return { uri: imageSource };
+        }
+        return imageSource;
+    }, [selections, embroideryCollections, embroideryRenders]);
+
+    const getSummaryButtonImage = useCallback((tab) => {
+        const button = tab === 'Sadri'
+            ? selectedSadriButton
+            : tab === 'Coat'
+                ? selectedCoatButton
+                : selectedButton;
+        if (!button) return null;
+        return button.icon || button.image || null;
+    }, [selectedButton, selectedSadriButton, selectedCoatButton]);
+
     const renderFabricCard = (fabric, isActive, onSelect, infoIconSize = 24) => (
         <TouchableOpacity
             key={fabric.fabricID}
@@ -1086,7 +1368,7 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                             <TouchableOpacity
                                 key={tab}
                                 style={[styles.fabricSwitcherTab, fabricTab === tab && styles.fabricSwitcherTabActive]}
-                                onPress={() => setFabricTab(tab)}
+                                onPress={() => { setFabricTab(tab); if (tvSessionId) sendCommand('SET_FABRIC_TAB', { tab }); }}
                             >
                                 <Text style={[styles.fabricSwitcherText, fabricTab === tab && { color: '#fff' }]}>{tab}</Text>
                             </TouchableOpacity>
@@ -1095,12 +1377,22 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
 
                     {/* KURTA FABRICS */}
                     {fabricTab === 'Kurta' && fabrics ? (
-                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
+                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Kurta'] = el; }} onScroll={handlePanelScroll('Fabric', 'Kurta')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
                             {listForGarmentTab('Kurta').map((fabric) =>
                                 renderFabricCard(
                                     fabric,
                                     selectedFabric?.fabricID === fabric.fabricID,
-                                    () => { setSelectedFabric(fabric); },
+                                    () => {
+                                        setSelectedFabric(fabric);
+                                        if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'kurta' });
+                                        let targetBtnId = fabric.default_recommended_button;
+                                        if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
+                                            targetBtnId = fabric.recommended_buttons[0];
+                                        }
+                                        if (targetBtnId) {
+                                            setPendingKurtaBtnId(normalizeId(targetBtnId));
+                                        }
+                                    },
                                     24
                                 )
                             )}
@@ -1109,12 +1401,12 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
 
                     {/* PAJAMA FABRICS — same fabric list as Kurta, independent selection */}
                     {fabricTab === 'Pajama' && fabrics ? (
-                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
+                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Pajama'] = el; }} onScroll={handlePanelScroll('Fabric', 'Pajama')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
                             {listForGarmentTab('Pajama').map((fabric) =>
                                 renderFabricCard(
                                     fabric,
                                     selectedPajamaFabric?.fabricID === fabric.fabricID,
-                                    () => { setSelectedPajamaFabric(fabric); },
+                                    () => { setSelectedPajamaFabric(fabric); if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'pajama' }); },
                                     28
                                 )
                             )}
@@ -1123,12 +1415,22 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
 
                     {/* SADRI FABRICS — same fabric list as Kurta, independent selection */}
                     {fabricTab === 'Sadri' && fabrics ? (
-                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
+                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Sadri'] = el; }} onScroll={handlePanelScroll('Fabric', 'Sadri')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
                             {listForGarmentTab('Sadri').map((fabric) =>
                                 renderFabricCard(
                                     fabric,
                                     selectedSadriFabric?.fabricID === fabric.fabricID,
-                                    () => { setSelectedSadriFabric(fabric); },
+                                    () => {
+                                        setSelectedSadriFabric(fabric);
+                                        if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'sadri' });
+                                        let targetBtnId = fabric.default_recommended_button;
+                                        if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
+                                            targetBtnId = fabric.recommended_buttons[0];
+                                        }
+                                        if (targetBtnId) {
+                                            setPendingSadriBtnId(normalizeId(targetBtnId));
+                                        }
+                                    },
                                     24
                                 )
                             )}
@@ -1137,12 +1439,22 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
 
                     {/* COAT FABRICS — same fabric list as Kurta, independent selection */}
                     {fabricTab === 'Coat' && fabrics ? (
-                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
+                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Coat'] = el; }} onScroll={handlePanelScroll('Fabric', 'Coat')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
                             {listForGarmentTab('Coat').map((fabric) =>
                                 renderFabricCard(
                                     fabric,
                                     selectedCoatFabric?.fabricID === fabric.fabricID,
-                                    () => { setSelectedCoatFabric(fabric); },
+                                    () => {
+                                        setSelectedCoatFabric(fabric);
+                                        if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'coat' });
+                                        let targetBtnId = fabric.default_recommended_button;
+                                        if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
+                                            targetBtnId = fabric.recommended_buttons[0];
+                                        }
+                                        if (targetBtnId) {
+                                            setPendingCoatBtnId(normalizeId(targetBtnId));
+                                        }
+                                    },
                                     18
                                 )
                             )}
@@ -1156,7 +1468,7 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                 {/* --- STYLE PANEL --- */}
                 <View style={[StyleSheet.absoluteFill, { opacity: activePanel === 'Style' ? 1 : 0, zIndex: activePanel === 'Style' ? 10 : 0 }]} pointerEvents={activePanel === 'Style' ? 'auto' : 'none'}>
                     {KURTA_STYLE_OPTIONS ? (
-                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 50 }}>
+                        <ScrollView ref={el => { panelScrollRefs.current['Style'] = el; }} onScroll={handlePanelScroll('Style', null)} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 50 }}>
                             {/* BUTTON PICKER SECTION MAP TO EXACT SCREENSHOT */}
                             <View style={{ marginBottom: 15 }}>
                                 <View style={styles.buttonBanner}>
@@ -1167,13 +1479,13 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                     <View style={{ width: '48%', marginBottom: 10 }}>
                                         <View style={styles.buttonIconWrapper}>
                                             {selectedButton && selectedButton.icon ? (
-                                                <Image source={selectedButton.icon} style={{ width: 45, height: 45 }} resizeMode="contain" />
+                                                <Image source={selectedButton.icon} style={{ width: 100, height: 100 }} resizeMode="contain" />
                                             ) : (
-                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#888' }} />
+                                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
                                             )}
                                         </View>
-                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                                            Button 1
+                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
+                                            {selectedButton?.name || 'Selected'}
                                         </Text>
                                     </View>
 
@@ -1229,13 +1541,13 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                                     <View style={{ width: '48%', marginBottom: 10 }}>
                                                         <View style={styles.buttonIconWrapper}>
                                                             {selectedSadriButton && selectedSadriButton.icon ? (
-                                                                <Image source={selectedSadriButton.icon} style={{ width: 45, height: 45 }} resizeMode="contain" />
+                                                                <Image source={selectedSadriButton.icon} style={{ width: 70, height: 70 }} resizeMode="contain" />
                                                             ) : (
-                                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#888' }} />
+                                                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
                                                             )}
                                                         </View>
-                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                                                            Button 1
+                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
+                                                            {selectedSadriButton?.name || 'Selected'}
                                                         </Text>
                                                     </View>
 
@@ -1264,13 +1576,13 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                                     <View style={{ width: '48%', marginBottom: 10 }}>
                                                         <View style={styles.buttonIconWrapper}>
                                                             {selectedCoatButton && selectedCoatButton.icon ? (
-                                                                <Image source={selectedCoatButton.icon} style={{ width: 45, height: 45 }} resizeMode="contain" />
+                                                                <Image source={selectedCoatButton.icon} style={{ width: 70, height: 70 }} resizeMode="contain" />
                                                             ) : (
-                                                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#888' }} />
+                                                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
                                                             )}
                                                         </View>
-                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                                                            Button 1
+                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
+                                                            {selectedCoatButton?.name || 'Selected'}
                                                         </Text>
                                                     </View>
 
@@ -1324,7 +1636,11 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                     {embroideryCollections ? (
                         <>
                             <View style={[styles.fabricSwitcher, { marginTop: 4 }]}>
-                                {['Kurta', 'Sadri'].map((tab) => (
+                                {[
+                                    'Kurta',
+                                    ...(selectedItems.includes('sadri') ? ['Sadri'] : []),
+                                    ...(selectedItems.includes('coat') ? ['Coat'] : [])
+                                ].map((tab) => (
                                     <TouchableOpacity
                                         key={tab}
                                         style={[styles.fabricSwitcherTab, embroideryPanelTab === tab && styles.fabricSwitcherTabActive]}
@@ -1335,13 +1651,15 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                 ))}
                             </View>
                             <ScrollView {...PANEL_SCROLL_PROPS} style={{ flex: 1 }} contentContainerStyle={styles.gridContainer}>
-                                {(embroideryPanelTab === 'Sadri' ? embroideryListSadriTarget : embroideryListKurtaTarget).map((embroidery) => {
-                                    const profileThumb = embroideryPanelTab === 'Sadri'
+                                {(embroideryPanelTab === 'Sadri' ? embroideryListSadriTarget : embroideryPanelTab === 'Coat' ? embroideryListCoatTarget : embroideryListKurtaTarget).map((embroidery) => {
+                                    const profileThumb = embroideryPanelTab === 'Sadri' || embroideryPanelTab === 'Coat'
                                         ? (embroidery.profileImageSadri || embroidery.profileImage)
-                                        : embroidery.profileImage;
+                                        : embroideryRenders[embroidery.id]?.display['K'] || embroidery.profileImage;
                                     const isActive = embroideryPanelTab === 'Kurta'
                                         ? selections.embroideryID === embroidery.id
-                                        : selections.sadriEmbroideryID === embroidery.id;
+                                        : embroideryPanelTab === 'Sadri'
+                                            ? selections.sadriEmbroideryID === embroidery.id
+                                            : selections.coatEmbroideryID === embroidery.id;
                                     const embPrice = Number(embroidery.price);
                                     const showEmbPrice = Number.isFinite(embPrice) && embPrice > 0;
                                     return (
@@ -1504,6 +1822,9 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                     <FullScreenCarousel
                         ref={carouselRef}
                         data={buildSlides()}
+                        onIndexChange={(index) => {
+                            if (tvSessionId && !isRemoteScrolling.current) sendCommand('CAROUSEL_SCROLL', { index });
+                        }}
                     />
                 </View>
                 {isPreparingShareShot ? (
@@ -1621,7 +1942,7 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                 </TouchableOpacity>
             </View>
 
-            {isPanelOpen && (
+            {!isTVView && isPanelOpen && (
                 <TouchableOpacity
                     style={styles.overlay}
                     activeOpacity={1}
@@ -1633,13 +1954,15 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                 </TouchableOpacity>
             )}
 
-            <Animated.View style={[styles.sidePanel, { width: panelWidth, bottom: panelBottomOffset + insets.bottom, transform: [{ translateX: slideAnim }] }]}>
-                <View style={styles.panelHeader}>
-                    <Text style={styles.panelTitle}>Select {activePanel}</Text>
-                    <TouchableOpacity onPress={closePanel}><Text style={styles.closeBtn}>✕</Text></TouchableOpacity>
-                </View>
-                <View style={styles.panelContentArea}>{renderPanelContent()}</View>
-            </Animated.View>
+            {isPanelOpen && (
+                <Animated.View style={[styles.sidePanel, { width: panelWidth, bottom: panelBottomOffset + insets.bottom, transform: [{ translateX: slideAnim }] }]}>
+                    <View style={styles.panelHeader}>
+                        <Text style={styles.panelTitle}>Select {activePanel}</Text>
+                        <TouchableOpacity onPress={closePanel}><Text style={styles.closeBtn}>✕</Text></TouchableOpacity>
+                    </View>
+                    <View style={styles.panelContentArea}>{renderPanelContent()}</View>
+                </Animated.View>
+            )}
 
             {isButtonModalOpen && (
                 <View style={styles.buttonModalOverlay}>
@@ -1650,21 +1973,29 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                 <Text style={styles.closeBtn}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={styles.buttonModalTabs}>
-                            {['Plastic', 'Metal', 'Wood', 'Ring', 'Fabric'].map(tab => (
-                                <TouchableOpacity
-                                    key={tab}
-                                    style={[styles.buttonTab, buttonModalTab === tab && styles.buttonTabActive]}
-                                    onPress={() => setButtonModalTab(tab)}
-                                >
-                                    <Text style={[styles.buttonTabText, buttonModalTab === tab && { color: '#fff' }]}>{tab}</Text>
-                                </TouchableOpacity>
-                            ))}
+                        <View style={styles.buttonModalTabsWrapper}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.buttonModalTabs}>
+                                {['Recommended', 'Plastic', 'Metal', 'Wood', 'Ring', 'Fabric'].map(tab => (
+                                    <TouchableOpacity
+                                        key={tab}
+                                        style={[styles.buttonTab, buttonModalTab === tab && styles.buttonTabActive]}
+                                        onPress={() => setButtonModalTab(tab)}
+                                    >
+                                        <Text style={[styles.buttonTabText, buttonModalTab === tab && { color: '#fff' }]}>{tab}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
                         </View>
-                        <ScrollView {...PANEL_SCROLL_PROPS} style={styles.buttonList}>
+                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.buttonListGrid}>
                             {buttons
                                 .filter(buttonTargetsKurta)
-                                .filter(b => b.material === buttonModalTab)
+                                .filter(b => {
+                                    if (buttonModalTab === 'Recommended') {
+                                        const recs = selectedFabric?.recommended_buttons;
+                                        return Array.isArray(recs) && recs.map(normalizeId).includes(normalizeId(b.id));
+                                    }
+                                    return b.material === buttonModalTab;
+                                })
                                 .sort((a, b) => {
                                     if (a.material === 'Fabric' && b.material === 'Fabric') {
                                         if (buttonLinkedToFabric(a, selectedFabric)) return -1;
@@ -1679,15 +2010,15 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                         <TouchableOpacity
                                             key={btn.id}
                                             style={[styles.buttonItem, isSelected && styles.buttonItemActive]}
-                                            onPress={() => { setSelectedButton(btn); setButtonModalOpen(false); }}
+                                            onPress={() => { setSelectedButton(btn); setButtonModalOpen(false); if (tvSessionId) sendCommand('SELECT_BUTTON', { buttonId: btn.id }); }}
                                         >
                                             {btn.icon ? (
-                                                <Image source={btn.icon} style={styles.buttonItemIcon} />
+                                                <Image source={btn.icon} style={styles.buttonItemIcon} resizeMode="contain" />
                                             ) : (
                                                 <View style={styles.buttonItemIcon} />
                                             )}
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.buttonItemName}>{btn.name}</Text>
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Text style={styles.buttonItemName} numberOfLines={2} textAlign="center">{btn.name}</Text>
                                                 {isRecommended && <Text style={styles.recommendedBadge}>RECOMMENDED</Text>}
                                             </View>
                                         </TouchableOpacity>
@@ -1708,20 +2039,28 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                 <Text style={styles.closeBtn}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={styles.buttonModalTabs}>
-                            {['Plastic', 'Metal', 'Wood', 'Ring', 'Fabric'].map(tab => (
-                                <TouchableOpacity
-                                    key={tab}
-                                    style={[styles.buttonTab, sadriButtonModalTab === tab && styles.buttonTabActive]}
-                                    onPress={() => setSadriButtonModalTab(tab)}
-                                >
-                                    <Text style={[styles.buttonTabText, sadriButtonModalTab === tab && { color: '#fff' }]}>{tab}</Text>
-                                </TouchableOpacity>
-                            ))}
+                        <View style={styles.buttonModalTabsWrapper}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.buttonModalTabs}>
+                                {['Recommended', 'Plastic', 'Metal', 'Wood', 'Ring', 'Fabric'].map(tab => (
+                                    <TouchableOpacity
+                                        key={tab}
+                                        style={[styles.buttonTab, sadriButtonModalTab === tab && styles.buttonTabActive]}
+                                        onPress={() => setSadriButtonModalTab(tab)}
+                                    >
+                                        <Text style={[styles.buttonTabText, sadriButtonModalTab === tab && { color: '#fff' }]}>{tab}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
                         </View>
-                        <ScrollView {...PANEL_SCROLL_PROPS} style={styles.buttonList}>
+                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.buttonListGrid}>
                             {sadriButtonsMerged
-                                .filter(b => b.material === sadriButtonModalTab)
+                                .filter(b => {
+                                    if (sadriButtonModalTab === 'Recommended') {
+                                        const recs = selectedSadriFabric?.recommended_buttons;
+                                        return Array.isArray(recs) && recs.map(normalizeId).includes(normalizeId(b.id));
+                                    }
+                                    return b.material === sadriButtonModalTab;
+                                })
                                 .sort((a, b) => {
                                     if (a.material === 'Fabric' && b.material === 'Fabric') {
                                         if (buttonLinkedToFabric(a, selectedSadriFabric)) return -1;
@@ -1736,15 +2075,15 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                         <TouchableOpacity
                                             key={btn.id}
                                             style={[styles.buttonItem, isSelected && styles.buttonItemActive]}
-                                            onPress={() => { setSelectedSadriButton(btn); setSadriButtonModalOpen(false); }}
+                                            onPress={() => { setSelectedSadriButton(btn); setSadriButtonModalOpen(false); if (tvSessionId) sendCommand('SELECT_SADRI_BUTTON', { buttonId: btn.id }); }}
                                         >
                                             {btn.icon ? (
-                                                <Image source={btn.icon} style={styles.buttonItemIcon} />
+                                                <Image source={btn.icon} style={styles.buttonItemIcon} resizeMode="contain" />
                                             ) : (
                                                 <View style={styles.buttonItemIcon} />
                                             )}
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.buttonItemName}>{btn.name}</Text>
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Text style={styles.buttonItemName} numberOfLines={2} textAlign="center">{btn.name}</Text>
                                                 {isRecommended && <Text style={styles.recommendedBadge}>RECOMMENDED</Text>}
                                             </View>
                                         </TouchableOpacity>
@@ -1765,20 +2104,28 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                 <Text style={styles.closeBtn}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <View style={styles.buttonModalTabs}>
-                            {['Plastic', 'Metal', 'Wood', 'Ring', 'Fabric'].map(tab => (
-                                <TouchableOpacity
-                                    key={tab}
-                                    style={[styles.buttonTab, coatButtonModalTab === tab && styles.buttonTabActive]}
-                                    onPress={() => setCoatButtonModalTab(tab)}
-                                >
-                                    <Text style={[styles.buttonTabText, coatButtonModalTab === tab && { color: '#fff' }]}>{tab}</Text>
-                                </TouchableOpacity>
-                            ))}
+                        <View style={styles.buttonModalTabsWrapper}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.buttonModalTabs}>
+                                {['Recommended', 'Plastic', 'Metal', 'Wood', 'Ring', 'Fabric'].map(tab => (
+                                    <TouchableOpacity
+                                        key={tab}
+                                        style={[styles.buttonTab, coatButtonModalTab === tab && styles.buttonTabActive]}
+                                        onPress={() => setCoatButtonModalTab(tab)}
+                                    >
+                                        <Text style={[styles.buttonTabText, coatButtonModalTab === tab && { color: '#fff' }]}>{tab}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
                         </View>
-                        <ScrollView {...PANEL_SCROLL_PROPS} style={styles.buttonList}>
+                        <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.buttonListGrid}>
                             {coatButtonsMerged
-                                .filter(b => b.material === coatButtonModalTab)
+                                .filter(b => {
+                                    if (coatButtonModalTab === 'Recommended') {
+                                        const recs = selectedCoatFabric?.recommended_buttons;
+                                        return Array.isArray(recs) && recs.map(normalizeId).includes(normalizeId(b.id));
+                                    }
+                                    return b.material === coatButtonModalTab;
+                                })
                                 .sort((a, b) => {
                                     if (a.material === 'Fabric' && b.material === 'Fabric') {
                                         if (buttonLinkedToFabric(a, selectedCoatFabric)) return -1;
@@ -1793,15 +2140,15 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                         <TouchableOpacity
                                             key={btn.id}
                                             style={[styles.buttonItem, isSelected && styles.buttonItemActive]}
-                                            onPress={() => { setSelectedCoatButton(btn); setCoatButtonModalOpen(false); }}
+                                            onPress={() => { setSelectedCoatButton(btn); setCoatButtonModalOpen(false); if (tvSessionId) sendCommand('SELECT_COAT_BUTTON', { buttonId: btn.id }); }}
                                         >
                                             {btn.icon ? (
-                                                <Image source={btn.icon} style={styles.buttonItemIcon} />
+                                                <Image source={btn.icon} style={styles.buttonItemIcon} resizeMode="contain" />
                                             ) : (
                                                 <View style={styles.buttonItemIcon} />
                                             )}
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.buttonItemName}>{btn.name}</Text>
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Text style={styles.buttonItemName} numberOfLines={2} textAlign="center">{btn.name}</Text>
                                                 {isRecommended && <Text style={styles.recommendedBadge}>RECOMMENDED</Text>}
                                             </View>
                                         </TouchableOpacity>
@@ -2041,7 +2388,9 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                 selectedCollectionId={
                     embroideryPreview?.panelMode === 'Sadri'
                         ? selections.sadriEmbroideryCollection?.id
-                        : selections.embroideryCollection?.id
+                        : embroideryPreview?.panelMode === 'Coat'
+                            ? selections.coatEmbroideryCollection?.id
+                            : selections.embroideryCollection?.id
                 }
                 onApply={(collection, embroidery, panelMode) => {
                     if (!collection || !embroidery?.id) return;
@@ -2050,6 +2399,12 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                             ...prev,
                             sadriEmbroideryID: embroidery.id,
                             sadriEmbroideryCollection: collection,
+                        }));
+                    } else if (panelMode === 'Coat') {
+                        setSelections((prev) => ({
+                            ...prev,
+                            coatEmbroideryID: embroidery.id,
+                            coatEmbroideryCollection: collection,
                         }));
                     } else {
                         setSelections((prev) => ({
@@ -2116,6 +2471,28 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                                     </View>
                                 </View>
                             </View>
+
+                            {(() => {
+                                const embroideryImage = getSummaryEmbroideryImage(summaryTab);
+                                const buttonImage = getSummaryButtonImage(summaryTab);
+                                if (!embroideryImage && !buttonImage) return null;
+                                return (
+                                    <View style={styles.summaryImagesWrap}>
+                                        {buttonImage ? (
+                                            <View style={styles.summaryImageCard}>
+                                                <Image source={buttonImage} style={styles.summaryButtonImage} resizeMode="contain" />
+                                                <Text style={styles.summaryImageCardLabel}>Button</Text>
+                                            </View>
+                                        ) : null}
+                                        {embroideryImage ? (
+                                            <View style={styles.summaryImageCard}>
+                                                <Image source={embroideryImage} style={styles.summaryEmbroideryImage} resizeMode="contain" />
+                                                <Text style={styles.summaryImageCardLabel}>Embroidery</Text>
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                );
+                            })()}
 
                             <View style={styles.summaryDivider} />
                             <Text style={styles.summarySectionTitle}>Style Details</Text>
@@ -2202,28 +2579,36 @@ export default function KurtaMain({ presetParam, presetIdParam }) {
                 </GestureHandlerRootView>
             </Modal>
 
-            <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
-                <View style={styles.bottomBarTint} />
-                <View style={styles.bottomBarContent}>
-                    <View style={styles.priceBlock}>
-                        <Text style={styles.productName} numberOfLines={1}>Custom kurta set</Text>
-                        <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
-                            ₹ {totalPrice.toLocaleString('en-IN')}
-                        </Text>
-                        <Text style={styles.estDelivery} numberOfLines={2}>
-                            {estimatedDeliveryLabel}
-                        </Text>
+            {!isTVView && (
+                <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+                    <View style={styles.bottomBarTint} />
+                    <View style={styles.bottomBarContent}>
+                        <View style={styles.priceBlock}>
+                            <Text style={styles.productName} numberOfLines={1}>Custom kurta set</Text>
+                            <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                                ₹ {totalPrice.toLocaleString('en-IN')}
+                            </Text>
+                            <Text style={styles.estDelivery} numberOfLines={2}>
+                                {estimatedDeliveryLabel}
+                            </Text>
+                        </View>
+                        <TouchableOpacity
+                            style={[styles.checkoutBtn, isTabletViewport && styles.checkoutBtnTablet]}
+                            activeOpacity={0.88}
+                            onPress={() => alert('Measurements Screen!')}
+                        >
+                            <Text style={styles.checkoutText}>Lets Dress Up</Text>
+                            <Text style={styles.checkoutChevron}>›</Text>
+                        </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                        style={[styles.checkoutBtn, isTabletViewport && styles.checkoutBtnTablet]}
-                        activeOpacity={0.88}
-                        onPress={() => alert('Measurements Screen!')}
-                    >
-                        <Text style={styles.checkoutText}>Lets Dress Up</Text>
-                        <Text style={styles.checkoutChevron}>›</Text>
-                    </TouchableOpacity>
                 </View>
-            </View>
+            )}
+
+            {isTVView && (
+                <View style={styles.tvModeBadge}>
+                    <Text style={styles.tvModeText}>REMOTE CONNECTED</Text>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
@@ -2450,21 +2835,22 @@ const styles = StyleSheet.create({
     // Button UI Styles
     buttonBanner: { backgroundColor: CustomTheme.accentGold, paddingVertical: 10, borderRadius: 6, alignItems: 'center', marginBottom: 15, marginHorizontal: 5 },
     buttonBannerText: { color: CustomTheme.textPrimary, fontSize: 14, fontWeight: 'bold' },
-    buttonIconWrapper: { width: '100%', height: 60, alignItems: 'center', justifyContent: 'center' },
+    buttonIconWrapper: { width: '100%', height: 85, alignItems: 'center', justifyContent: 'center' },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#666', marginHorizontal: 3 },
     buttonModalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: CustomTheme.overlayLight, zIndex: 9999, elevation: 9999, justifyContent: 'center', alignItems: 'center' },
     buttonModalContainer: { width: '85%', maxHeight: '70%', backgroundColor: '#ffffff', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: '#e5e7eb' },
     buttonModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
     buttonModalTitle: { fontSize: 18, fontWeight: 'bold', color: CustomTheme.textBrand },
-    buttonModalTabs: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: '#ffffff', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#e5e7eb' },
-    buttonTab: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 15 },
+    buttonModalTabsWrapper: { borderBottomWidth: 1, borderColor: '#e5e7eb', backgroundColor: '#ffffff' },
+    buttonModalTabs: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10 },
+    buttonTab: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 15, marginHorizontal: 4 },
     buttonTabActive: { backgroundColor: CustomTheme.accentGold },
     buttonTabText: { fontSize: 12, fontWeight: 'bold', color: '#666' },
-    buttonList: { padding: 20 },
-    buttonItem: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 15, marginBottom: 10, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb' },
+    buttonListGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', padding: 15 },
+    buttonItem: { width: '48%', flexDirection: 'column', alignItems: 'center', padding: 15, borderRadius: 15, marginBottom: 15, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb' },
     buttonItemActive: { borderColor: CustomTheme.accentGold, backgroundColor: 'rgba(252, 157, 3, 0.1)' },
-    buttonItemIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#ccc', marginRight: 15 },
-    buttonItemName: { fontSize: 14, fontWeight: 'bold', color: CustomTheme.textBrand },
+    buttonItemIcon: { width: 125, height: 125, borderRadius: 62.5, backgroundColor: 'transparent', marginBottom: 10 },
+    buttonItemName: { fontSize: 13, fontWeight: 'bold', color: CustomTheme.textBrand, textAlign: 'center' },
     recommendedBadge: { fontSize: 9, color: CustomTheme.accentGold, fontWeight: 'bold', marginTop: 2 },
     infoModalContainer: {
         width: '88%',
@@ -2789,6 +3175,37 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         rowGap: 14,
     },
+    summaryImagesWrap: {
+        marginTop: 12,
+        marginBottom: 14,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 16,
+    },
+    summaryImageCard: {
+        alignItems: 'center',
+        flex: 1,
+        maxWidth: 140,
+    },
+    summaryButtonImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 12,
+        backgroundColor: '#f8fafc',
+    },
+    summaryEmbroideryImage: {
+        width: 100,
+        height: 100,
+        borderRadius: 12,
+        backgroundColor: '#f8fafc',
+    },
+    summaryImageCardLabel: {
+        marginTop: 8,
+        fontSize: 11,
+        color: '#4b5563',
+        fontWeight: '700',
+        textAlign: 'center',
+    },
     summaryStyleItem: {
         width: '31%',
         alignItems: 'center',
@@ -2891,5 +3308,23 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: '800',
         marginTop: -2,
+    },
+    tvModeBadge: {
+        position: 'absolute',
+        top: 30,
+        right: 30,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: CustomTheme.accentGold,
+        zIndex: 1000,
+    },
+    tvModeText: {
+        color: CustomTheme.accentGold,
+        fontSize: 12,
+        fontWeight: 'bold',
+        letterSpacing: 2,
     },
 });

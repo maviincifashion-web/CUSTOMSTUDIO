@@ -45,6 +45,9 @@ export default function EmbroideryPreviewModal({ visible, onClose, embroidery, p
         if (panelMode === 'Sadri') {
             return embroidery.profileImageSadri || embroidery.profileImage || null;
         }
+        if (panelMode === 'Kurta') {
+            return embroidery.profileImageKurta || embroidery.profileImage || null;
+        }
         return embroidery.profileImage || embroidery.profileImageSadri || null;
     }, [embroidery, panelMode]);
 

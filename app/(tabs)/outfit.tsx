@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, type ViewStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useOutfit, AVAILABLE_ITEMS, OutfitItemId } from '../../src/context/OutfitContext';
+import { useRemoteControl } from '../../src/context/RemoteControlContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import { CustomTheme } from '../../constants/theme';
 import KurtaOutfitIcon from '../../assets/images/outfit_icon/kurta/kurta.svg';
@@ -17,10 +18,31 @@ const ITEM_SVGS: Record<OutfitItemId, React.ComponentType<{ width?: number; heig
     sadri: SadriOutfitIcon,
 };
 
-export default function OutfitScreen() {
+interface OutfitScreenProps {
+    onNavigate?: (screen: 'outfit' | 'kurta') => void;
+}
+
+export default function OutfitScreen({ onNavigate }: OutfitScreenProps) {
     const { selectedItems, toggleItem } = useOutfit();
+    const { tvSessionId, sendCommand, subscribeToCommands } = useRemoteControl();
     const { normalize, isMobile, isTablet, isDesktop } = useResponsive();
     const isLargeScreen = isTablet || isDesktop;
+
+    // Listen for commands from the other device
+    useEffect(() => {
+        if (!tvSessionId) return;
+        const unsub = subscribeToCommands((cmd) => {
+            if (cmd.type === 'TOGGLE_ITEM') {
+                toggleItem(cmd.payload.itemId);
+            }
+        });
+        return unsub;
+    }, [tvSessionId, subscribeToCommands, toggleItem]);
+
+    const handleToggleItem = useCallback((id: OutfitItemId) => {
+        toggleItem(id);
+        if (tvSessionId) sendCommand('TOGGLE_ITEM', { itemId: id });
+    }, [toggleItem, tvSessionId, sendCommand]);
 
     // Yahan aap apne screens ke hisab se Card ka width aur layout set kar sakte hain
     const getDynamicCardStyle = (): ViewStyle => {
@@ -54,7 +76,12 @@ export default function OutfitScreen() {
     const dynamicCardStyle = getDynamicCardStyle();
 
     const handleProceed = () => {
-        router.push('/kurta');
+        if (onNavigate) {
+            onNavigate('kurta');
+        } else {
+            router.push('/kurta');
+        }
+        if (tvSessionId) sendCommand('NAVIGATE', { screen: 'kurta' });
     };
 
     return (
@@ -78,7 +105,7 @@ export default function OutfitScreen() {
                                 isSelected && styles.itemCardSelected,
                                 dynamicCardStyle
                             ]}
-                            onPress={() => toggleItem(id)}
+                            onPress={() => handleToggleItem(id)}
                             activeOpacity={0.85}
                         >
                             <View style={styles.itemTopRow}>

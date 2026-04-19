@@ -1,22 +1,24 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity , useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomTheme } from '../constants/theme';
 
+
 interface CarouselProps {
     data: React.ReactNode[];
+    onIndexChange?: (index: number) => void;
 }
 
 export interface CarouselRef {
     scrollToIndex: (index: number) => void;
 }
 
-import { useWindowDimensions } from 'react-native';
-
-const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref) => {
+const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data, onIndexChange }, ref) => {
     const { width } = useWindowDimensions();
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
+    const onIndexChangeRef = useRef(onIndexChange);
+    onIndexChangeRef.current = onIndexChange;
 
     useImperativeHandle(ref, () => ({
         scrollToIndex: (index: number) => {
@@ -29,7 +31,9 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref
 
     const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
         if (viewableItems.length > 0) {
-            setCurrentIndex(viewableItems[0].index);
+            const newIndex = viewableItems[0].index;
+            setCurrentIndex(newIndex);
+            onIndexChangeRef.current?.(newIndex);
         }
     }).current;
 
@@ -107,6 +111,8 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data }, ref
         </View>
     );
 });
+
+FullScreenCarousel.displayName = 'FullScreenCarousel';
 
 export default FullScreenCarousel;
 

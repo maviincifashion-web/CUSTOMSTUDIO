@@ -37,7 +37,13 @@ const appendUniqueSource = (list, source) => {
 const pickFoldedEmbroiderySources = (bundle, collection, layerObj) => {
     if (!bundle || !layerObj?.code) return [];
     const hasCollection = Array.isArray(collection?.matchingValues) && collection.matchingValues.length > 0;
-    if (!hasCollection) return bundle.folded?.[layerObj.code] ? [bundle.folded[layerObj.code]] : [];
+    if (!hasCollection) {
+        const foldedSrc = bundle.folded?.[layerObj.code];
+        if (foldedSrc) return [foldedSrc];
+        // Fallback: use display map when folded is unavailable
+        const displaySrc = bundle.display?.[layerObj.code];
+        return displaySrc ? [displaySrc] : [];
+    }
 
     const values = collection.matchingValues.filter((value) => collectionValueMatchesFoldedPart(value, layerObj.part));
     const bySelectionKey = bundle.uploadsBySelectionKey || {};
@@ -46,6 +52,7 @@ const pickFoldedEmbroiderySources = (bundle, collection, layerObj) => {
     for (const value of values) {
         const uploadBundle = bySelectionKey[makeEmbSelectionKey(value)];
         if (uploadBundle?.folded?.[layerObj.code]) appendUniqueSource(sources, uploadBundle.folded[layerObj.code]);
+        else if (uploadBundle?.display?.[layerObj.code]) appendUniqueSource(sources, uploadBundle.display[layerObj.code]);
     }
     return sources;
 };
@@ -146,7 +153,7 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
             // 2. MIDDLE LAYER: The Embroidery
             if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve'].includes(partName)) {
                 layersToRender.push({ 
-                    code: `E-${fabricCode}${bSuffix}`, 
+                    code: `E-${fabricCode}`, 
                     zIndex: baseZIndex + 1, 
                     type: 'embroidery',
                     collectionID: selections.embroideryID,

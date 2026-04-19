@@ -1,9 +1,11 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 import Constants from 'expo-constants';
-import { DEFAULT_FIREBASE_CLIENT } from './clientDefaults';
 
-/** `extra` can live on expoConfig, legacy manifest, or manifest2 (Expo Go / dev). */
+// Agar aapke paas clientDefaults.ts file nahi hai toh aap ise hata sakte hain
+// import { DEFAULT_FIREBASE_CLIENT } from './clientDefaults';
+
 function getExpoExtra() {
   const ex =
     Constants.expoConfig?.extra ??
@@ -15,8 +17,15 @@ function getExpoExtra() {
 
 export function getFirebaseConfigFromEnv() {
   const f = getExpoExtra().firebase ?? {};
-  if (f.apiKey && f.projectId) return f;
-  return DEFAULT_FIREBASE_CLIENT;
+  console.log('[Firebase] Extra config from app.config:', f);
+  if (f.apiKey && f.projectId) {
+    return {
+      ...f,
+      databaseURL: f.databaseURL ?? process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL
+    };
+  }
+  console.log('[Firebase] Using fallback config');
+  return {}; // DEFAULT_FIREBASE_CLIENT ki jagah empty object
 }
 
 export function isFirebaseConfigured() {
@@ -35,4 +44,20 @@ export function getFirestoreDb() {
   const app = getFirebaseApp();
   if (!app) return null;
   return getFirestore(app);
+}
+
+export function getRealtimeDb() {
+  const app = getFirebaseApp();
+  if (!app) {
+    console.error('[Firebase] Cannot init Realtime DB - App not initialized');
+    return null;
+  }
+  const cfg = getFirebaseConfigFromEnv();
+
+  let dbUrl = cfg.databaseURL;
+  if (!dbUrl) {
+    dbUrl = `https://${cfg.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app`;
+    console.log('[Firebase] Trying default URL:', dbUrl);
+  }
+  return getDatabase(app, dbUrl);
 }

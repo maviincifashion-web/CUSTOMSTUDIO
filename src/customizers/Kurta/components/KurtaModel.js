@@ -393,7 +393,8 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                 let imageSource = null;
                 let imageSources = null;
                 if (layerObj.type === 'button') {
-                    imageSource = selectedButton?.renders?.[layerObj.code];
+                    imageSource = selectedButton?.renders?.[layerObj.code]
+                        || selectedButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
                 } else if (layerObj.type === 'embroidery') {
                     imageSources = pickEmbroiderySourcesForLayer(
                         EMBROIDERY_RENDERS[layerObj.collectionID],
@@ -421,7 +422,8 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                 } else if (layerObj.type === 'coat_display') {
                     imageSource = coatDisplayRenders[layerObj.code];
                 } else if (layerObj.type === 'coat_button') {
-                    imageSource = selectedCoatButton?.renders?.[layerObj.code];
+                    imageSource = selectedCoatButton?.renders?.[layerObj.code]
+                        || selectedCoatButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
                 } else {
                     imageSource = fabricRenders[layerObj.code];
                 }

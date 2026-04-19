@@ -49,7 +49,7 @@ function embroideryFieldImageUri(data, keys) {
   return null;
 }
 
-/** Admin “other” / gallery images: `otherImages[]`, `otherImage`, etc. */
+/** Admin “other” / gallery images: `other_images[]`, `otherImages[]`, `otherImage`, etc. */
 function embroideryExtraProfileUris(data) {
   if (!data || typeof data !== 'object') return [];
   const out = [];
@@ -68,7 +68,7 @@ function embroideryExtraProfileUris(data) {
       if (u) addUrl(u);
     }
   };
-  const arrays = [data.otherImages, data.extraImages, data.gallery, data.profileGallery];
+  const arrays = [data.other_images, data.otherImages, data.extraImages, data.gallery, data.profileGallery];
   for (const arr of arrays) {
     if (Array.isArray(arr)) arr.forEach(addVal);
   }
@@ -108,10 +108,15 @@ function mergeButtons(localList, remoteList) {
   for (const b of remoteList) {
     const prev = byId.get(b.id);
     if (prev) {
+      // Merge renders: keep local require() assets, fill gaps with Firebase URLs
+      const mergedRenders = { ...(b.renders || {}) };
+      for (const [code, val] of Object.entries(prev.renders || {})) {
+        if (val != null) mergedRenders[code] = val;
+      }
       byId.set(b.id, {
         ...prev,
         ...b,
-        renders: { ...prev.renders, ...b.renders },
+        renders: mergedRenders,
       });
     } else {
       byId.set(b.id, b);
@@ -166,18 +171,25 @@ export function FirebaseCatalogProvider({ children }) {
     return 0;
   }, [parseMoney]);
 
-  const makePriceHintMap = useCallback((docs) => {
-    /** @type {Record<string, number>} */
+  const makeGarmentMetadataMap = useCallback((docs) => {
+    /** @type {Record<string, { price?: number, recommended_buttons?: any[], default_recommended_button?: string }>} */
     const out = {};
     (docs || []).forEach((docSnap) => {
       const d = docSnap.data() || {};
       const price = priceFromDocData(d);
-      if (!(price > 0)) return;
+      
+      const entry = {};
+      if (price > 0) entry.price = price;
+      if (Array.isArray(d.recommended_buttons)) entry.recommended_buttons = d.recommended_buttons;
+      if (d.default_recommended_button) entry.default_recommended_button = d.default_recommended_button;
+      
+      if (Object.keys(entry).length === 0) return;
+
       const keys = [d.fabricID, d.id, d.styleDocId, docSnap.id]
         .filter((x) => x != null && String(x).trim().length > 0)
         .map((x) => String(x));
       keys.forEach((k) => {
-        out[k] = price;
+        out[k] = entry;
       });
     });
     return out;
@@ -245,10 +257,10 @@ export function FirebaseCatalogProvider({ children }) {
         setGarmentAllowlists({ Kurta: kurtaAl, Pajama: pAl, Sadri: sAl, Coat: cAl });
         setGarmentStyleIdMap({ Kurta: kMap || {}, Pajama: pMap || {}, Sadri: sMap || {}, Coat: cMap || {} });
         setGarmentPriceHints({
-          Kurta: makePriceHintMap(kDocs),
-          Pajama: makePriceHintMap(pDocs),
-          Sadri: makePriceHintMap(sDocs),
-          Coat: makePriceHintMap(cDocs),
+          Kurta: makeGarmentMetadataMap(kDocs),
+          Pajama: makeGarmentMetadataMap(pDocs),
+          Sadri: makeGarmentMetadataMap(sDocs),
+          Coat: makeGarmentMetadataMap(cDocs),
         });
 
         // 3. Fetch Buttons in background
@@ -423,6 +435,8 @@ export function FirebaseCatalogProvider({ children }) {
             profileImageSadri: sadriUri ? { uri: sadriUri } : null,
             /** Firebase “other” / gallery uploads — info carousel mein main / Sadri ke baad */
             profileExtraImages: extraUris.map((u) => ({ uri: u })),
+            other_images: Array.isArray(d.other_images) ? d.other_images : [],
+            otherImages: Array.isArray(d.otherImages) ? d.otherImages : [],
             availableRegions: Array.isArray(d.availableRegions)
               ? d.availableRegions
               : ['Chest', 'Collar', 'Sleeve'],
@@ -467,12 +481,14 @@ export function FirebaseCatalogProvider({ children }) {
     const ph = garmentPriceHints || { Kurta: {}, Pajama: {}, Sadri: {}, Coat: {} };
     
     const withPriceHints = (list, garmentLabel) => {
-      const priceMap = ph?.[garmentLabel] || {};
+      const metaMap = ph?.[garmentLabel] || {};
       return (list || []).map((p) => {
         const keys = fabricRenderLookupKeys(p);
         for (const k of keys) {
-          const hinted = priceMap[String(k)];
-          if (hinted > 0) return { ...p, price: hinted };
+          const meta = metaMap[String(k)];
+          if (meta) {
+            return { ...p, ...meta };
+          }
         }
         return p;
       });

@@ -1,0 +1,13 @@
+{
+  "rules": {
+    ".read": "true",
+    ".write": "true",
+    "tv-sessions": {
+      ".indexOn": ["timestamp"],
+      "$sessionId": {
+        ".read": "true",
+        ".write": "true"
+      }
+    }
+  }
+}

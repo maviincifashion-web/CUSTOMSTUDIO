@@ -386,6 +386,7 @@ export function mapFabricDocToProfile(docSnap, localFallbackThumb) {
     imageList,
     thumbnail,
     recommended_buttons: Array.isArray(d.recommended_buttons) ? d.recommended_buttons : undefined,
+    default_recommended_button: d.default_recommended_button || undefined,
   };
 }
 
@@ -510,6 +511,10 @@ export const APP_EMBROIDERY_LAYOUT_SEGMENTS = [
   'kurta_kurta_pocket',
   'kurta_kurta_epaulette',
   'kurta_sadri_base',
+  'kurta_collections', // required for KurtaMain to prefetch existence of collections
+  'Suits_collections',
+  'formal_collections',
+  'blazer_collections',
 ];
 
 function isSadriEmbroiderySegment(segment) {
@@ -543,14 +548,16 @@ function embroideryCodeAliases(segment, code) {
 
   push(raw);
 
-  if (isSadriEmbroiderySegment(segment)) {
-    // Keep app logic on documented `E-${finalSadriCode}` while accepting
-    // Firebase/admin assets that may be stored as `EBB`, `ELR`, etc.
-    if (/^E-[A-Za-z0-9]+$/.test(raw)) {
-      push(`E${raw.slice(2)}`);
-    } else if (/^E[A-Za-z0-9]+$/.test(raw)) {
-      push(`E-${raw.slice(1)}`);
-    }
+  // Handle E-XX <-> EXX aliases for ALL segments (kurta + sadri).
+  if (/^E-[A-Za-z0-9_]+/.test(raw)) {
+    push('E' + raw.slice(2));
+  } else if (/^E[A-Za-z0-9]/.test(raw) && !raw.startsWith('E-')) {
+    push('E-' + raw.slice(1));
+  }
+
+  // Also index without -F/-S view suffixes.
+  if (raw.endsWith('-F') || raw.endsWith('-S')) {
+    push(raw.slice(0, -2));
   }
 
   return out;
@@ -561,7 +568,6 @@ export async function fetchEmbroideryStyleDocuments(db) {
   const snap = await getDocs(collection(db, 'Fabric', 'embroidery', 'styles'));
   return snap.docs;
 }
-
 /**
  * Load all layer URLs for one embroidery style id (matches parent design doc field `style`).
  */
@@ -608,7 +614,10 @@ export async function fetchEmbroideryRendersForStyleId(
     for (const docSnap of collSnap.docs) {
       const data = docSnap.data() || {};
       const linked = normalizeFabricKey(data.style);
-      if (!linked || linked !== sid) continue;
+      const vals = Array.isArray(data.values) ? data.values : [];
+      const matchesDirect = linked && linked === sid;
+      const matchesViaValues = vals.some((v) => normalizeFabricKey(v?.style) === sid);
+      if (!matchesDirect && !matchesViaValues) continue;
       const docBundle = { display: {}, sadriChestLeft: {}, sadriChestRight: {}, folded: {} };
 
       const res = data.resources;
@@ -684,24 +693,28 @@ export const EMBROIDERY_UPLOAD_COLLECTIONS = [
   { value: 'kurta_collections', label: 'Kurta' },
 ];
 
-function embroideryValueTypeMatchesPanel(typeKey, panelMode) {
+function embroideryValueTypeMatchesPanel(typeKey, panelMode, bucketName) {
+  // If the admin specifically uploaded this collection into the correct bucket, trust the bucket.
+  if (panelMode === 'Kurta' && bucketName === 'kurta_collections') return true;
+  if (panelMode === 'Sadri' && bucketName === 'kurta_sadri_base') return true; // generic logic
+  
   const t = String(typeKey || '').toLowerCase();
   if (panelMode === 'Sadri') return t.includes('_sadri_');
-  return t.includes('kurta_kurta');
+  return t.includes('kurta') && !t.includes('_sadri_');
 }
 
-function uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode) {
+function uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode, bucketName) {
   const vals = Array.isArray(data.values) ? data.values : [];
   const forStyle = vals.filter((v) => v && normalizeFabricKey(v.style) === sid);
   if (!forStyle.length) return false;
-  return forStyle.some((v) => embroideryValueTypeMatchesPanel(v.type, panelMode));
+  return forStyle.some((v) => embroideryValueTypeMatchesPanel(v.type, panelMode, bucketName));
 }
 
-function matchingUploadedCollectionValues(data, sid, panelMode) {
+function matchingUploadedCollectionValues(data, sid, panelMode, bucketName) {
   const vals = Array.isArray(data?.values) ? data.values : [];
   return vals.filter((v) => {
     if (!v || typeof v !== 'object') return false;
-    return normalizeFabricKey(v.style) === sid && embroideryValueTypeMatchesPanel(v.type, panelMode);
+    return normalizeFabricKey(v.style) === sid && embroideryValueTypeMatchesPanel(v.type, panelMode, bucketName);
   });
 }
 
@@ -722,9 +735,9 @@ export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, 
     }
     for (const docSnap of snap.docs) {
       const data = docSnap.data() || {};
-      if (!uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode)) continue;
+      if (!uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode, value)) continue;
 
-      const vals = matchingUploadedCollectionValues(data, sid, panelMode);
+      const vals = matchingUploadedCollectionValues(data, sid, panelMode, value);
       const thumb =
         (typeof data.src === 'string' && data.src.length > 0 && data.src) || readSrcField(data);
       const price = parseMoney(data.price ?? data.Price);
@@ -737,7 +750,7 @@ export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, 
         price,
         renderCount: vals.length,
         imageUri: thumb || null,
-        matchingValues: matchingUploadedCollectionValues(data, sid, panelMode),
+        matchingValues: vals,
       });
     }
   }

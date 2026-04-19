@@ -19,7 +19,7 @@ export default function HomeScreen() {
 
             <View style={[
                 styles.optionsContainer, 
-                isLargeScreen && { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 30 }
+                isLargeScreen && { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 30, flexWrap: 'wrap' }
             ]}>
                 {/* BUTTON 1: KURTA */}
                 <TouchableOpacity 
@@ -31,7 +31,27 @@ export default function HomeScreen() {
                     <Text style={[styles.cardSub, { fontSize: normalize(14) }]}>Design Now {'>'}</Text>
                 </TouchableOpacity>
 
-                {/* BUTTON 2: SUIT (Abhi khali hai) */}
+                {/* BUTTON 2: TV MODE */}
+                <TouchableOpacity 
+                    style={[styles.card, isLargeScreen && { width: 300, minHeight: 200 }]} 
+                    onPress={() => router.push('/tv')} 
+                    activeOpacity={0.8}
+                >
+                    <Text style={[styles.cardTitle, { fontSize: normalize(22) }]}>TV Mode</Text>
+                    <Text style={[styles.cardSub, { fontSize: normalize(14) }]}>Display on TV {'>'}</Text>
+                </TouchableOpacity>
+
+                {/* BUTTON 3: SCAN TV QR - Mobile becomes controller */}
+                <TouchableOpacity 
+                    style={[styles.card, styles.scanCard, isLargeScreen && { width: 300, minHeight: 200 }]} 
+                    onPress={() => router.push('/scan')} 
+                    activeOpacity={0.8}
+                >
+                    <Text style={[styles.cardTitle, { fontSize: normalize(22) }]}>📱 Scan TV QR</Text>
+                    <Text style={[styles.cardSub, { fontSize: normalize(14) }]}>Control TV from Phone {'>'}</Text>
+                </TouchableOpacity>
+
+                {/* BUTTON 4: SUIT (Abhi khali hai) */}
                 <TouchableOpacity 
                     style={[styles.card, { opacity: 0.5 }, isLargeScreen && { width: 300, minHeight: 200 }]} 
                     onPress={() => alert('Suit Customizer Coming Soon!')}
@@ -63,6 +83,10 @@ const styles = StyleSheet.create({
         borderColor: CustomTheme.glassBorderHeavy,
         overflow: 'hidden',
         shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 5 
+    },
+    scanCard: {
+        borderColor: '#D4A843',
+        borderWidth: 1.5,
     },
     cardTitle: { fontWeight: '800', color: CustomTheme.textPrimary, zIndex: 2 },
     cardSub: { color: CustomTheme.accentGold, marginTop: 10, fontWeight: 'bold', zIndex: 2 }
