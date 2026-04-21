@@ -517,23 +517,26 @@ const ADMIN_EMBROIDERY_LAYOUT_SEGMENTS = ADMIN_EMBROIDERY_GARMENTS.flatMap((garm
   ADMIN_EMBROIDERY_PARTS.map((part) => `${garment}_${part}`)
 );
 
-const LEGACY_EMBROIDERY_LAYOUT_SEGMENTS = [
+export const APP_EMBROIDERY_LAYOUT_SEGMENTS = [
+  'kurta_base',
+  'kurta_sleeve',
+  'kurta_collar',
+  'kurta_pocket',
+  'sadri_base',
+  'sadri_sleeve',
+  'sadri_pocket',
+  'coat_base',
+  'coat_sleeve',
+  'coat_lapel',
+  'coat_pocket',
+  // Keep old segments for backward compatibility
   'kurta_kurta_base',
   'kurta_kurta_sleeve',
-  'kurta_kurta_lapel',
-  'kurta_kurta_collar',
-  'kurta_kurta_pocket',
-  'kurta_kurta_epaulette',
   'kurta_sadri_base',
   'kurta_collections',
   'Suits_collections',
   'formal_collections',
   'blazer_collections',
-];
-
-export const APP_EMBROIDERY_LAYOUT_SEGMENTS = [
-  ...ADMIN_EMBROIDERY_LAYOUT_SEGMENTS,
-  ...LEGACY_EMBROIDERY_LAYOUT_SEGMENTS.filter((segment) => !ADMIN_EMBROIDERY_LAYOUT_SEGMENTS.includes(segment)),
 ];
 
 const LEGACY_EMBROIDERY_UPLOAD_COLLECTIONS = [
@@ -648,11 +651,6 @@ function embroideryCodeAliases(segment, code) {
     push('E-' + raw.slice(1));
   }
 
-  // Also index without -F/-S view suffixes.
-  if (raw.endsWith('-F') || raw.endsWith('-S')) {
-    push(raw.slice(0, -2));
-  }
-
   return out;
 }
 
@@ -677,29 +675,30 @@ export async function fetchEmbroideryRendersForStyleId(
   const applyLayer = (target, segment, code, url) => {
     if (!code || typeof url !== 'string' || !url.length) return;
     const src = { uri: url };
+
+    const rawCode = String(code).trim();
+    const isStyleVariant = rawCode.endsWith('-S');
+    const isDisplayVariant = rawCode.endsWith('-F');
+
     const aliases = embroideryCodeAliases(segment, code);
     if (isSadriEmbroiderySegment(segment)) {
       aliases.forEach((alias) => {
+        target.sadriChestLeft = target.sadriChestLeft || {};
+        target.sadriChestRight = target.sadriChestRight || {};
         target.sadriChestLeft[alias] = src;
         target.sadriChestRight[alias] = src;
       });
-    } else if (isCoatEmbroiderySegment(segment)) {
+    } else if (segment.includes('coat')) {
       aliases.forEach((alias) => {
+        target.coatChestLeft = target.coatChestLeft || {};
+        target.coatChestRight = target.coatChestRight || {};
         target.coatChestLeft[alias] = src;
         target.coatChestRight[alias] = src;
       });
     } else {
-      const rawCode = String(code).trim();
-      const isStyleVariant = rawCode.endsWith('-S');
-      const isDisplayVariant = rawCode.endsWith('-F');
       const destination = isStyleVariant ? target.folded : target.display;
-
       aliases.forEach((alias) => {
         destination[alias] = src;
-        if (isDisplayVariant || isStyleVariant) {
-          const unsuffixed = alias.endsWith('-F') || alias.endsWith('-S') ? alias.slice(0, -2) : alias;
-          destination[unsuffixed] = src;
-        }
       });
     }
   };

@@ -6,6 +6,7 @@ import { useResponsive } from '../../../../hooks/useResponsive';
 import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 import { getKurtaLayerCodes, getSadriLayerCodes } from '../../../Functions/layerEngine';
+import { getKurtaModelEmbroideryLayers } from './KurtaEmbroideryLayers';
 
 // ASSETS IMPORTS
 import kurta_body from '../../../../assets/images/body/kurta_body.webp';
@@ -14,16 +15,31 @@ import kurta_hand_c from '../../../../assets/images/body/kurta_hand_c.webp';
 
 
 const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
+    const sourceKey = typeof src === 'number'
+        ? `r:${src}`
+        : (src?.uri ? `u:${src.uri}` : '');
     const [displaySrc, setDisplaySrc] = useState(src || null);
     const [pendingSrc, setPendingSrc] = useState(null);
     const [pendingToken, setPendingToken] = useState(0);
     const tokenRef = useRef(0);
+    const pendingSrcRef = useRef(null);
 
     useEffect(() => {
-        if (!src) {
-            setDisplaySrc(null);
+        if (!src || !sourceKey) {
             setPendingSrc(null);
+            pendingSrcRef.current = null;
             return;
+        }
+
+        const displayKey = typeof displaySrc === 'number'
+            ? `r:${displaySrc}`
+            : (displaySrc?.uri ? `u:${displaySrc.uri}` : '');
+        const pendingKey = typeof pendingSrc === 'number'
+            ? `r:${pendingSrc}`
+            : (pendingSrc?.uri ? `u:${pendingSrc.uri}` : '');
+
+        if (src?.uri) {
+            Image.prefetch(src.uri).catch(() => { });
         }
 
         if (!displaySrc) {
@@ -31,12 +47,13 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
             return;
         }
 
-        if (src !== displaySrc && src !== pendingSrc) {
+        if (sourceKey !== displayKey && sourceKey !== pendingKey) {
             tokenRef.current += 1;
             setPendingSrc(src);
+            pendingSrcRef.current = src;
             setPendingToken(tokenRef.current);
         }
-    }, [src, displaySrc, pendingSrc]);
+    }, [src, sourceKey, displaySrc, pendingSrc]);
 
     if (!displaySrc) return null;
 
@@ -46,6 +63,7 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
                 source={displaySrc}
                 style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
                 resizeMode="contain"
+                fadeDuration={0}
             />
             {pendingSrc ? (
                 <Image
@@ -53,16 +71,18 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
                     source={pendingSrc}
                     style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex, opacity: 0 }]}
                     resizeMode="contain"
+                    fadeDuration={0}
                     onLoad={() => {
                         if (pendingToken === tokenRef.current) {
-                            setDisplaySrc(pendingSrc);
+                            setDisplaySrc(pendingSrcRef.current || pendingSrc);
                             setPendingSrc(null);
+                            pendingSrcRef.current = null;
                         }
                     }}
                     onError={() => {
                         if (pendingToken === tokenRef.current) {
-                            setDisplaySrc(pendingSrc);
                             setPendingSrc(null);
+                            pendingSrcRef.current = null;
                         }
                     }}
                 />
@@ -220,6 +240,12 @@ const collectionValueMatchesLayer = (value, layerObj) => {
         return placement.garment === 'sadri' && ['base', 'collar', 'lapel'].includes(placement.part);
     }
 
+    const sourceParts = Array.isArray(layerObj?.sourceParts) ? layerObj.sourceParts.map(normalizeEmbKey) : [];
+    if (sourceParts.length > 0) {
+        const normalizedPart = placement.part === 'lapel' ? 'collar' : placement.part;
+        return sourceParts.includes(normalizedPart) || (placement.part === 'lapel' && sourceParts.includes('lapel'));
+    }
+
     if (layerObj?.part === 'Collar') return placement.part === 'collar' || placement.part === 'lapel';
     if (layerObj?.part === 'Sleeve') return placement.part === 'sleeve';
     if (layerObj?.part === 'Pocket') return placement.part === 'pocket';
@@ -239,17 +265,12 @@ const appendUniqueSource = (list, source) => {
 
 const pickEmbroiderySourcesForLayer = (bundle, collection, layerObj) => {
     if (!bundle || !layerObj?.code) return [];
+    const codeCandidates = Array.isArray(layerObj.codeCandidates) && layerObj.codeCandidates.length > 0
+        ? layerObj.codeCandidates
+        : [layerObj.code];
     const hasCollection = Array.isArray(collection?.matchingValues) && collection.matchingValues.length > 0;
     if (!hasCollection) {
-        const single =
-            layerObj.type === 'embroidery'
-                ? bundle.display?.[layerObj.code]
-                : layerObj.type === 'sadri_embroidery_left'
-                    ? bundle.sadriChestLeft?.[layerObj.code]
-                    : layerObj.type === 'sadri_embroidery_right'
-                        ? bundle.sadriChestRight?.[layerObj.code]
-                        : null;
-        return single ? [single] : [];
+        return [];
     }
 
     const values = collection.matchingValues.filter((value) => collectionValueMatchesLayer(value, layerObj));
@@ -258,8 +279,14 @@ const pickEmbroiderySourcesForLayer = (bundle, collection, layerObj) => {
     for (const value of values) {
         const uploadBundle = bySelectionKey[makeEmbSelectionKey(value)];
         if (!uploadBundle) continue;
-        if (layerObj.type === 'embroidery' && uploadBundle.display?.[layerObj.code]) {
-            appendUniqueSource(sources, uploadBundle.display[layerObj.code]);
+        if (layerObj.type === 'embroidery') {
+            for (const code of codeCandidates) {
+                if (uploadBundle.display?.[code]) {
+                    appendUniqueSource(sources, uploadBundle.display[code]);
+                } else if (layerObj.part === 'Cuff' && uploadBundle.folded?.[code]) {
+                    appendUniqueSource(sources, uploadBundle.folded[code]);
+                }
+            }
         }
         if (layerObj.type === 'sadri_embroidery_left' && uploadBundle.sadriChestLeft?.[layerObj.code]) {
             appendUniqueSource(sources, uploadBundle.sadriChestLeft[layerObj.code]);
@@ -379,6 +406,8 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
 
     // ENGINE KO BULAO: Kurta Arrays
     const kurtaLayers = getKurtaLayerCodes(selections, selectedButton, 0, slideIndex, hasCoat, hasSadri, sadriCode) || [];
+    const kurtaBaseLayers = kurtaLayers.filter((layer) => layer?.type !== 'embroidery');
+    const kurtaEmbroideryLayers = getKurtaModelEmbroideryLayers(selections, kurtaBaseLayers);
 
     // ENGINE KO BULAO: Sadri Arrays
     let sadriLayers = [];
@@ -401,7 +430,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         }))
         : [];
 
-    const layersToRender = [...kurtaLayers, ...sadriLayers, ...coatDisplayLayers, ...coatDisplayButtonLayers].sort((a, b) => a.zIndex - b.zIndex);
+    const layersToRender = [...kurtaBaseLayers, ...kurtaEmbroideryLayers, ...sadriLayers, ...coatDisplayLayers, ...coatDisplayButtonLayers].sort((a, b) => a.zIndex - b.zIndex);
 
     // DATABASE: Us kapde ki saari images yahan se nikalo
     const fabricRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {};

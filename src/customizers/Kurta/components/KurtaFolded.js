@@ -6,6 +6,7 @@ import { View, Image, StyleSheet } from 'react-native';
 // ENGINE & DATA IMPORTS
 import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
+import { getKurtaFoldedEmbroideryLayers } from './KurtaEmbroideryLayers';
 
 const normalizeEmbKey = (value) => (value == null ? '' : String(value).trim().toLowerCase());
 
@@ -47,13 +48,21 @@ const makeEmbSelectionKey = (value) => {
     return typeKey && docId ? `${typeKey}::${docId}` : '';
 };
 
-const collectionValueMatchesFoldedPart = (value, part) => {
+const collectionValueMatchesFoldedPart = (value, layerObj) => {
     const placement = parseEmbroideryValuePlacement(value);
     if (!placement.garment && !placement.part) return false;
-    if (part === 'Collar') return placement.part === 'collar' || placement.part === 'lapel';
-    if (part === 'Sleeve') return placement.part === 'sleeve';
-    if (part === 'Pocket') return placement.part === 'pocket';
-    if (part === 'Chest') return placement.part === 'base';
+    const sourceParts = Array.isArray(layerObj?.sourceParts) ? layerObj.sourceParts.map(normalizeEmbKey) : [];
+    if (sourceParts.length > 0) {
+        const normalizedPart = placement.part === 'lapel' ? 'collar' : placement.part;
+        return sourceParts.includes(normalizedPart) || (placement.part === 'lapel' && sourceParts.includes('lapel'));
+    }
+
+    if (layerObj?.part === 'Collar') return placement.part === 'collar' || placement.part === 'lapel';
+    if (layerObj?.part === 'Sleeve') return placement.part === 'sleeve';
+    if (layerObj?.part === 'Cuff') return placement.part === 'cuff' || placement.part === 'sleeve';
+    if (layerObj?.part === 'Pocket') return placement.part === 'pocket';
+    if (layerObj?.part === 'Flap') return placement.part === 'flap' || placement.part === 'pocket';
+    if (layerObj?.part === 'Chest') return placement.part === 'base';
     return false;
 };
 
@@ -67,26 +76,72 @@ const appendUniqueSource = (list, source) => {
     list.push(source);
 };
 
-const pickFoldedEmbroiderySources = (bundle, collection, layerObj) => {
-    if (!bundle || !layerObj?.code) return [];
-    const hasCollection = Array.isArray(collection?.matchingValues) && collection.matchingValues.length > 0;
-    if (!hasCollection) {
-        const foldedSrc = bundle.folded?.[layerObj.code];
-        if (foldedSrc) return [foldedSrc];
-        // Fallback: use display map when folded is unavailable
-        const displaySrc = bundle.display?.[layerObj.code];
-        return displaySrc ? [displaySrc] : [];
+const getFoldedEmbroideryCodeCandidates = (layerObj) => {
+    const rawCode = String(layerObj?.code || '').trim();
+    if (!rawCode) return [];
+
+    // Only allow E-UN1-S, E-UR1-S, E-US1-S, E-UN2-S, E-UR2-S, E-US2-S for Cuff (folded view)
+    if (layerObj?.part === 'Cuff') {
+        // If collection value is US1, return [E-US1-S], etc.
+        const match = rawCode.match(/^US[12]$|^UN[12]$|^UR[12]$/);
+        if (match) {
+            return [`E-${rawCode}-S`];
+        }
+        // If already in E-UN1-S etc. format, allow as is
+        if (/^E-U[NR][12]-S$/.test(rawCode)) {
+            return [rawCode];
+        }
+        // Otherwise, return empty (no fallback)
+        return [];
     }
 
-    const values = collection.matchingValues.filter((value) => collectionValueMatchesFoldedPart(value, layerObj.part));
+    // Chest fallback (BASE family)
+    const candidates = [rawCode];
+    if (layerObj?.part === 'Chest' && rawCode.startsWith('E-BASE')) {
+        ['E-BASE-S', 'E-BASE_M-S', 'E-BASE_C-S', 'E-BASE_R-S'].forEach((code) => {
+            if (!candidates.includes(code)) candidates.push(code);
+        });
+    }
+
+    // Flap fallback (FLN, FRN, FRR, etc.)
+    if (layerObj?.part === 'Flap') {
+        ['E-FLN-S', 'E-FRN-S', 'E-FRR-S', 'E-FLL-S', 'E-FLR-S'].forEach((code) => {
+            if (!candidates.includes(code)) candidates.push(code);
+        });
+    }
+
+    // Pocket fallback (R1/L1)
+    if (layerObj?.part === 'Pocket' && /^E-U[NR][0-9]-S$/.test(rawCode)) {
+        ['E-R1-S', 'E-L1-S'].forEach((code) => {
+            if (!candidates.includes(code)) candidates.push(code);
+        });
+    }
+
+    return candidates;
+};
+
+const pickFoldedEmbroiderySources = (bundle, collection, layerObj) => {
+    if (!bundle || !layerObj?.code) return [];
+    const codeCandidates = Array.isArray(layerObj.codeCandidates) && layerObj.codeCandidates.length > 0
+        ? layerObj.codeCandidates
+        : getFoldedEmbroideryCodeCandidates(layerObj);
+    const hasCollection = Array.isArray(collection?.matchingValues) && collection.matchingValues.length > 0;
+    if (!hasCollection) {
+        return [];
+    }
+
+    const values = collection.matchingValues.filter((value) => collectionValueMatchesFoldedPart(value, layerObj));
     const bySelectionKey = bundle.uploadsBySelectionKey || {};
     const sources = [];
 
     for (const value of values) {
         const uploadBundle = bySelectionKey[makeEmbSelectionKey(value)];
-        if (uploadBundle?.folded?.[layerObj.code]) appendUniqueSource(sources, uploadBundle.folded[layerObj.code]);
-        else if (uploadBundle?.display?.[layerObj.code]) appendUniqueSource(sources, uploadBundle.display[layerObj.code]);
+        if (!uploadBundle) continue;
+        for (const code of codeCandidates) {
+            if (uploadBundle?.folded?.[code]) appendUniqueSource(sources, uploadBundle.folded[code]);
+        }
     }
+
     return sources;
 };
 
@@ -181,27 +236,8 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
         // Helper function to enforce the Z-Index Sandwich
         const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'fabric') => {
             // 1. BOTTOM LAYER: The Fabric itself
-            layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type: type });
-
-            // 2. MIDDLE LAYER: The Embroidery
-            if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve', 'Pocket'].includes(partName)) {
-                // Prefer -S, but also try unsuffixed for backward compatibility
-                layersToRender.push({ 
-                    code: `E-${fabricCode}-S`, 
-                    zIndex: baseZIndex + 1, 
-                    type: 'embroidery',
-                    collectionID: selections.embroideryID,
-                    part: partName 
-                });
-                layersToRender.push({ 
-                    code: `E-${fabricCode}`, 
-                    zIndex: baseZIndex + 1, 
-                    type: 'embroidery',
-                    collectionID: selections.embroideryID,
-                    part: partName,
-                    legacy: true
-                });
-            }
+            layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type: type, part: partName });
+            // No embroidery logic here. Embroidery layers will be added separately, only for codes present in the embroidery collection.
         };
 
         // 1. FOLDED BASE
@@ -247,7 +283,12 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
         } else if (selections.sleeve === "SC") {
             addGarmentPart('Sleeve', "SC", 55);
             if (selections.cuffStyle) {
-                addGarmentPart('Cuff', selections.cuffStyle, 57);
+                let cuffCode = selections.cuffStyle;
+                if (/^(US[12]|UR[12]|UN[12])$/.test(cuffCode)) {
+                    addGarmentPart('Cuff', cuffCode, 57);
+                } else if (/^E-U[NR][12]-S$/.test(cuffCode)) {
+                    addGarmentPart('Cuff', cuffCode, 57);
+                }
                 if (selections.cuffStyle.endsWith("1")) {
                     if (!isRing) layersToRender.push({ code: "BH2", zIndex: 57 + 5 - 1, type: 'fabric' });
                     layersToRender.push({ code: `BC2${bSuffix}`, zIndex: 57 + 5, type: 'button' });
@@ -259,8 +300,6 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
         }
 
         // 5. FOLDED COLLAR
-        // Round neck (CN) folded base already contains the neck shape,
-        // so we skip an extra collar layer to avoid double render.
         if (selections.collar !== "CN") {
             addGarmentPart('Collar', selections.collar, 65);
         }
@@ -276,6 +315,8 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
             if (!isRing) layersToRender.push({ code: "HE", zIndex: 45 + 5 - 1, type: 'fabric' });
             layersToRender.push({ code: `BE${bSuffix}`, zIndex: 45 + 5, type: 'button' });
         }
+
+        layersToRender.push(...getKurtaFoldedEmbroideryLayers(selections, layersToRender));
 
         return layersToRender;
     };

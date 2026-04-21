@@ -95,15 +95,15 @@ function embroideryUploadMatchesPanel(doc, panelMode) {
     const resolvedGarment = garment || typeInfo.garment || segmentInfo.garment;
 
     if (panelMode === 'Sadri') {
-        return resolvedGarment === 'sadri' || segmentInfo.raw === 'kurta_sadri_base';
+        return resolvedGarment === 'sadri' || segmentInfo.raw === 'sadri_base' || segmentInfo.raw === 'kurta_sadri_base';
     }
 
     if (panelMode === 'Coat') {
-        return resolvedGarment === 'coat';
+        return resolvedGarment === 'coat' || segmentInfo.part === 'coat';
     }
 
-    if (resolvedGarment === 'kurta') return true;
-    return segmentInfo.raw.endsWith('_collections') && segmentInfo.raw !== 'kurta_sadri_base';
+    if (resolvedGarment === 'kurta' || segmentInfo.raw === 'kurta_base') return true;
+    return segmentInfo.raw.endsWith('_collections') && !segmentInfo.raw.includes('sadri') && !segmentInfo.raw.includes('coat');
 }
 
 function embroideryValueMatchesPanel(value, panelMode) {

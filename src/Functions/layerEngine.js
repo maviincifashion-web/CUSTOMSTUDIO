@@ -33,12 +33,12 @@ const getKurtaBaseCode = (collar, lengthStr, bottomCut, hasOuterwear, forceManda
 };
 
 export const getSadriLayerCodes = (
-  sadriCode,
-  selections = {},
-  selectedSadriButton,
-  viewMode = 0,
-  slideIndex = 0,
-  embroideryRenders = {}
+    sadriCode,
+    selections = {},
+    selectedSadriButton,
+    viewMode = 0,
+    slideIndex = 0,
+    embroideryRenders = {}
 ) => {
     if (!sadriCode) return [];
 
@@ -89,11 +89,11 @@ export const getSadriLayerCodes = (
         }
     };
 
-    addGarmentPart('SadriBase', `${finalSadriCode}${bSuffix}`, 75, 'sadri_fabric');
+    addGarmentPart('SadriBase', `${finalSadriCode}${bSuffix}`, 85, 'sadri_fabric');
 
     const hideSadriButtons = finalSadriCode === 'KK';
     if (!hideSadriButtons && selectedSadriButton?.material !== 'Ring') {
-        layersToRender.push({ code: `B${finalSadriCode}`, zIndex: 80, type: 'sadri_button' });
+        layersToRender.push({ code: `B${finalSadriCode}`, zIndex: 90, type: 'sadri_button' });
     }
 
     return layersToRender;
@@ -174,22 +174,22 @@ export const getKurtaLayerCodes = (
     // PHASE 2: Resolve all effective values from the (possibly overridden)
     //          effectiveSelections object.
     // ─────────────────────────────────────────────────────────────────────
-    const collar       = effectiveSelections.collar       || 'CM';
-    const bottomCut    = effectiveSelections.bottomCut    || 'R';
-    const lengthStr    = effectiveSelections.length       || 'K';
+    const collar = effectiveSelections.collar || 'CM';
+    const bottomCut = effectiveSelections.bottomCut || 'R';
+    const lengthStr = effectiveSelections.length || 'K';
     const placketStyle = effectiveSelections.placketStyle || 'NS';
-    const pocketQty    = effectiveSelections.pocketQty    || '00';
-    const pocketShape  = effectiveSelections.pocketShape  || 'R';
-    const flapYes      = effectiveSelections.flapYes      || '0';
-    const flapShape    = effectiveSelections.flapShape    || 'R';
-    const epaulette    = effectiveSelections.epaulette    || '0';
-    const sleeve       = effectiveSelections.sleeve       || 'SN';
-    const cuffStyle    = effectiveSelections.cuffStyle    || 'US1';
-    const pajamaType   = effectiveSelections.pajamaType   || 'PJ';
+    const pocketQty = effectiveSelections.pocketQty || '00';
+    const pocketShape = effectiveSelections.pocketShape || 'R';
+    const flapYes = effectiveSelections.flapYes || '0';
+    const flapShape = effectiveSelections.flapShape || 'R';
+    const epaulette = effectiveSelections.epaulette || '0';
+    const sleeve = effectiveSelections.sleeve || 'SN';
+    const cuffStyle = effectiveSelections.cuffStyle || 'US1';
+    const pajamaType = effectiveSelections.pajamaType || 'PJ';
 
     // Determine whether the collar is now effectively mandarin (Cat A forces it).
-    const isCatASadri     = outerwearVisible && hasSadri && !hasCoat && CATEGORY_A_SADRI.includes(currentSadriCode);
-    const forceMandarin   = isCatASadri; // Cat A always resolves to mandarin base.
+    const isCatASadri = outerwearVisible && hasSadri && !hasCoat && CATEGORY_A_SADRI.includes(currentSadriCode);
+    const forceMandarin = isCatASadri; // Cat A always resolves to mandarin base.
 
     // For the base code: outerwear '0' suffix applies for Category B shirt-collar
     // sadris and for any coat scenario.  Cat A uses mandarin bases (no '0' suffix).
@@ -197,7 +197,7 @@ export const getKurtaLayerCodes = (
     const baseCode = getKurtaBaseCode(collar, lengthStr, bottomCut, needsOuterwearBase, forceMandarin);
 
     const bSuffix = '-F';
-    const isRing  = selectedButton?.material === 'Ring';
+    const isRing = selectedButton?.material === 'Ring';
 
     const layersToRender = [];
 
@@ -210,7 +210,7 @@ export const getKurtaLayerCodes = (
 
     /** Pushes the fabric layer + optional embroidery sandwich. */
     const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'fabric') => {
-        layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type });
+        layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type, part: partName });
 
         if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve', 'Pocket'].includes(partName)) {
             layersToRender.push({
@@ -243,14 +243,14 @@ export const getKurtaLayerCodes = (
 
     // Placket centre buttons/holes (Z: 24-25)
     if (placketCode === 'NS4' || placketCode === 'QS4') {
-        if (!isRing) layersToRender.push({ code: 'BHC', zIndex: 24, type: 'fabric' });
-        layersToRender.push({ code: `BKC${bSuffix}`, zIndex: 25, type: 'button' });
+        if (!isRing) layersToRender.push({ code: 'BHC', zIndex: 74, type: 'fabric' });
+        layersToRender.push({ code: `BKC${bSuffix}`, zIndex: 75, type: 'button' });
     } else if (placketCode === 'NS3' || placketCode === 'QS3') {
-        if (!isRing) layersToRender.push({ code: 'BHN', zIndex: 24, type: 'fabric' });
-        layersToRender.push({ code: `BKN${bSuffix}`, zIndex: 25, type: 'button' });
+        if (!isRing) layersToRender.push({ code: 'BHN', zIndex: 74, type: 'fabric' });
+        layersToRender.push({ code: `BKN${bSuffix}`, zIndex: 75, type: 'button' });
     } else if (placketCode === 'NT3' || placketCode === 'QT3') {
-        if (!isRing) layersToRender.push({ code: 'BHT', zIndex: 24, type: 'fabric' });
-        layersToRender.push({ code: `BKT${bSuffix}`, zIndex: 25, type: 'button' });
+        if (!isRing) layersToRender.push({ code: 'BHT', zIndex: 74, type: 'fabric' });
+        layersToRender.push({ code: `BKT${bSuffix}`, zIndex: 75, type: 'button' });
     }
 
     // ── Pockets & Flaps (Z: 30-41) ───────────────────────────────────────
@@ -311,8 +311,8 @@ export const getKurtaLayerCodes = (
         addGarmentPart('Collar', collar, 65);
 
         if (collar === 'CB') {
-            if (!isRing) layersToRender.push({ code: 'CBH', zIndex: 70, type: 'fabric' });
-            layersToRender.push({ code: `CBB${bSuffix}`, zIndex: 71, type: 'button' });
+            if (!isRing) layersToRender.push({ code: 'CBH', zIndex: 76, type: 'fabric' });
+            layersToRender.push({ code: `CBB${bSuffix}`, zIndex: 77, type: 'button' });
         }
     }
 
