@@ -9,18 +9,51 @@ import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 
 const normalizeEmbKey = (value) => (value == null ? '' : String(value).trim().toLowerCase());
 
-const makeEmbSelectionKey = (value) => {
+const parseEmbroideryValuePlacement = (value) => {
+    const targetType = normalizeEmbKey(value?.targetType);
+    const targetPart = normalizeEmbKey(value?.targetPart);
+    if (targetType || targetPart) {
+        return { garment: targetType, part: targetPart };
+    }
+
+    const refPath = normalizeEmbKey(value?.refPath);
+    if (refPath) {
+        const pieces = refPath.split('/');
+        const garment = pieces.length >= 4 ? pieces[3] : '';
+        const part = pieces.length >= 6 ? pieces[5] : '';
+        return { garment, part };
+    }
+
     const typeKey = normalizeEmbKey(value?.type);
+    if (!typeKey) return { garment: '', part: '' };
+
+    const typePieces = typeKey.split('_');
+    if (typePieces.length >= 2) {
+        return {
+            garment: typePieces[typePieces.length - 2] || '',
+            part: typePieces[typePieces.length - 1] || '',
+        };
+    }
+
+    return { garment: '', part: '' };
+};
+
+const makeEmbSelectionKey = (value) => {
+    const placement = parseEmbroideryValuePlacement(value);
+    const typeKey = placement.garment && placement.part
+        ? `${placement.garment}_${placement.part}`
+        : normalizeEmbKey(value?.type);
     const docId = normalizeEmbKey(value?.id);
     return typeKey && docId ? `${typeKey}::${docId}` : '';
 };
 
 const collectionValueMatchesFoldedPart = (value, part) => {
-    const typeKey = normalizeEmbKey(value?.type);
-    if (!typeKey) return false;
-    if (part === 'Collar') return typeKey.endsWith('_collar') || typeKey.endsWith('_lapel');
-    if (part === 'Sleeve') return typeKey.endsWith('_sleeve');
-    if (part === 'Chest') return typeKey.endsWith('_base');
+    const placement = parseEmbroideryValuePlacement(value);
+    if (!placement.garment && !placement.part) return false;
+    if (part === 'Collar') return placement.part === 'collar' || placement.part === 'lapel';
+    if (part === 'Sleeve') return placement.part === 'sleeve';
+    if (part === 'Pocket') return placement.part === 'pocket';
+    if (part === 'Chest') return placement.part === 'base';
     return false;
 };
 
@@ -151,13 +184,22 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
             layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type: type });
 
             // 2. MIDDLE LAYER: The Embroidery
-            if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve'].includes(partName)) {
+            if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve', 'Pocket'].includes(partName)) {
+                // Prefer -S, but also try unsuffixed for backward compatibility
+                layersToRender.push({ 
+                    code: `E-${fabricCode}-S`, 
+                    zIndex: baseZIndex + 1, 
+                    type: 'embroidery',
+                    collectionID: selections.embroideryID,
+                    part: partName 
+                });
                 layersToRender.push({ 
                     code: `E-${fabricCode}`, 
                     zIndex: baseZIndex + 1, 
                     type: 'embroidery',
                     collectionID: selections.embroideryID,
-                    part: partName 
+                    part: partName,
+                    legacy: true
                 });
             }
         };

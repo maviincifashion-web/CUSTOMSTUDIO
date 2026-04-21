@@ -21,7 +21,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.MaviinciApp",
       "tv": {
-        "enabled": false,
+        "enabled": true,
         "banner": "./assets/images/tv-banner.png"
       }
     },

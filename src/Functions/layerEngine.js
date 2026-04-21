@@ -57,16 +57,18 @@ export const getSadriLayerCodes = (
     }
 
     const layersToRender = [];
-
-    const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'fabric') => {
-        layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type: type });
+    const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'sadri_fabric') => {
+        layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type });
 
         if (selections.sadriEmbroideryID && ['SadriBase'].includes(partName)) {
-            const embCode = `E-${finalSadriCode}`;
             const coll = embroideryRenders[selections.sadriEmbroideryID];
-            const leftAsset = coll?.sadriChestLeft?.[embCode];
-            const rightAsset = coll?.sadriChestRight?.[embCode];
-            if (leftAsset && rightAsset) {
+            const embCodeCandidates = [`E${finalSadriCode}`, `E-${finalSadriCode}`];
+            const embCode = embCodeCandidates.find((code) =>
+                coll?.sadriChestLeft?.[code] || coll?.sadriChestRight?.[code]
+            ) || `E${finalSadriCode}`;
+            const leftAsset = coll?.sadriChestLeft?.[embCode] || coll?.sadriChestRight?.[embCode];
+            const rightAsset = coll?.sadriChestRight?.[embCode] || coll?.sadriChestLeft?.[embCode];
+            if (leftAsset) {
                 layersToRender.push({
                     code: embCode,
                     zIndex: baseZIndex + 1,
@@ -74,6 +76,8 @@ export const getSadriLayerCodes = (
                     collectionID: selections.sadriEmbroideryID,
                     part: partName
                 });
+            }
+            if (rightAsset) {
                 layersToRender.push({
                     code: embCode,
                     zIndex: baseZIndex + 2,
@@ -208,9 +212,9 @@ export const getKurtaLayerCodes = (
     const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'fabric') => {
         layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type });
 
-        if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve'].includes(partName)) {
+        if (selections.embroideryID && ['Chest', 'Collar', 'Sleeve', 'Pocket'].includes(partName)) {
             layersToRender.push({
-                code: `E-${fabricCode}`,
+                code: `E-${fabricCode}-F`,
                 zIndex: baseZIndex + 1,
                 type: 'embroidery',
                 collectionID: selections.embroideryID,

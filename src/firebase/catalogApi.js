@@ -503,7 +503,21 @@ export async function getSrcFromDocPath(db, pathSegments) {
 /**
  * Subcollections under `Fabric/embroidery/{segment}` where admin EmbroideryForm writes * design docs (parent has `style` = style catalog doc id, plus `style` subcoll with layer `{src}`).
  */
-export const APP_EMBROIDERY_LAYOUT_SEGMENTS = [
+const ADMIN_EMBROIDERY_GARMENTS = ['coat', 'pant', 'shirt', 'vest', 'pajama', 'sadri', 'kurta'];
+const ADMIN_EMBROIDERY_PARTS = ['base', 'sleeve', 'lapel', 'collar', 'pocket', 'epaulette'];
+const ADMIN_EMBROIDERY_CATEGORIES = ['suits', 'kurta', 'sadri', 'blazer'];
+const ADMIN_EMBROIDERY_CATEGORY_TO_TYPES = {
+  suits: ['coat', 'pant', 'shirt', 'vest', 'sadri', 'kurta'],
+  kurta: ['coat', 'pajama', 'sadri', 'kurta'],
+  sadri: ['coat', 'sadri', 'kurta'],
+  blazer: ['coat'],
+};
+
+const ADMIN_EMBROIDERY_LAYOUT_SEGMENTS = ADMIN_EMBROIDERY_GARMENTS.flatMap((garment) =>
+  ADMIN_EMBROIDERY_PARTS.map((part) => `${garment}_${part}`)
+);
+
+const LEGACY_EMBROIDERY_LAYOUT_SEGMENTS = [
   'kurta_kurta_base',
   'kurta_kurta_sleeve',
   'kurta_kurta_lapel',
@@ -511,14 +525,93 @@ export const APP_EMBROIDERY_LAYOUT_SEGMENTS = [
   'kurta_kurta_pocket',
   'kurta_kurta_epaulette',
   'kurta_sadri_base',
-  'kurta_collections', // required for KurtaMain to prefetch existence of collections
+  'kurta_collections',
   'Suits_collections',
   'formal_collections',
   'blazer_collections',
 ];
 
+export const APP_EMBROIDERY_LAYOUT_SEGMENTS = [
+  ...ADMIN_EMBROIDERY_LAYOUT_SEGMENTS,
+  ...LEGACY_EMBROIDERY_LAYOUT_SEGMENTS.filter((segment) => !ADMIN_EMBROIDERY_LAYOUT_SEGMENTS.includes(segment)),
+];
+
+const LEGACY_EMBROIDERY_UPLOAD_COLLECTIONS = [
+  { value: 'Suits_collections', label: 'Suit' },
+  { value: 'formal_collections', label: 'Formal' },
+  { value: 'blazer_collections', label: 'Blazer' },
+  { value: 'kurta_collections', label: 'Kurta' },
+  { value: 'kurta_sadri_base', label: 'Sadri' },
+];
+
+function emptyEmbroideryBundle() {
+  return {
+    display: {},
+    sadriChestLeft: {},
+    sadriChestRight: {},
+    coatChestLeft: {},
+    coatChestRight: {},
+    folded: {},
+    uploadsByDocId: {},
+    uploadsByType: {},
+    uploadsBySelectionKey: {},
+  };
+}
+
+function emptyEmbroideryUploadDocBundle() {
+  return {
+    display: {},
+    sadriChestLeft: {},
+    sadriChestRight: {},
+    coatChestLeft: {},
+    coatChestRight: {},
+    folded: {},
+  };
+}
+
+function adminEmbroideryDocPath(category, garmentType, docId, subcollection) {
+  const segments = ['Fabric', 'embroidery', normalizeEmbroideryLookupKey(category), normalizeEmbroideryLookupKey(garmentType), normalizeEmbroideryLookupKey(subcollection)];
+  if (docId != null) segments.push(String(docId));
+  return segments;
+}
+
+function adminEmbroideryPairs() {
+  return ADMIN_EMBROIDERY_CATEGORIES.flatMap((category) =>
+    (ADMIN_EMBROIDERY_CATEGORY_TO_TYPES[category] || []).map((garmentType) => ({ category, garmentType }))
+  );
+}
+
+function parseEmbroiderySegment(segment) {
+  const normalized = String(segment || '').trim().toLowerCase();
+  if (!normalized) return { garment: '', part: '', normalized: '' };
+
+  if (normalized.includes('/')) {
+    const [category = '', garment = '', part = ''] = normalized.split('/');
+    return { category, garment, part, normalized };
+  }
+
+  if (normalized.includes('_collections')) {
+    return { category: '', garment: normalized.replace('_collections', ''), part: 'collection', normalized };
+  }
+
+  const parts = normalized.split('_');
+  if (parts.length >= 3 && parts[0] === 'kurta') {
+    return { category: '', garment: parts[1] || '', part: parts.slice(2).join('_') || '', normalized };
+  }
+
+  if (parts.length >= 2) {
+    return { category: '', garment: parts[0] || '', part: parts.slice(1).join('_') || '', normalized };
+  }
+
+  return { category: '', garment: normalized, part: '', normalized };
+}
+
 function isSadriEmbroiderySegment(segment) {
-  return String(segment).toLowerCase().includes('_sadri_');
+  return parseEmbroiderySegment(segment).garment === 'sadri';
+}
+
+function isCoatEmbroiderySegment(segment) {
+  return parseEmbroiderySegment(segment).garment === 'coat';
 }
 
 function normalizeEmbroideryLookupKey(value) {
@@ -577,16 +670,9 @@ export async function fetchEmbroideryRendersForStyleId(
   segments = APP_EMBROIDERY_LAYOUT_SEGMENTS
 ) {
   const sid = normalizeFabricKey(styleId);
-  if (!sid) {
-    return { display: {}, sadriChestLeft: {}, sadriChestRight: {}, folded: {}, uploadsByDocId: {}, uploadsByType: {}, uploadsBySelectionKey: {} };
-  }
+  if (!sid) return emptyEmbroideryBundle();
 
-  const display = {};
-  const sadriChestLeft = {};
-  const sadriChestRight = {};
-  const uploadsByDocId = {};
-  const uploadsByType = {};
-  const uploadsBySelectionKey = {};
+  const bundle = emptyEmbroideryBundle();
 
   const applyLayer = (target, segment, code, url) => {
     if (!code || typeof url !== 'string' || !url.length) return;
@@ -597,124 +683,253 @@ export async function fetchEmbroideryRendersForStyleId(
         target.sadriChestLeft[alias] = src;
         target.sadriChestRight[alias] = src;
       });
-    } else {
+    } else if (isCoatEmbroiderySegment(segment)) {
       aliases.forEach((alias) => {
-        target.display[alias] = src;
+        target.coatChestLeft[alias] = src;
+        target.coatChestRight[alias] = src;
+      });
+    } else {
+      const rawCode = String(code).trim();
+      const isStyleVariant = rawCode.endsWith('-S');
+      const isDisplayVariant = rawCode.endsWith('-F');
+      const destination = isStyleVariant ? target.folded : target.display;
+
+      aliases.forEach((alias) => {
+        destination[alias] = src;
+        if (isDisplayVariant || isStyleVariant) {
+          const unsuffixed = alias.endsWith('-F') || alias.endsWith('-S') ? alias.slice(0, -2) : alias;
+          destination[unsuffixed] = src;
+        }
       });
     }
   };
+
+  const indexUploadDoc = (docId, data, segment, docBundle, fallbackMeta = {}) => {
+    const isCollection = Boolean(
+      fallbackMeta.isCollection || (Array.isArray(data.values) && data.values.length > 0)
+    );
+    bundle.uploadsByDocId[docId] = {
+      ...docBundle,
+      docId,
+      segment,
+      type: data.type || '',
+      garment: data.targetType || fallbackMeta.garment || '',
+      part: data.targetPart || data.part || fallbackMeta.part || '',
+      category: data.targetCategory || fallbackMeta.category || '',
+      name: data.name || docId,
+      refPath: data.refPath || fallbackMeta.refPath || '',
+      values: Array.isArray(data.values) ? data.values : [],
+      isCollection,
+    };
+
+    const selectionKey = makeEmbroiderySelectionKey(segment, docId);
+    if (selectionKey) {
+      bundle.uploadsBySelectionKey[selectionKey] = bundle.uploadsByDocId[docId];
+    }
+
+    const keys = [
+      data.type,
+      data.part,
+      data.name,
+      docId,
+      segment,
+    ].map(normalizeEmbroideryLookupKey);
+
+    keys.forEach((key) => {
+      if (!key) return;
+      const prev = bundle.uploadsByType[key] || emptyEmbroideryUploadDocBundle();
+      bundle.uploadsByType[key] = {
+        ...prev,
+        display: { ...(prev.display || {}), ...(docBundle.display || {}) },
+        sadriChestLeft: { ...(prev.sadriChestLeft || {}), ...(docBundle.sadriChestLeft || {}) },
+        sadriChestRight: { ...(prev.sadriChestRight || {}), ...(docBundle.sadriChestRight || {}) },
+        coatChestLeft: { ...(prev.coatChestLeft || {}), ...(docBundle.coatChestLeft || {}) },
+        coatChestRight: { ...(prev.coatChestRight || {}), ...(docBundle.coatChestRight || {}) },
+        folded: { ...(prev.folded || {}), ...(docBundle.folded || {}) },
+      };
+    });
+  };
+
+  const absorbDoc = async (docSnap, segment, fallbackMeta = {}, styleSubcollectionPath = null) => {
+    const data = docSnap.data() || {};
+    const linked = normalizeFabricKey(data.style);
+    const vals = Array.isArray(data.values) ? data.values : [];
+    const matchesDirect = linked && linked === sid;
+    const matchesViaValues = vals.some((v) => normalizeFabricKey(v?.style) === sid);
+    if (!matchesDirect && !matchesViaValues) return;
+
+    const docBundle = emptyEmbroideryUploadDocBundle();
+    const target = {
+      display: bundle.display,
+      folded: bundle.folded,
+      sadriChestLeft: bundle.sadriChestLeft,
+      sadriChestRight: bundle.sadriChestRight,
+      coatChestLeft: bundle.coatChestLeft,
+      coatChestRight: bundle.coatChestRight,
+    };
+
+    const res = data.resources;
+    if (res && typeof res === 'object') {
+      Object.entries(res).forEach(([code, url]) => {
+        if (typeof url !== 'string') return;
+        applyLayer(target, segment, code, url);
+        applyLayer(docBundle, segment, code, url);
+      });
+    }
+
+    if (styleSubcollectionPath) {
+      try {
+        const styleSnap = await getDocs(collection(db, ...styleSubcollectionPath));
+        styleSnap.forEach((layerDoc) => {
+          const url = readSrcField(layerDoc.data());
+          if (!url) return;
+          applyLayer(target, segment, layerDoc.id, url);
+          applyLayer(docBundle, segment, layerDoc.id, url);
+        });
+      } catch {
+        /* no style subcollection */
+      }
+    }
+
+    indexUploadDoc(String(docSnap.id), data, segment, docBundle, fallbackMeta);
+  };
+
+  for (const { category, garmentType } of adminEmbroideryPairs()) {
+    let embroiderySnap;
+    try {
+      embroiderySnap = await getDocs(collection(db, ...adminEmbroideryDocPath(category, garmentType, null, 'embroideries')));
+    } catch {
+      continue;
+    }
+
+    for (const docSnap of embroiderySnap.docs) {
+      const data = docSnap.data() || {};
+      const part = normalizeEmbroideryLookupKey(data.targetPart || '');
+      const segment = `${normalizeEmbroideryLookupKey(garmentType)}_${part}`;
+      await absorbDoc(
+        docSnap,
+        segment,
+        {
+          category,
+          garment: garmentType,
+          part,
+          refPath: adminEmbroideryDocPath(category, garmentType, docSnap.id, 'embroideries').join('/'),
+        },
+        adminEmbroideryDocPath(category, garmentType, docSnap.id, 'embroideries').concat('style')
+      );
+    }
+  }
+
+  for (const { category, garmentType } of adminEmbroideryPairs()) {
+    let collectionsSnap;
+    try {
+      collectionsSnap = await getDocs(collection(db, ...adminEmbroideryDocPath(category, garmentType, null, 'collections')));
+    } catch {
+      continue;
+    }
+
+    for (const docSnap of collectionsSnap.docs) {
+      await absorbDoc(
+        docSnap,
+        `${normalizeEmbroideryLookupKey(category)}/${normalizeEmbroideryLookupKey(garmentType)}`,
+        {
+          category,
+          garment: garmentType,
+          part: 'collection',
+          isCollection: true,
+          refPath: adminEmbroideryDocPath(category, garmentType, docSnap.id, 'collections').join('/'),
+        },
+        null
+      );
+    }
+  }
 
   for (const segment of segments) {
     let collSnap;
     try {
       collSnap = await getDocs(collection(db, 'Fabric', 'embroidery', segment));
-    } catch {
+      if (typeof __DEV__ !== 'undefined' && __DEV__ && collSnap.size > 0) {
+        console.log(`[Maviinci] Embroidery segment "${segment}": ${collSnap.size} docs fetched`);
+      }
+    } catch (err) {
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.warn(`[Maviinci] Embroidery segment "${segment}" fetch failed:`, err.message);
+      }
       continue;
     }
     for (const docSnap of collSnap.docs) {
-      const data = docSnap.data() || {};
-      const linked = normalizeFabricKey(data.style);
-      const vals = Array.isArray(data.values) ? data.values : [];
-      const matchesDirect = linked && linked === sid;
-      const matchesViaValues = vals.some((v) => normalizeFabricKey(v?.style) === sid);
-      if (!matchesDirect && !matchesViaValues) continue;
-      const docBundle = { display: {}, sadriChestLeft: {}, sadriChestRight: {}, folded: {} };
-
-      const res = data.resources;
-      if (res && typeof res === 'object') {
-        Object.entries(res).forEach(([code, url]) => {
-          if (typeof url === 'string') {
-            applyLayer({ display, sadriChestLeft, sadriChestRight }, segment, code, url);
-            applyLayer(docBundle, segment, code, url);
-          }
-        });
-      }
-
-      try {
-        const styleSnap = await getDocs(
-          collection(db, 'Fabric', 'embroidery', segment, docSnap.id, 'style')
-        );
-        styleSnap.forEach((layerDoc) => {
-          const url = readSrcField(layerDoc.data());
-          if (url) {
-            applyLayer({ display, sadriChestLeft, sadriChestRight }, segment, layerDoc.id, url);
-            applyLayer(docBundle, segment, layerDoc.id, url);
-          }
-        });
-      } catch {
-        /* no style subcoll */
-      }
-
-      uploadsByDocId[docSnap.id] = {
-        ...docBundle,
-        docId: docSnap.id,
-        segment,
-        type: data.type || '',
-        part: data.part || '',
-        name: data.name || docSnap.id,
-      };
-      const selectionKey = makeEmbroiderySelectionKey(segment, docSnap.id);
-      if (selectionKey) {
-        uploadsBySelectionKey[selectionKey] = uploadsByDocId[docSnap.id];
-      }
-
-      const keys = [
-        data.type,
-        data.part,
-        data.name,
-        docSnap.id,
-        segment,
-      ].map(normalizeEmbroideryLookupKey);
-
-      keys.forEach((key) => {
-        if (!key) return;
-        const prev = uploadsByType[key] || { display: {}, sadriChestLeft: {}, sadriChestRight: {}, folded: {} };
-        uploadsByType[key] = {
-          ...prev,
-          display: { ...(prev.display || {}), ...(docBundle.display || {}) },
-          sadriChestLeft: { ...(prev.sadriChestLeft || {}), ...(docBundle.sadriChestLeft || {}) },
-          sadriChestRight: { ...(prev.sadriChestRight || {}), ...(docBundle.sadriChestRight || {}) },
-          folded: { ...(prev.folded || {}), ...(docBundle.folded || {}) },
-        };
-      });
+      const parsedSegment = parseEmbroiderySegment(segment);
+      await absorbDoc(docSnap, segment, {
+        garment: parsedSegment.garment,
+        part: parsedSegment.part,
+      }, ['Fabric', 'embroidery', segment, docSnap.id, 'style']);
     }
   }
 
-  return { display, sadriChestLeft, sadriChestRight, folded: {}, uploadsByDocId, uploadsByType, uploadsBySelectionKey };
+  return bundle;
 }
 
 /**
- * Website admin `COLLECTION_TYPES`: docs under `Fabric/embroidery/{value}` with `values[]` linking to style + render type.
+ * Website admin collections: new schema stores them under
+ * `Fabric/embroidery/{category}/{type}/collections/{collectionId}` with `values[]`.
+ * Legacy flat buckets remain as fallback.
  */
 export const EMBROIDERY_UPLOAD_COLLECTIONS = [
-  { value: 'Suits_collections', label: 'Suit' },
-  { value: 'formal_collections', label: 'Formal' },
-  { value: 'blazer_collections', label: 'Blazer' },
-  { value: 'kurta_collections', label: 'Kurta' },
+  ...adminEmbroideryPairs().map(({ category, garmentType }) => ({
+    value: `${category}/${garmentType}`,
+    label: `${category}/${garmentType}`,
+    category,
+    garmentType,
+  })),
+  ...LEGACY_EMBROIDERY_UPLOAD_COLLECTIONS,
 ];
 
 function embroideryValueTypeMatchesPanel(typeKey, panelMode, bucketName) {
-  // If the admin specifically uploaded this collection into the correct bucket, trust the bucket.
-  if (panelMode === 'Kurta' && bucketName === 'kurta_collections') return true;
-  if (panelMode === 'Sadri' && bucketName === 'kurta_sadri_base') return true; // generic logic
-  
   const t = String(typeKey || '').toLowerCase();
-  if (panelMode === 'Sadri') return t.includes('_sadri_');
-  return t.includes('kurta') && !t.includes('_sadri_');
+  const bucket = String(bucketName || '').toLowerCase();
+  const isSadriPanel = panelMode === 'Sadri';
+  const isCoatPanel = panelMode === 'Coat';
+  const bucketGarment = parseEmbroiderySegment(bucket).garment;
+  const typeGarment = parseEmbroiderySegment(t).garment;
+
+  if (isSadriPanel) {
+    if (bucketGarment === 'sadri' || typeGarment === 'sadri') return true;
+    return bucket === 'kurta_sadri_base';
+  }
+
+  if (isCoatPanel) {
+    return bucketGarment === 'coat' || typeGarment === 'coat';
+  }
+
+  if (bucketGarment === 'kurta' || typeGarment === 'kurta') return true;
+  if (bucket === 'kurta_collections') return true;
+
+  // Legacy generic buckets were historically displayed on the Kurta panel.
+  if (bucket.endsWith('_collections')) return true;
+
+  return false;
 }
 
 function uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode, bucketName) {
   const vals = Array.isArray(data.values) ? data.values : [];
   const forStyle = vals.filter((v) => v && normalizeFabricKey(v.style) === sid);
   if (!forStyle.length) return false;
-  return forStyle.some((v) => embroideryValueTypeMatchesPanel(v.type, panelMode, bucketName));
+  return forStyle.some((v) => {
+    const valueKey = v.refPath
+      ? `${normalizeEmbroideryLookupKey(v.targetCategory)}/${normalizeEmbroideryLookupKey(v.targetType)}/${normalizeEmbroideryLookupKey(v.targetPart)}`
+      : v.type;
+    return embroideryValueTypeMatchesPanel(valueKey, panelMode, bucketName);
+  });
 }
 
 function matchingUploadedCollectionValues(data, sid, panelMode, bucketName) {
   const vals = Array.isArray(data?.values) ? data.values : [];
   return vals.filter((v) => {
     if (!v || typeof v !== 'object') return false;
-    return normalizeFabricKey(v.style) === sid && embroideryValueTypeMatchesPanel(v.type, panelMode, bucketName);
+    const valueKey = v.refPath
+      ? `${normalizeEmbroideryLookupKey(v.targetCategory)}/${normalizeEmbroideryLookupKey(v.targetType)}/${normalizeEmbroideryLookupKey(v.targetPart)}`
+      : v.type;
+    return normalizeFabricKey(v.style) === sid && embroideryValueTypeMatchesPanel(valueKey, panelMode, bucketName);
   });
 }
 
@@ -726,21 +941,29 @@ export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, 
   if (!sid) return [];
 
   const out = [];
-  for (const { value, label } of EMBROIDERY_UPLOAD_COLLECTIONS) {
+  for (const entry of EMBROIDERY_UPLOAD_COLLECTIONS) {
+    const { value, label, category, garmentType } = entry;
     let snap;
     try {
-      snap = await getDocs(collection(db, 'Fabric', 'embroidery', value));
+      if (category && garmentType) {
+        snap = await getDocs(collection(db, ...adminEmbroideryDocPath(category, garmentType, null, 'collections')));
+      } else {
+        snap = await getDocs(collection(db, 'Fabric', 'embroidery', value));
+      }
     } catch {
       continue;
     }
     for (const docSnap of snap.docs) {
       const data = docSnap.data() || {};
+      if (!Array.isArray(data.values) || data.values.length === 0) continue;
       if (!uploadedCollectionMatchesStyleAndPanel(data, sid, panelMode, value)) continue;
 
       const vals = matchingUploadedCollectionValues(data, sid, panelMode, value);
       const thumb =
         (typeof data.src === 'string' && data.src.length > 0 && data.src) || readSrcField(data);
       const price = parseMoney(data.price ?? data.Price);
+      const resolvedCategory = normalizeEmbroideryLookupKey(data.targetCategory || category);
+      const resolvedGarmentType = normalizeEmbroideryLookupKey(data.targetType || garmentType);
 
       out.push({
         id: docSnap.id,
@@ -750,6 +973,9 @@ export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, 
         price,
         renderCount: vals.length,
         imageUri: thumb || null,
+        targetCategory: resolvedCategory,
+        targetType: resolvedGarmentType,
+        targetPart: normalizeEmbroideryLookupKey(data.targetPart),
         matchingValues: vals,
       });
     }
@@ -776,6 +1002,8 @@ export function mergeEmbroideryRenderMaps(localMap, remoteMap) {
       (Object.keys(rem.display || {}).length > 0 ||
         Object.keys(rem.sadriChestLeft || {}).length > 0 ||
         Object.keys(rem.sadriChestRight || {}).length > 0 ||
+        Object.keys(rem.coatChestLeft || {}).length > 0 ||
+        Object.keys(rem.coatChestRight || {}).length > 0 ||
         Object.keys(rem.folded || {}).length > 0 ||
         Object.keys(rem.uploadsByDocId || {}).length > 0 ||
         Object.keys(rem.uploadsByType || {}).length > 0 ||
@@ -788,6 +1016,8 @@ export function mergeEmbroideryRenderMaps(localMap, remoteMap) {
       display: { ...(loc?.display || {}), ...(rem.display || {}) },
       sadriChestLeft: { ...(loc?.sadriChestLeft || {}), ...(rem.sadriChestLeft || {}) },
       sadriChestRight: { ...(loc?.sadriChestRight || {}), ...(rem.sadriChestRight || {}) },
+      coatChestLeft: { ...(loc?.coatChestLeft || {}), ...(rem.coatChestLeft || {}) },
+      coatChestRight: { ...(loc?.coatChestRight || {}), ...(rem.coatChestRight || {}) },
       folded: { ...(loc?.folded || {}), ...(rem.folded || {}) },
       uploadsByDocId: { ...(loc?.uploadsByDocId || {}), ...(rem.uploadsByDocId || {}) },
       uploadsByType: { ...(loc?.uploadsByType || {}), ...(rem.uploadsByType || {}) },

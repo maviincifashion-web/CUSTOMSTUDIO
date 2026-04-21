@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, PixelRatio } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -51,6 +51,95 @@ const EXTRAS_TRAY_ITEMS = [
 ];
 
 const PUBLIC_SHARE_BASE_URL = 'https://maviinci.in/s';
+
+function parseEmbroideryTargetKey(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) return { garment: '', part: '', raw: '' };
+    if (normalized.includes('/')) {
+        const [, garment = '', part = ''] = normalized.split('/');
+        return {
+            garment,
+            part,
+            raw: normalized,
+        };
+    }
+    if (normalized.includes('_collections')) {
+        return {
+            garment: normalized.replace('_collections', ''),
+            part: 'collection',
+            raw: normalized,
+        };
+    }
+    const pieces = normalized.split('_');
+    if (pieces.length >= 3 && pieces[0] === 'kurta') {
+        return {
+            garment: pieces[1] || '',
+            part: pieces.slice(2).join('_') || '',
+            raw: normalized,
+        };
+    }
+    if (pieces.length >= 2) {
+        return {
+            garment: pieces[0] || '',
+            part: pieces.slice(1).join('_') || '',
+            raw: normalized,
+        };
+    }
+    return { garment: normalized, part: '', raw: normalized };
+}
+
+function embroideryUploadMatchesPanel(doc, panelMode) {
+    const segmentInfo = parseEmbroideryTargetKey(doc?.segment);
+    const typeInfo = parseEmbroideryTargetKey(doc?.type);
+    const garment = doc?.garment ? String(doc.garment).trim().toLowerCase() : '';
+    const resolvedGarment = garment || typeInfo.garment || segmentInfo.garment;
+
+    if (panelMode === 'Sadri') {
+        return resolvedGarment === 'sadri' || segmentInfo.raw === 'kurta_sadri_base';
+    }
+
+    if (panelMode === 'Coat') {
+        return resolvedGarment === 'coat';
+    }
+
+    if (resolvedGarment === 'kurta') return true;
+    return segmentInfo.raw.endsWith('_collections') && segmentInfo.raw !== 'kurta_sadri_base';
+}
+
+function embroideryValueMatchesPanel(value, panelMode) {
+    const targetGarment = String(value?.targetType || '').trim().toLowerCase();
+    if (targetGarment) {
+        if (panelMode === 'Sadri') return targetGarment === 'sadri';
+        if (panelMode === 'Coat') return targetGarment === 'coat';
+        return targetGarment === 'kurta';
+    }
+
+    const refPath = value?.refPath ? String(value.refPath).trim().toLowerCase() : '';
+    if (refPath) {
+        const parts = refPath.split('/');
+        const garmentFromPath = parts.length >= 4 ? parts[3] : '';
+        if (panelMode === 'Sadri') return garmentFromPath === 'sadri';
+        if (panelMode === 'Coat') return garmentFromPath === 'coat';
+        return garmentFromPath === 'kurta';
+    }
+
+    return embroideryUploadMatchesPanel({
+        segment: value?.type,
+        type: value?.type,
+        garment: value?.targetType,
+    }, panelMode);
+}
+
+function bundleHasPanelUploads(bundle, panelMode) {
+    const uploads = bundle?.uploadsByDocId;
+    if (!uploads || typeof uploads !== 'object') return false;
+    return Object.values(uploads).some((doc) => {
+        if (!doc?.isCollection || !embroideryUploadMatchesPanel(doc, panelMode)) return false;
+        const values = Array.isArray(doc.values) ? doc.values : [];
+        if (values.length === 0) return false;
+        return values.some((value) => embroideryValueMatchesPanel(value, panelMode));
+    });
+}
 
 function buildPublicShareUrlFromSid(sid) {
     const cleanSid = normalizeId(sid);
@@ -382,8 +471,9 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         },
         [fabrics, fabricsByGarment]
     );
-    const { width, isDesktop, normalize } = useResponsive();
-    const isTabletViewport = !isDesktop && width >= 768;
+    const { width, isDesktop, isTV, normalize } = useResponsive();
+    const effectiveTV = isTVView || isTV;
+    const isTabletViewport = !isDesktop && !isTV && width >= 768;
     const insets = useSafeAreaInsets();
     const { selectedItems, setSelectedItems } = useOutfit();
     const [activePanel, setActivePanel] = useState(null);
@@ -685,48 +775,29 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         if (selections?.coatEmbroideryID) prefetchEmbroideryRenders(selections.coatEmbroideryID);
     }, [selections?.coatEmbroideryID, prefetchEmbroideryRenders]);
 
-    /** Kurta tab: `kurta_kurta_*` segments → `display` / `folded`. Sadri tab: `kurta_sadri_base` → `sadriChestLeft`. */
+    /** Show only styles that have uploaded collections for the active panel. */
     const embroideryListKurtaTarget = useMemo(() => {
         if (!Array.isArray(embroideryCollections)) return [];
         return embroideryCollections.filter((e) => {
             const bundle = embroideryRenders?.[e.id];
             if (!bundle) return false;
-            const nd = bundle.display && typeof bundle.display === 'object' ? Object.keys(bundle.display).length : 0;
-            const nf = bundle.folded && typeof bundle.folded === 'object' ? Object.keys(bundle.folded).length : 0;
-            if (nd + nf > 0) return true;
-
-            const uploads = bundle.uploadsByDocId;
-            if (uploads && typeof uploads === 'object') {
-                return Object.values(uploads).some((doc) => {
-                    const seg = String(doc?.segment || '').toLowerCase();
-                    // We only want collections specifically made for kurta.
-                    // This explicitly checks for kurta_collections segment or explicit kurta types.
-                    if (seg === 'kurta_collections') return true;
-                    if (seg.includes('kurta') && !seg.includes('_sadri_')) return true;
-
-                    const t = String(doc?.type || '').toLowerCase();
-                    if (t.includes('kurta') && !t.includes('_sadri_')) return true;
-
-                    return false;
-                });
-            }
-            return false;
+            return bundleHasPanelUploads(bundle, 'Kurta');
         });
     }, [embroideryCollections, embroideryRenders]);
 
     const embroideryListSadriTarget = useMemo(() => {
         if (!Array.isArray(embroideryCollections)) return [];
         return embroideryCollections.filter((e) => {
-            const m = embroideryRenders?.[e.id]?.sadriChestLeft;
-            return m && typeof m === 'object' && Object.keys(m).length > 0;
+            const bundle = embroideryRenders?.[e.id];
+            return bundleHasPanelUploads(bundle, 'Sadri');
         });
     }, [embroideryCollections, embroideryRenders]);
 
     const embroideryListCoatTarget = useMemo(() => {
         if (!Array.isArray(embroideryCollections)) return [];
         return embroideryCollections.filter((e) => {
-            const m = embroideryRenders?.[e.id]?.coatChestLeft;
-            return m && typeof m === 'object' && Object.keys(m).length > 0;
+            const bundle = embroideryRenders?.[e.id];
+            return bundleHasPanelUploads(bundle, 'Coat');
         });
     }, [embroideryCollections, embroideryRenders]);
 
@@ -842,6 +913,10 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
     // Yahan aap apne screens ke hisab se Side Panel ki width set kar sakte hain
     const getDynamicPanelWidth = () => {
+        // # TV SCREEN (portrait 541dp)
+        if (effectiveTV) {
+            return Math.min(width * 0.48, 280);
+        }
         // # MOBILE SCREEN
         if (!isDesktop && width < 768) {
             return width * 0.60;
@@ -1307,7 +1382,15 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             : tab === 'Coat'
                 ? selections.coatEmbroideryID
                 : selections.embroideryID;
+        const selectedCollection = tab === 'Sadri'
+            ? selections.sadriEmbroideryCollection
+            : tab === 'Coat'
+                ? selections.coatEmbroideryCollection
+                : selections.embroideryCollection;
         if (!embroideryId || !Array.isArray(embroideryCollections)) return null;
+        if (selectedCollection?.imageUri) {
+            return { uri: selectedCollection.imageUri };
+        }
         const embroideryItem = embroideryCollections.find(e => e.id === embroideryId);
         if (!embroideryItem) return null;
         const imageSource = tab === 'Sadri' || tab === 'Coat'
@@ -1333,15 +1416,15 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const renderFabricCard = (fabric, isActive, onSelect, infoIconSize = 24) => (
         <TouchableOpacity
             key={fabric.fabricID}
-            style={[styles.fabricCard, isActive && styles.fabricCardActive]}
+            style={[styles.fabricCard, isActive && styles.fabricCardActive, effectiveTV && { marginBottom: 8 }]}
             onPress={onSelect}
             activeOpacity={0.9}
         >
-            <Image source={fabric.thumbnail} style={styles.fabricImage} resizeMode="cover" />
-            <View style={styles.fabricInfo}>
+            <Image source={fabric.thumbnail} style={[styles.fabricImage, effectiveTV && { height: 80 }]} resizeMode="cover" />
+            <View style={[styles.fabricInfo, effectiveTV && { minHeight: 36, paddingVertical: 5 }]}>
                 <View style={styles.fabricInfoTextWrap}>
-                    <Text style={styles.fabricName} numberOfLines={1}>{fabric.name}</Text>
-                    <Text style={styles.fabricBrand} numberOfLines={1}>{fabric.brand}</Text>
+                    <Text style={[styles.fabricName, effectiveTV && { fontSize: 12 }]} numberOfLines={1}>{fabric.name}</Text>
+                    <Text style={[styles.fabricBrand, effectiveTV && { fontSize: 10 }]} numberOfLines={1}>{fabric.brand}</Text>
                 </View>
                 <TouchableOpacity
                     onPress={() => openFabricInfo(fabric)}
@@ -1741,7 +1824,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
     const sadriCode = selections.sadriType || 'SR';
     const firstCoatTypeIndex = KURTA_STYLE_OPTIONS.findIndex((section) => section.key === 'coatType');
-    const panelBottomOffset = 70;
+    const panelBottomOffset = effectiveTV ? 10 : 70;
 
     const buildSlides = () => {
         const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, selectedCoatFabric, hasSadri, sadriCode };
@@ -1805,6 +1888,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     </Animated.View>
                 ) : null}
             </View>
+
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Text style={styles.backText}>←</Text>
@@ -1818,10 +1902,11 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 collapsable={false}
                 style={[styles.shareCaptureContainer, isPreparingShareShot && styles.shareCapturePreparing]}
             >
-                <View style={styles.modelContainer}>
+                <View style={[styles.modelContainer, effectiveTV && { width: '82%', alignSelf: 'center' }]}>
                     <FullScreenCarousel
                         ref={carouselRef}
                         data={buildSlides()}
+                        carouselWidth={effectiveTV ? width * 0.82 : width}
                         onIndexChange={(index) => {
                             if (tvSessionId && !isRemoteScrolling.current) sendCommand('CAROUSEL_SCROLL', { index });
                         }}
@@ -1851,7 +1936,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 ) : null}
             </View>
 
-            <View style={styles.rightMenu}>
+            <View style={[styles.rightMenu, effectiveTV && { right: normalize(20) }]}>
                 <Animated.View
                     pointerEvents={extrasTrayOpen ? 'none' : 'auto'}
                     style={{
@@ -1872,9 +1957,9 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     {[IconFabric, IconStyle, IconEmbroidery].map((IconComponent, index) => {
                         const isActive = activePanel === IconComponent.displayName;
                         return (
-                            <TouchableOpacity key={index} style={[styles.iconButton, isActive && styles.iconButtonActive]} onPress={() => togglePanel(IconComponent.displayName)}>
-                                <IconComponent size={28} color={isActive ? '#fff' : '#14213D'} />
-                                <Text style={[styles.iconText, isActive && { color: '#fff' }, { marginTop: 4 }]}>
+                            <TouchableOpacity key={index} style={[styles.iconButton, isActive && styles.iconButtonActive, effectiveTV && { width: normalize(36), height: normalize(36), borderRadius: normalize(8) }]} onPress={() => togglePanel(IconComponent.displayName)}>
+                                <IconComponent size={effectiveTV ? normalize(16) : 28} color={isActive ? '#fff' : '#14213D'} />
+                                <Text style={[styles.iconText, isActive && { color: '#fff' }, { marginTop: 1, fontSize: effectiveTV ? normalize(7) : 11 }]}>
                                     {IconComponent.displayName === 'Embroidery' ? 'EMB' : IconComponent.displayName.toUpperCase()}
                                 </Text>
                             </TouchableOpacity>
@@ -1910,7 +1995,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                             }}
                         >
                             <TouchableOpacity
-                                style={styles.extrasTraySlot}
+                                style={[styles.extrasTraySlot, effectiveTV && { width: normalize(40), height: normalize(40), borderRadius: normalize(8) }]}
                                 activeOpacity={0.85}
                                 onPress={() => {
                                     if (id === 0) {
@@ -1926,19 +2011,19 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                     }
                                 }}
                             >
-                                <Icon width={40} height={40} />
-                                <Text style={styles.extrasTraySlotLabel}>{label}</Text>
+                                <Icon width={effectiveTV ? normalize(24) : 40} height={effectiveTV ? normalize(24) : 40} />
+                                <Text style={[styles.extrasTraySlotLabel, effectiveTV && { fontSize: normalize(7) }]}>{label}</Text>
                             </TouchableOpacity>
                         </Animated.View>
                     ))}
                 </Animated.View>
 
                 <TouchableOpacity
-                    style={styles.iconButton}
+                    style={[styles.iconButton, effectiveTV && { width: normalize(36), height: normalize(36), borderRadius: normalize(8) }]}
                     onPress={toggleExtrasTray}
                 >
-                    <IconExtras size={28} color="#14213D" />
-                    <Text style={[styles.iconText, { marginTop: 4 }]}>{extrasTrayOpen ? 'HIDE' : 'EXTRAS'}</Text>
+                    <IconExtras size={effectiveTV ? normalize(16) : 28} color="#14213D" />
+                    <Text style={[styles.iconText, { marginTop: 1, fontSize: effectiveTV ? normalize(7) : 11 }]}>{extrasTrayOpen ? 'HIDE' : 'EXTRAS'}</Text>
                 </TouchableOpacity>
             </View>
 
@@ -1957,8 +2042,8 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             {isPanelOpen && (
                 <Animated.View style={[styles.sidePanel, { width: panelWidth, bottom: panelBottomOffset + insets.bottom, transform: [{ translateX: slideAnim }] }]}>
                     <View style={styles.panelHeader}>
-                        <Text style={styles.panelTitle}>Select {activePanel}</Text>
-                        <TouchableOpacity onPress={closePanel}><Text style={styles.closeBtn}>✕</Text></TouchableOpacity>
+                        <Text style={[styles.panelTitle, effectiveTV && { fontSize: normalize(20) }]}>Select {activePanel}</Text>
+                        <TouchableOpacity onPress={closePanel}><Text style={[styles.closeBtn, effectiveTV && { fontSize: normalize(22) }]}>✕</Text></TouchableOpacity>
                     </View>
                     <View style={styles.panelContentArea}>{renderPanelContent()}</View>
                 </Animated.View>
@@ -2580,7 +2665,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             </Modal>
 
             {!isTVView && (
-                <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+                <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) }, effectiveTV && { minHeight: 36, paddingTop: 2, paddingBottom: 2 }]}>
                     <View style={styles.bottomBarTint} />
                     <View style={styles.bottomBarContent}>
                         <View style={styles.priceBlock}>
@@ -2605,8 +2690,8 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             )}
 
             {isTVView && (
-                <View style={styles.tvModeBadge}>
-                    <Text style={styles.tvModeText}>REMOTE CONNECTED</Text>
+                <View style={[styles.tvModeBadge, { paddingHorizontal: normalize(20), paddingVertical: normalize(10), borderRadius: normalize(20) }]}>
+                    <Text style={[styles.tvModeText, { fontSize: normalize(13) }]}>REMOTE CONNECTED</Text>
                 </View>
             )}
         </SafeAreaView>

@@ -20,6 +20,12 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "tv": {
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      }
     }
   }
 }

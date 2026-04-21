@@ -20,13 +20,14 @@ const ITEM_SVGS: Record<OutfitItemId, React.ComponentType<{ width?: number; heig
 
 interface OutfitScreenProps {
     onNavigate?: (screen: 'outfit' | 'kurta') => void;
+    isTVView?: boolean;
 }
 
-export default function OutfitScreen({ onNavigate }: OutfitScreenProps) {
+export default function OutfitScreen({ onNavigate, isTVView = false }: OutfitScreenProps) {
     const { selectedItems, toggleItem } = useOutfit();
     const { tvSessionId, sendCommand, subscribeToCommands } = useRemoteControl();
-    const { normalize, isMobile, isTablet, isDesktop } = useResponsive();
-    const isLargeScreen = isTablet || isDesktop;
+    const { normalize, isMobile, isTablet, isDesktop, isTV } = useResponsive();
+    const isLargeScreen = isTablet || isDesktop || isTV || isTVView;
 
     // Listen for commands from the other device
     useEffect(() => {
@@ -46,6 +47,15 @@ export default function OutfitScreen({ onNavigate }: OutfitScreenProps) {
 
     // Yahan aap apne screens ke hisab se Card ka width aur layout set kar sakte hain
     const getDynamicCardStyle = (): ViewStyle => {
+        // # TV SCREEN
+        if (isTV || isTVView) {
+            return {
+                width: '48%' as const,
+                minHeight: normalize(140),
+                padding: normalize(14),
+                borderRadius: normalize(16),
+            };
+        }
         // # MOBILE SCREEN
         if (isMobile) {
             return {
@@ -124,7 +134,7 @@ export default function OutfitScreen({ onNavigate }: OutfitScreenProps) {
                             </View>
 
                             <View style={styles.previewArea}>
-                                <OutfitIcon width={normalize(150)} height={normalize(150)} />
+                                <OutfitIcon width={isTV || isTVView ? normalize(80) : normalize(150)} height={isTV || isTVView ? normalize(80) : normalize(150)} />
                             </View>
 
                         </TouchableOpacity>
@@ -132,7 +142,7 @@ export default function OutfitScreen({ onNavigate }: OutfitScreenProps) {
                 })}
             </View>
 
-            <View style={[styles.footer, isLargeScreen && { paddingVertical: 24 }]}>
+            <View style={[styles.footer, isLargeScreen && { paddingVertical: 24 }, (isTV || isTVView) && { display: 'none' }]}>
                 <TouchableOpacity style={[
                     styles.proceedButton,
                     isLargeScreen && { paddingVertical: 20, borderRadius: 18 }

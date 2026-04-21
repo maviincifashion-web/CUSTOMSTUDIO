@@ -10,6 +10,7 @@ import { FirebaseCatalogProvider } from '../src/context/FirebaseCatalogContext';
 import { RemoteControlProvider } from '../src/context/RemoteControlContext';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
+import { PixelRatio, Platform } from 'react-native';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -19,8 +20,11 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   useEffect(() => {
-    // Explicitly lock the screen to portrait
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    // On Google TV (low density large screen), ADB handles rotation — skip the lock
+    const isLikelyTV = Platform.isTV || (Platform.OS === 'android' && PixelRatio.get() <= 1.5);
+    if (!isLikelyTV) {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    }
   }, []);
 
   return (

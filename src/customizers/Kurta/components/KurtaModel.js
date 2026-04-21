@@ -173,24 +173,57 @@ function pickWithSadriSuffixFallback(map, code) {
 
 const normalizeEmbKey = (value) => (value == null ? '' : String(value).trim().toLowerCase());
 
-const makeEmbSelectionKey = (value) => {
+const parseEmbroideryValuePlacement = (value) => {
+    const targetType = normalizeEmbKey(value?.targetType);
+    const targetPart = normalizeEmbKey(value?.targetPart);
+    if (targetType || targetPart) {
+        return { garment: targetType, part: targetPart };
+    }
+
+    const refPath = normalizeEmbKey(value?.refPath);
+    if (refPath) {
+        const pieces = refPath.split('/');
+        const garment = pieces.length >= 4 ? pieces[3] : '';
+        const part = pieces.length >= 6 ? pieces[5] : '';
+        return { garment, part };
+    }
+
     const typeKey = normalizeEmbKey(value?.type);
+    if (!typeKey) return { garment: '', part: '' };
+
+    const typePieces = typeKey.split('_');
+    if (typePieces.length >= 2) {
+        return {
+            garment: typePieces[typePieces.length - 2] || '',
+            part: typePieces[typePieces.length - 1] || '',
+        };
+    }
+
+    return { garment: '', part: '' };
+};
+
+const makeEmbSelectionKey = (value) => {
+    const placement = parseEmbroideryValuePlacement(value);
+    const typeKey = placement.garment && placement.part
+        ? `${placement.garment}_${placement.part}`
+        : normalizeEmbKey(value?.type);
     const docId = normalizeEmbKey(value?.id);
     return typeKey && docId ? `${typeKey}::${docId}` : '';
 };
 
 const collectionValueMatchesLayer = (value, layerObj) => {
-    const typeKey = normalizeEmbKey(value?.type);
-    if (!typeKey) return false;
+    const placement = parseEmbroideryValuePlacement(value);
+    if (!placement.garment && !placement.part) return false;
     const isSadri = String(layerObj?.type || '').startsWith('sadri_embroidery_');
 
     if (isSadri) {
-        return typeKey.endsWith('_sadri_base');
+        return placement.garment === 'sadri' && ['base', 'collar', 'lapel'].includes(placement.part);
     }
 
-    if (layerObj?.part === 'Collar') return typeKey.endsWith('_collar') || typeKey.endsWith('_lapel');
-    if (layerObj?.part === 'Sleeve') return typeKey.endsWith('_sleeve');
-    if (layerObj?.part === 'Chest') return typeKey.endsWith('_base');
+    if (layerObj?.part === 'Collar') return placement.part === 'collar' || placement.part === 'lapel';
+    if (layerObj?.part === 'Sleeve') return placement.part === 'sleeve';
+    if (layerObj?.part === 'Pocket') return placement.part === 'pocket';
+    if (layerObj?.part === 'Chest') return placement.part === 'base';
     return false;
 };
 
@@ -298,9 +331,9 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                 };
             }
             return {
-                width: '120%', // Portrait screen ke liye thoda chauda dikhane ke liye
-                height: '120%',
-                marginBottom: 0
+                width: '115%', // Increased from 120%
+                height: '115%', // Increased from 120%
+                marginBottom: 60
             };
         }
         return {};

@@ -1,19 +1,68 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Dimensions, SafeAreaView, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, SafeAreaView, TouchableOpacity, Pressable, ScrollView, Platform } from 'react-native';
+
+// D-pad focusable button — uses Pressable for native Android focus support
+const FocusableButton = ({ style, focusStyle, children, onPress, ...props }: any) => {
+    return (
+        <Pressable
+            focusable={true}
+            accessible={true}
+            accessibilityRole="button"
+            onPress={onPress}
+            style={({ focused, pressed }: any) => [
+                style,
+                focused && (focusStyle || tvFocusStyles.focusRing),
+                pressed && tvFocusStyles.pressed,
+            ]}
+            {...props}
+        >
+            {children}
+        </Pressable>
+    );
+};
+
+const tvFocusStyles = StyleSheet.create({
+    focusRing: {
+        borderWidth: 4,
+        borderColor: '#FFD700',
+        backgroundColor: 'rgba(255, 215, 0, 0.15)',
+        elevation: 15,
+        transform: [{ scale: 1.08 }],
+    },
+    pressed: {
+        opacity: 0.7,
+        transform: [{ scale: 0.96 }],
+    },
+});
 import QRCode from 'react-native-qrcode-svg';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useRemoteControl } from '../src/context/RemoteControlContext';
+import { useResponsive } from '../hooks/useResponsive';
 import KurtaMain from '../src/customizers/Kurta/KurtaMain';
 import OutfitScreen from './(tabs)/outfit';
 
-const { width, height } = Dimensions.get('window');
-const qrSize = Math.min(250, Math.min(width, height) * 0.35);
-
 export default function TVScreen() {
+  const { width, height, normalize, isTV } = useResponsive();
+  // Larger QR for 4K screens (43" vertical)
+  const qrSize = isTV ? normalize(320) : Math.min(280, Math.min(width, height) * 0.4);
   const { startTVSession, tvSessionId, subscribeToSession, subscribeToCommands, sendCommand } = useRemoteControl();
   const [isConnected, setIsConnected] = useState(false);
   const [qrValue, setQrValue] = useState('');
   const [initError, setInitError] = useState<string | null>(null);
   const [currentScreen, setCurrentScreen] = useState<'outfit' | 'kurta'>('outfit');
+
+  // On TV, don't lock orientation — ADB user_rotation handles it.
+  // Locking PORTRAIT_UP on a rotated TV causes letterboxing (app renders in ~30% of screen).
+  useEffect(() => {
+    // For the vertical TV setup, we want to stay in PORTRAIT_UP
+    // but we allow the system to handle the rotation if it's already set to vertical.
+    if (!isTV) {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    } else {
+      // On vertical TV, specific lock might be needed if it auto-rotates to landscape
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    }
+  }, [isTV]);
 
   useEffect(() => {
     const initSession = async () => {
@@ -72,14 +121,14 @@ export default function TVScreen() {
   return (
     <View style={styles.fullScreen}>
       {isConnected ? (
-        currentScreen === 'kurta' ? <KurtaMain isTVView={true} initialPanel="Fabric" onNavigate={handleNavigate} /> : <OutfitScreen onNavigate={handleNavigate} />
+        currentScreen === 'kurta' ? <KurtaMain isTVView={true} initialPanel="Fabric" onNavigate={handleNavigate} /> : <OutfitScreen isTVView={true} onNavigate={handleNavigate} />
       ) : null}
 
       {!isConnected ? (
         <SafeAreaView style={styles.container}>
           <View style={styles.content}>
-        <Text style={styles.brandTitle}>MAVIINCI</Text>
-        <Text style={styles.brandSub}>Bespoke Tailoring</Text>
+        <Text style={[styles.brandTitle, { fontSize: normalize(36), letterSpacing: normalize(8) }]}>MAVIINCI</Text>
+        <Text style={[styles.brandSub, { fontSize: normalize(15), letterSpacing: normalize(3) }]}>Bespoke Tailoring</Text>
 
         {initError && (
           <View style={styles.errorCard}>
@@ -87,7 +136,7 @@ export default function TVScreen() {
             <ScrollView style={styles.errorScroll}>
               <Text style={styles.errorText}>{initError}</Text>
             </ScrollView>
-            <TouchableOpacity
+            <FocusableButton
               style={styles.retryBtn}
               onPress={async () => {
                 setInitError(null);
@@ -99,15 +148,15 @@ export default function TVScreen() {
               }}
             >
               <Text style={styles.retryBtnText}>RETRY</Text>
-            </TouchableOpacity>
+            </FocusableButton>
           </View>
         )}
 
         {!initError && (
           <>
-            <View style={styles.qrCard}>
-              <Text style={styles.qrLabel}>📱 Scan to Control</Text>
-              <View style={styles.qrBox}>
+            <View style={[styles.qrCard, { padding: normalize(30), borderRadius: normalize(28) }]}>
+              <Text style={[styles.qrLabel, { fontSize: normalize(20), marginBottom: normalize(20) }]}>📱 Scan to Control</Text>
+              <View style={[styles.qrBox, { width: qrSize + 40, height: qrSize + 40, padding: normalize(16), borderRadius: normalize(20) }]}>
                 {qrValue ? (
                   <QRCode value={qrValue} size={qrSize} />
                 ) : (
@@ -119,14 +168,14 @@ export default function TVScreen() {
                   </View>
                 )}
               </View>
-              <Text style={styles.qrHint}>
+              <Text style={[styles.qrHint, { fontSize: normalize(14), lineHeight: normalize(22), marginTop: normalize(20) }]}>
                 Open MaviinciApp on your phone{'\n'}and tap &quot;Scan TV QR&quot; to connect
               </Text>
             </View>
 
-            <View style={styles.statusBadge}>
+            <View style={[styles.statusBadge, { marginTop: normalize(30), paddingHorizontal: normalize(20), paddingVertical: normalize(10) }]}>
               <View style={[styles.statusDot, isConnected && { backgroundColor: '#00ff00' }]} />
-              <Text style={styles.statusText}>
+              <Text style={[styles.statusText, { fontSize: normalize(15) }]}>
                 {isConnected ? 'Connected to mobile!' : 'Waiting for mobile…'}
               </Text>
             </View>
@@ -141,12 +190,12 @@ export default function TVScreen() {
       ) : null}
 
       {isConnected ? (
-        <TouchableOpacity
+        <FocusableButton
           style={styles.disconnectBtn}
           onPress={() => setIsConnected(false)}
         >
           <Text style={styles.disconnectText}>RESET CONNECTION</Text>
-        </TouchableOpacity>
+        </FocusableButton>
       ) : null}
     </View>
   );
@@ -166,7 +215,7 @@ const styles = StyleSheet.create({
   retryBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
   qrCard: { backgroundColor: '#151515', borderRadius: 28, padding: 30, alignItems: 'center', borderWidth: 1, borderColor: '#2a2a2a', width: '100%', maxWidth: 400 },
   qrLabel: { color: '#ffffff', fontSize: 20, fontWeight: '700', marginBottom: 20 },
-  qrBox: { width: qrSize + 32, height: qrSize + 32, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff', padding: 16, borderRadius: 20 },
+  qrBox: { justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff', padding: 16, borderRadius: 20 },
   loadingText: { color: '#222', fontSize: 14 },
   qrHint: { marginTop: 20, color: '#999', fontSize: 14, textAlign: 'center', lineHeight: 20 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 30, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24, backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#333' },

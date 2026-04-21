@@ -1,20 +1,23 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity , useWindowDimensions } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomTheme } from '../constants/theme';
+import { useResponsive } from '../hooks/useResponsive';
 
 
 interface CarouselProps {
     data: React.ReactNode[];
     onIndexChange?: (index: number) => void;
+    carouselWidth?: number;
 }
 
 export interface CarouselRef {
     scrollToIndex: (index: number) => void;
 }
 
-const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data, onIndexChange }, ref) => {
-    const { width } = useWindowDimensions();
+const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data, onIndexChange, carouselWidth }, ref) => {
+    const { width: fullScreenWidth, normalize, isTV } = useResponsive();
+    const width = carouselWidth || fullScreenWidth;
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
     const onIndexChangeRef = useRef(onIndexChange);
