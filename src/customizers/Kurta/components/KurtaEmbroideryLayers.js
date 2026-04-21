@@ -35,6 +35,7 @@ const parseEmbroideryValuePlacement = (value) => {
 
 const BASE_FAMILY_CODES = ['BASE', 'BASE_M', 'BASE_C', 'BASE_R'];
 const FRONT_TO_BASE_CODES = new Set(['R', 'S', 'K', 'L', 'D', 'T', 'P', 'O', 'D0', 'P0', 'T0', 'Q0']);
+const BAKED_SHIRT_COLLAR_BASE_CODES = new Set(['D0', 'T0', 'P0', 'Q0']);
 const EMBROIDERABLE_LAYER_PARTS = new Set(['Chest', 'Collar', 'Sleeve', 'Pocket', 'Flap', 'Cuff', 'Epaulette']);
 
 const stripEmbroideryCode = (code) => {
@@ -80,9 +81,13 @@ const normalizeLayerPart = (part) => {
     return normalizeEmbKey(rawPart);
 };
 
-const getSourcePartsForLayer = (part) => {
+const getSourcePartsForLayer = (part, layerCode) => {
     const normalizedPart = normalizeLayerPart(part);
-    if (normalizedPart === 'base') return ['base'];
+    const { core } = stripEmbroideryCode(layerCode);
+    if (normalizedPart === 'base') {
+        if (BAKED_SHIRT_COLLAR_BASE_CODES.has(core)) return ['base', 'collar', 'lapel'];
+        return ['base'];
+    }
     if (normalizedPart === 'collar') return ['collar', 'lapel'];
     if (normalizedPart === 'sleeve') return ['sleeve', 'base'];
     if (normalizedPart === 'cuff') return ['cuff', 'sleeve', 'base'];
@@ -99,6 +104,9 @@ const buildEmbroideryCodeCandidates = (layerCode, layerPart, viewSuffix) => {
 
     const { core } = stripEmbroideryCode(layerCode);
     const normalizedPart = normalizeLayerPart(layerPart);
+    if (normalizedPart === 'base' && BAKED_SHIRT_COLLAR_BASE_CODES.has(core)) {
+        pushUniqueValue(candidates, `E-CX-${viewSuffix}`);
+    }
     if (normalizedPart === 'base' || FRONT_TO_BASE_CODES.has(core) || core.startsWith('BASE')) {
         BASE_FAMILY_CODES.forEach((baseCode) => {
             pushUniqueValue(candidates, normalizeEmbroideryRenderCode(baseCode, viewSuffix));
@@ -131,7 +139,7 @@ const buildKurtaEmbroideryLayers = (selections, garmentLayers, viewSuffix) => {
         layersToRender.push({
             code: codeCandidates[0],
             codeCandidates,
-            sourceParts: getSourcePartsForLayer(layer.part),
+            sourceParts: getSourcePartsForLayer(layer.part, layer.code),
             zIndex: Number(layer.zIndex || 0) + 1,
             type: 'embroidery',
             collectionID: selections.embroideryID,
