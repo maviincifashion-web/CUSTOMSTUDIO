@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Image as RNImage, StyleSheet, ActivityIndicator } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { useResponsive } from '../../../../hooks/useResponsive';
 
 // ENGINE & DATA IMPORTS
@@ -7,6 +8,7 @@ import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 import { getKurtaLayerCodes, getSadriLayerCodes } from '../../../Functions/layerEngine';
 import { getKurtaModelEmbroideryLayers } from './KurtaEmbroideryLayers';
+import { useBufferedRenderScene } from './useBufferedRenderScene';
 
 // ASSETS IMPORTS
 import kurta_body from '../../../../assets/images/body/kurta_body.webp';
@@ -15,79 +17,47 @@ import kurta_hand_c from '../../../../assets/images/body/kurta_hand_c.webp';
 
 
 const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
-    const sourceKey = typeof src === 'number'
-        ? `r:${src}`
-        : (src?.uri ? `u:${src.uri}` : '');
-    const [displaySrc, setDisplaySrc] = useState(src || null);
-    const [pendingSrc, setPendingSrc] = useState(null);
-    const [pendingToken, setPendingToken] = useState(0);
-    const tokenRef = useRef(0);
-    const pendingSrcRef = useRef(null);
-
-    useEffect(() => {
-        if (!src || !sourceKey) {
-            setPendingSrc(null);
-            pendingSrcRef.current = null;
-            return;
-        }
-
-        const displayKey = typeof displaySrc === 'number'
-            ? `r:${displaySrc}`
-            : (displaySrc?.uri ? `u:${displaySrc.uri}` : '');
-        const pendingKey = typeof pendingSrc === 'number'
-            ? `r:${pendingSrc}`
-            : (pendingSrc?.uri ? `u:${pendingSrc.uri}` : '');
-
-        if (src?.uri) {
-            Image.prefetch(src.uri).catch(() => { });
-        }
-
-        if (!displaySrc) {
-            setDisplaySrc(src);
-            return;
-        }
-
-        if (sourceKey !== displayKey && sourceKey !== pendingKey) {
-            tokenRef.current += 1;
-            setPendingSrc(src);
-            pendingSrcRef.current = src;
-            setPendingToken(tokenRef.current);
-        }
-    }, [src, sourceKey, displaySrc, pendingSrc]);
-
-    if (!displaySrc) return null;
+    if (!src) return null;
 
     return (
-        <>
-            <Image
-                source={displaySrc}
-                style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
-                resizeMode="contain"
-                fadeDuration={0}
-            />
-            {pendingSrc ? (
-                <Image
-                    key={`pending-${pendingToken}`}
-                    source={pendingSrc}
-                    style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex, opacity: 0 }]}
-                    resizeMode="contain"
-                    fadeDuration={0}
-                    onLoad={() => {
-                        if (pendingToken === tokenRef.current) {
-                            setDisplaySrc(pendingSrcRef.current || pendingSrc);
-                            setPendingSrc(null);
-                            pendingSrcRef.current = null;
-                        }
-                    }}
-                    onError={() => {
-                        if (pendingToken === tokenRef.current) {
-                            setPendingSrc(null);
-                            pendingSrcRef.current = null;
-                        }
-                    }}
-                />
+        <ExpoImage
+            source={src}
+            style={[styles.modelLayer, dynamicStyle, { zIndex }]}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            transition={0}
+        />
+    );
+};
+
+const BufferedLayerScene = ({ entries, dynamicStyle, bodySource = null, handsSource = null }) => {
+    const { displayEntries, isLoading, hasCommittedScene } = useBufferedRenderScene(entries);
+
+    return (
+        <View style={styles.container}>
+            {bodySource ? (
+                <RNImage source={bodySource} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
             ) : null}
-        </>
+
+            {displayEntries.map((entry) => (
+                <SmartLayer
+                    key={entry.key}
+                    src={entry.src}
+                    zIndex={entry.zIndex}
+                    dynamicStyle={dynamicStyle}
+                />
+            ))}
+
+            {handsSource ? (
+                <RNImage source={handsSource} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
+            ) : null}
+
+            {isLoading ? (
+                <View style={[styles.loadingOverlay, !hasCommittedScene && styles.loadingOverlayOpaque]}>
+                    <ActivityIndicator size="large" color="#1f2937" />
+                </View>
+            ) : null}
+        </View>
     );
 };
 
@@ -148,8 +118,31 @@ const getStyleBackCoatCodes = (selections = {}) => {
     const coatType = selections.coatType || 'JO';
     const ventCode = selections.coatBackStyle || 'NV';
 
-    if (coatType === 'JH') return [`JH-${ventCode}`];
+    if (JODHPURI_TYPES.includes(coatType)) return [`${coatType}-${ventCode}`];
     return [ventCode];
+};
+
+const pickFirstCoatStyleSource = (renderMap, codeCandidates) => {
+    const candidates = Array.isArray(codeCandidates) ? codeCandidates : [codeCandidates];
+    for (const code of candidates) {
+        if (renderMap?.[code]) return renderMap[code];
+    }
+    return null;
+};
+
+const getStyleBackCoatCodeCandidates = (selections = {}) => {
+    const coatType = selections.coatType || 'JO';
+    const ventCode = selections.coatBackStyle || 'NV';
+
+    if (!JODHPURI_TYPES.includes(coatType)) {
+        return [ventCode];
+    }
+
+    const candidates = [`${coatType}-${ventCode}`];
+    if (coatType !== 'JH') {
+        candidates.push(`JH-${ventCode}`);
+    }
+    return candidates;
 };
 
 const getCoatButtonCodes = (selections = {}, slideIndex = 0) => {
@@ -382,25 +375,30 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
         const coatCodes = slideIndex === 4 ? getStyleFrontCoatCodes(selections) : getStyleBackCoatCodes(selections);
         const coatButtonCodes = getCoatButtonCodes(selections, slideIndex);
+        const coatSceneEntries = [
+            ...(slideIndex === 5
+                ? [{
+                    key: `coat-style-back-${getStyleBackCoatCodes(selections).join('-')}`,
+                    src: pickFirstCoatStyleSource(coatStyleRenders, getStyleBackCoatCodeCandidates(selections)),
+                    zIndex: 20,
+                }]
+                : coatCodes.map((code, idx) => ({
+                    key: `coat-style-${code}-${idx}`,
+                    src: coatStyleRenders[code],
+                    zIndex: 20 + idx,
+                }))),
+            ...coatButtonCodes.map((code, idx) => ({
+                key: `coat-style-button-${code}-${idx}`,
+                src: selectedCoatButton?.renders?.[code],
+                zIndex: 40 + idx,
+            })),
+        ].filter((entry) => entry.src);
+
         return (
-            <View style={styles.container}>
-                {coatCodes.map((code, idx) => (
-                    <SmartLayer
-                        key={`coat-style-${code}-${idx}`}
-                        src={coatStyleRenders[code]}
-                        zIndex={20 + idx}
-                        dynamicStyle={dynamicStyle}
-                    />
-                ))}
-                {coatButtonCodes.map((code, idx) => (
-                    <SmartLayer
-                        key={`coat-style-button-${code}-${idx}`}
-                        src={selectedCoatButton?.renders?.[code]}
-                        zIndex={40 + idx}
-                        dynamicStyle={dynamicStyle}
-                    />
-                ))}
-            </View>
+            <BufferedLayerScene
+                entries={coatSceneEntries}
+                dynamicStyle={dynamicStyle}
+            />
         );
     }
 
@@ -442,79 +440,76 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         SADRI_RENDERS['FAB_001']?.display ||
         {};
 
+    const resolvedSceneEntries = [];
+    layersToRender.forEach((layerObj, index) => {
+        if (!layerObj || !layerObj.code) return;
+
+        let imageSource = null;
+        let imageSources = null;
+        if (layerObj.type === 'button') {
+            imageSource = selectedButton?.renders?.[layerObj.code]
+                || selectedButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
+        } else if (layerObj.type === 'embroidery') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.embroideryCollection,
+                layerObj
+            );
+        } else if (layerObj.type === 'sadri_embroidery_left') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.sadriEmbroideryCollection,
+                layerObj
+            );
+        } else if (layerObj.type === 'sadri_embroidery_right') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.sadriEmbroideryCollection,
+                layerObj
+            );
+        } else if (layerObj.type === 'pajama') {
+            imageSource = pajamaRenders[layerObj.code];
+        } else if (layerObj.type === 'sadri_button') {
+            imageSource = selectedSadriButton?.renders?.[layerObj.code];
+        } else if (layerObj.type === 'sadri_fabric') {
+            imageSource = pickWithSadriSuffixFallback(sadriRenders, layerObj.code);
+        } else if (layerObj.type === 'coat_display') {
+            imageSource = coatDisplayRenders[layerObj.code];
+        } else if (layerObj.type === 'coat_button') {
+            imageSource = selectedCoatButton?.renders?.[layerObj.code]
+                || selectedCoatButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
+        } else {
+            imageSource = fabricRenders[layerObj.code];
+        }
+
+        if (Array.isArray(imageSources) && imageSources.length > 0) {
+            imageSources.forEach((src, sourceIndex) => {
+                if (!src) return;
+                resolvedSceneEntries.push({
+                    key: `layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`,
+                    src,
+                    zIndex: layerObj.zIndex + sourceIndex * 0.01,
+                });
+            });
+            return;
+        }
+
+        if (imageSource) {
+            resolvedSceneEntries.push({
+                key: `layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`,
+                src: imageSource,
+                zIndex: layerObj.zIndex,
+            });
+        }
+    });
+
     return (
-        <View style={styles.container}>
-            {/* 1. Nanga Ladka (Z-Index: 1) */}
-            <Image source={kurta_body} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
-
-            {/* 2. Kapde ki Layers (Z-Index: 10 se 90) */}
-            {layersToRender.map((layerObj, index) => {
-                if (!layerObj || !layerObj.code) return null;
-
-                // Resolve image based on type
-                let imageSource = null;
-                let imageSources = null;
-                if (layerObj.type === 'button') {
-                    imageSource = selectedButton?.renders?.[layerObj.code]
-                        || selectedButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
-                } else if (layerObj.type === 'embroidery') {
-                    imageSources = pickEmbroiderySourcesForLayer(
-                        EMBROIDERY_RENDERS[layerObj.collectionID],
-                        selections.embroideryCollection,
-                        layerObj
-                    );
-                } else if (layerObj.type === 'sadri_embroidery_left') {
-                    imageSources = pickEmbroiderySourcesForLayer(
-                        EMBROIDERY_RENDERS[layerObj.collectionID],
-                        selections.sadriEmbroideryCollection,
-                        layerObj
-                    );
-                } else if (layerObj.type === 'sadri_embroidery_right') {
-                    imageSources = pickEmbroiderySourcesForLayer(
-                        EMBROIDERY_RENDERS[layerObj.collectionID],
-                        selections.sadriEmbroideryCollection,
-                        layerObj
-                    );
-                } else if (layerObj.type === 'pajama') {
-                    imageSource = pajamaRenders[layerObj.code];
-                } else if (layerObj.type === 'sadri_button') {
-                    imageSource = selectedSadriButton?.renders?.[layerObj.code];
-                } else if (layerObj.type === 'sadri_fabric') {
-                    imageSource = pickWithSadriSuffixFallback(sadriRenders, layerObj.code);
-                } else if (layerObj.type === 'coat_display') {
-                    imageSource = coatDisplayRenders[layerObj.code];
-                } else if (layerObj.type === 'coat_button') {
-                    imageSource = selectedCoatButton?.renders?.[layerObj.code]
-                        || selectedCoatButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
-                } else {
-                    imageSource = fabricRenders[layerObj.code];
-                }
-
-                if (Array.isArray(imageSources) && imageSources.length > 0) {
-                    return imageSources.map((src, sourceIndex) => (
-                        <SmartLayer
-                            key={`layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`}
-                            src={src}
-                            zIndex={layerObj.zIndex + sourceIndex * 0.01}
-                            dynamicStyle={dynamicStyle}
-                        />
-                    ));
-                }
-
-                return (
-                    <SmartLayer
-                        key={`layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`}
-                        src={imageSource}
-                        zIndex={layerObj.zIndex}
-                        dynamicStyle={dynamicStyle}
-                    />
-                );
-            })}
-
-            {/* 3. Hands Overlay (Z-Index: 100) */}
-            <Image source={handsImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
-
-        </View>
+        <BufferedLayerScene
+            entries={resolvedSceneEntries}
+            dynamicStyle={dynamicStyle}
+            bodySource={kurta_body}
+            handsSource={handsImage}
+        />
     );
 }
 
@@ -530,5 +525,15 @@ const styles = StyleSheet.create({
         width: '105%',
         height: '95%',
         marginBottom: 15
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 150,
+        backgroundColor: 'rgba(255,255,255,0.28)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    loadingOverlayOpaque: {
+        backgroundColor: 'rgba(255,255,255,0.92)',
     }
 });
