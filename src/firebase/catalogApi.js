@@ -53,6 +53,23 @@ export function readSrcField(data) {
   return null;
 }
 
+function normalizeResourceDocKey(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function mapResourceFieldMap(resources) {
+  if (!resources || typeof resources !== 'object') return {};
+  const out = {};
+  for (const [code, value] of Object.entries(resources)) {
+    const url = typeof value === 'string' ? value.trim() : readSrcField(value);
+    if (url) out[code] = { uri: url };
+  }
+  return out;
+}
+
 function parseMoney(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   if (typeof value === 'string') {
@@ -254,6 +271,28 @@ export async function fetchGarmentRenderBundleWithFallback(db, garment, candidat
     console.warn(`[Maviinci] No ${garment} renders for tried ids: ${ids.join(', ')}`);
   }
   return last;
+}
+
+export async function fetchNamedResourceMapCollectionDoc(db, collectionPath, targetKey) {
+  const snap = await getDocs(collection(db, ...collectionPath));
+  if (snap.empty) {
+    return { id: '', resources: {}, data: null };
+  }
+
+  const normalizedTarget = normalizeResourceDocKey(targetKey);
+  const picked = snap.docs.find((entry) => {
+    const data = entry.data() || {};
+    return [entry.id, data.id, data.code, data.name]
+      .map((value) => normalizeResourceDocKey(value))
+      .some((value) => value && (value === normalizedTarget || value.includes(normalizedTarget)));
+  }) || snap.docs[0];
+
+  const data = picked.data() || {};
+  return {
+    id: picked.id,
+    resources: mapResourceFieldMap(data.resources),
+    data,
+  };
 }
 
 /**

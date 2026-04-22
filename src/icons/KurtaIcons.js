@@ -77,6 +77,10 @@ import CoatPeakLapel from '../../assets/images/style_icons/svg_style_icon/coat_s
 import CoatNonVent from '../../assets/images/style_icons/svg_style_icon/coat_svg/non_vent.svg';
 import CoatSingleVent from '../../assets/images/style_icons/svg_style_icon/coat_svg/single_vent.svg';
 import CoatSideVent from '../../assets/images/style_icons/svg_style_icon/coat_svg/side_vent.svg';
+import CoatNoUpperPocket from '../../assets/images/style_icons/svg_style_icon/coat_svg/NO UPPER POCKET-01.svg';
+import CoatUpperPocket from '../../assets/images/style_icons/svg_style_icon/coat_svg/UPPER_POCKET-01.svg';
+import CoatTuxSingle from '../../assets/images/style_icons/svg_style_icon/coat_svg/SINGLE BUTTON TUX.svg';
+import CoatTuxDouble from '../../assets/images/style_icons/svg_style_icon/coat_svg/double button TUX.svg';
 
 
 // --- WRAPPER FUNCTION ---
@@ -198,3 +202,7 @@ export const IconCoatPeakLapel = wrapSvgIcon(CoatPeakLapel, 'IconCoatPeakLapel')
 export const IconCoatNonVent = wrapSvgIcon(CoatNonVent, 'IconCoatNonVent');
 export const IconCoatSingleVent = wrapSvgIcon(CoatSingleVent, 'IconCoatSingleVent');
 export const IconCoatSideVent = wrapSvgIcon(CoatSideVent, 'IconCoatSideVent');
+export const IconCoatNoUpperPocket = wrapSvgIcon(CoatNoUpperPocket, 'IconCoatNoUpperPocket');
+export const IconCoatUpperPocket = wrapSvgIcon(CoatUpperPocket, 'IconCoatUpperPocket');
+export const IconCoatTuxSingle = wrapSvgIcon(CoatTuxSingle, 'IconCoatTuxSingle');
+export const IconCoatTuxDouble = wrapSvgIcon(CoatTuxDouble, 'IconCoatTuxDouble');

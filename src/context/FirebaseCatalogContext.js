@@ -14,6 +14,7 @@ import { getFirestoreDb, isFirebaseConfigured } from '../firebase/config';
 import {
   fetchKurtaFabricDocuments,
   fetchGarmentRenderBundleWithFallback,
+  fetchNamedResourceMapCollectionDoc,
   fetchButtonsCollection,
   mapFabricDocToProfile,
   fabricRenderLookupKeys,
@@ -22,6 +23,7 @@ import {
   fetchEmbroideryRendersForStyleId,
   mergeEmbroideryRenderMaps,
 } from '../firebase/catalogApi';
+import { KURTA_COAT_TUX_KEY } from '../customizers/Kurta/components/KurtaCoatTux';
 import {
   KURTA_ALLOWLIST_PATHS,
   PAJAMA_ALLOWLIST_PATHS,
@@ -134,6 +136,7 @@ export function FirebaseCatalogProvider({ children }) {
   const [remotePajama, setRemotePajama] = useState({});
   const [remoteSadri, setRemoteSadri] = useState({});
   const [remoteCoat, setRemoteCoat] = useState({});
+  const [kurtaCoatTuxRemote, setKurtaCoatTuxRemote] = useState({});
   const [remoteButtons, setRemoteButtons] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [fabricsLoading, setFabricsLoading] = useState(false);
@@ -281,7 +284,7 @@ export function FirebaseCatalogProvider({ children }) {
     })();
     
     return () => { cancelled = true; };
-  }, [enabled, localThumb]);
+  }, [enabled, localThumb, makeGarmentMetadataMap]);
 
   const prefetchFabricRenders = useCallback(async (fabricOrId) => {
     if (!enabled || fabricOrId == null) return;
@@ -510,6 +513,28 @@ export function FirebaseCatalogProvider({ children }) {
     prefetchFabricRenders(firstKurta);
   }, [enabled, fabrics?.length, firstKurtaFabricId, prefetchFabricRenders, fabrics, fabricsByGarment.Kurta]);
 
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const db = getFirestoreDb();
+        if (!db) return;
+        const tuxDoc = await fetchNamedResourceMapCollectionDoc(db, ['Fabric', 'kurta', 'tuxedo'], KURTA_COAT_TUX_KEY);
+        if (!cancelled) {
+          setKurtaCoatTuxRemote(tuxDoc.resources || {});
+        }
+      } catch (e) {
+        if (typeof __DEV__ !== 'undefined' && __DEV__) {
+          console.warn('[Maviinci] kurta coat tux renders', e);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [enabled]);
+
   const kurtaRenders = useMemo(() => mergeGarmentMap(LOCAL_KURTA, remoteKurta), [remoteKurta]);
   const pajamaRenders = useMemo(() => mergeGarmentMap(LOCAL_PAJAMA, remotePajama), [remotePajama]);
   const sadriRenders = useMemo(() => mergeGarmentMap(LOCAL_SADRI, remoteSadri), [remoteSadri]);
@@ -535,6 +560,7 @@ export function FirebaseCatalogProvider({ children }) {
       pajamaRenders,
       sadriRenders,
       coatRenders,
+      kurtaCoatTux: kurtaCoatTuxRemote,
       embroideryRenders,
       buttons,
       sadriButtons: DUMMY_SADRI_BUTTONS,
@@ -544,7 +570,7 @@ export function FirebaseCatalogProvider({ children }) {
       enabled, fabricsLoading, loadError, fabrics, fabricsByGarment,
       prefetchFabricRenders, prefetchEmbroideryRenders, embroideryCollections,
       kurtaRenders, pajamaRenders, sadriRenders,
-      coatRenders, embroideryRenders, buttons,
+      coatRenders, kurtaCoatTuxRemote, embroideryRenders, buttons,
     ]
   );
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, PixelRatio } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -129,6 +129,62 @@ function embroideryValueMatchesPanel(value, panelMode) {
         type: value?.type,
         garment: value?.targetType,
     }, panelMode);
+}
+
+function parseEmbroideryPlacement(value) {
+    const targetGarment = String(value?.targetType || '').trim().toLowerCase();
+    const targetPart = String(value?.targetPart || '').trim().toLowerCase();
+    if (targetGarment || targetPart) {
+        return { garment: targetGarment, part: targetPart };
+    }
+
+    const refPath = value?.refPath ? String(value.refPath).trim().toLowerCase() : '';
+    if (refPath) {
+        const parts = refPath.split('/');
+        return {
+            garment: parts.length >= 4 ? parts[3] : '',
+            part: parts.length >= 6 ? parts[5] : '',
+        };
+    }
+
+    const parsedType = parseEmbroideryTargetKey(value?.type);
+    return { garment: parsedType.garment, part: parsedType.part };
+}
+
+function isBasePlacementPart(part) {
+    const normalizedPart = String(part || '').trim().toLowerCase();
+    return normalizedPart === 'base' || normalizedPart.startsWith('base_') || normalizedPart.endsWith('_base');
+}
+
+function coatCollectionHasRightBaseEmbroidery(collection, bundle) {
+    const values = Array.isArray(collection?.matchingValues) ? collection.matchingValues : [];
+    const uploadsByDocId = bundle?.uploadsByDocId && typeof bundle.uploadsByDocId === 'object'
+        ? bundle.uploadsByDocId
+        : {};
+
+    return values.some((value) => {
+        const placement = parseEmbroideryPlacement(value);
+        const garment = String(placement.garment || '').trim().toLowerCase();
+        const part = String(placement.part || '').trim().toLowerCase();
+        if (garment !== 'coat') return false;
+
+        if (!isBasePlacementPart(part)) return false;
+
+        const docId = String(value?.id || '').trim();
+        const uploadDoc = docId ? uploadsByDocId[docId] : null;
+        const rightSignals = [
+            uploadDoc?.name,
+            uploadDoc?.segment,
+            uploadDoc?.refPath,
+            value?.name,
+            value?.type,
+            value?.refPath,
+        ]
+            .map((item) => String(item || '').trim().toLowerCase())
+            .filter(Boolean);
+
+        return rightSignals.some((signal) => signal.includes('right'));
+    });
 }
 
 function bundleHasPanelUploads(bundle, panelMode) {
@@ -485,8 +541,9 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
     // STATE MANAGEMENT
     const [selectedFabric, setSelectedFabric] = useState(fabrics?.[0] || {});
-    const [selections, setSelections] = useState(INITIAL_SELECTION || {
-        bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', embroideryID: null, sadriEmbroideryID: null, coatEmbroideryID: null
+    const [selections, setSelections] = useState({
+        bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', coatUpperPocket: '1', embroideryID: null, sadriEmbroideryID: null, coatEmbroideryID: null,
+        ...(INITIAL_SELECTION || {}),
     });
     const [selectedButton, setSelectedButton] = useState(INITIAL_SELECTION?.button || (buttons?.[0] ?? null));
     const [selectedSadriButton, setSelectedSadriButton] = useState(DUMMY_SADRI_BUTTONS ? DUMMY_SADRI_BUTTONS[0] : null);
@@ -509,6 +566,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const [pendingKurtaBtnId, setPendingKurtaBtnId] = useState(null);
     const [pendingSadriBtnId, setPendingSadriBtnId] = useState(null);
     const [pendingCoatBtnId, setPendingCoatBtnId] = useState(null);
+    const autoDisabledCoatPocketCollectionRef = useRef(null);
 
     useEffect(() => {
         if (pendingKurtaBtnId && buttonById) {
@@ -774,7 +832,47 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
     useEffect(() => {
         if (selections?.coatEmbroideryID) prefetchEmbroideryRenders(selections.coatEmbroideryID);
-    }, [selections?.coatEmbroideryID, prefetchEmbroideryRenders]);
+    }, [selections?.coatEmbroideryID, selections?.coatType, prefetchEmbroideryRenders]);
+
+    useEffect(() => {
+        const collection = selections?.coatEmbroideryCollection;
+        const bundle = selections?.coatEmbroideryID ? embroideryRenders?.[selections.coatEmbroideryID] : null;
+        if (!collection || !coatCollectionHasRightBaseEmbroidery(collection, bundle)) {
+            autoDisabledCoatPocketCollectionRef.current = null;
+            return;
+        }
+
+        if (autoDisabledCoatPocketCollectionRef.current === collection) {
+            return;
+        }
+
+        autoDisabledCoatPocketCollectionRef.current = collection;
+
+        if (String(selections?.coatUpperPocket ?? '1') === '0') {
+            return;
+        }
+
+        setSelections((prev) => {
+            if (prev?.coatEmbroideryCollection !== collection) return prev;
+            if (String(prev.coatUpperPocket ?? '1') === '0') return prev;
+            return {
+                ...prev,
+                coatUpperPocket: '0',
+            };
+        });
+
+        if (tvSessionId) {
+            sendCommand('STYLE_CHANGE', { type: 'coatUpperPocket', value: '0' });
+        }
+    }, [
+        embroideryRenders,
+        selections?.coatType,
+        selections?.coatEmbroideryCollection,
+        selections?.coatEmbroideryID,
+        selections?.coatUpperPocket,
+        sendCommand,
+        tvSessionId,
+    ]);
 
     /** Show only styles that have uploaded collections for the active panel. */
     const embroideryListKurtaTarget = useMemo(() => {
@@ -1361,7 +1459,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             Kurta: ['bottomCut', 'placketStyle', 'pocketQty', 'epaulette', 'sleeve', 'cuffStyle'],
             Pajama: ['pajamaType', 'beltType'],
             Sadri: ['sadriType'],
-            Coat: ['coatType', 'coatLapel', 'coatBackStyle'],
+            Coat: ['coatType', 'coatLapel', 'coatUpperPocket', 'coatBackStyle'],
         };
         const selectedKeys = selectedKeysByTab[tab] || [];
         return selectedKeys

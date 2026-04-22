@@ -13,6 +13,13 @@ import {
     getCoatDisplayEmbroideryLayers,
     getCoatStyleEmbroideryLayers,
 } from './CoatEmbroideryLayers';
+import {
+    getKurtaCoatTuxBackLayers,
+    getKurtaCoatTuxDisplayLayers,
+    getKurtaCoatTuxStyleFrontLayers,
+    isTuxedoCoatType,
+    mapTuxedoSelectionsToBaseCoat,
+} from './KurtaCoatTux';
 import { useBufferedRenderScene } from './useBufferedRenderScene';
 
 // ASSETS IMPORTS
@@ -76,13 +83,15 @@ const getCoatCollarGroup = (kurtaCollar = 'CM') => {
     return 'C';
 };
 
+const shouldShowCoatUpperPocket = (selections = {}) => String(selections.coatUpperPocket ?? '1') !== '0';
+
 const getDisplayCoatCodes = (selections = {}) => {
     const coatType = selections.coatType || '1B';
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
-        return [coatType, 'UP1'];
+        return shouldShowCoatUpperPocket(selections) ? [coatType, 'UP1'] : [coatType];
     }
     if (coatType === 'JO') {
-        return [coatType];
+        return shouldShowCoatUpperPocket(selections) ? [coatType, 'UP1'] : [coatType];
     }
 
     const lapelCode = selections.coatLapel || 'N';
@@ -90,33 +99,43 @@ const getDisplayCoatCodes = (selections = {}) => {
     const collarCode = `${coatType === '2B' ? 'C2' : 'C1'}-${collarGroup}`;
     const lapelLayerCode = `${coatType === '2B' ? 'L2' : 'L1'}-${lapelCode}`;
 
-    return [
+    const codes = [
         `${coatType}-${lapelCode}-${collarGroup}`,
         collarCode,
-        'UP1',
-        lapelLayerCode,
     ];
+
+    if (shouldShowCoatUpperPocket(selections)) {
+        codes.push('UP1');
+    }
+
+    codes.push(lapelLayerCode);
+    return codes;
 };
 
 const getStyleFrontCoatCodes = (selections = {}) => {
     const coatType = selections.coatType || '1B';
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
-        return [coatType, 'UP1'];
+        return shouldShowCoatUpperPocket(selections) ? [coatType, 'UP1'] : [coatType];
     }
     if (coatType === 'JO') {
-        return [coatType];
+        return shouldShowCoatUpperPocket(selections) ? [coatType, 'UP1'] : [coatType];
     }
 
     const lapelCode = selections.coatLapel || 'N';
     const collarCode = coatType === '2B' ? 'C2' : 'C1';
     const lapelLayerCode = `${coatType === '2B' ? 'L2' : 'L1'}-${lapelCode}`;
 
-    return [
+    const codes = [
         `${coatType}-${lapelCode}`,
         collarCode,
-        'UP1',
-        lapelLayerCode,
     ];
+
+    if (shouldShowCoatUpperPocket(selections)) {
+        codes.push('UP1');
+    }
+
+    codes.push(lapelLayerCode);
+    return codes;
 };
 
 const getStyleBackCoatCodes = (selections = {}) => {
@@ -194,7 +213,7 @@ const getDisplayCoatLayers = (selections = {}) => {
                 sourceParts: ['base', 'collar', 'lapel'],
                 coatType,
             },
-            ...(coatCodes[1] ? [{
+            ...(coatCodes[1] === 'UP1' ? [{
                 code: coatCodes[1],
                 zIndex: 86,
                 type: 'coat_display',
@@ -219,15 +238,15 @@ const getDisplayCoatLayers = (selections = {}) => {
             part: 'Collar',
             coatType,
         }] : []),
-        ...(coatCodes[2] ? [{
-            code: coatCodes[2],
+        ...(coatCodes.includes('UP1') ? [{
+            code: 'UP1',
             zIndex: 87,
             type: 'coat_display',
             part: 'Pocket',
             coatType,
         }] : []),
-        ...(coatCodes[3] ? [{
-            code: coatCodes[3],
+        ...((coatCodes[coatCodes.length - 1] && coatCodes[coatCodes.length - 1] !== 'UP1') ? [{
+            code: coatCodes[coatCodes.length - 1],
             zIndex: 88,
             type: 'coat_display',
             part: 'Lapel',
@@ -250,7 +269,7 @@ const getStyleFrontCoatLayers = (selections = {}) => {
                 sourceParts: ['base', 'collar', 'lapel'],
                 coatType,
             },
-            ...(coatCodes[1] ? [{
+            ...(coatCodes[1] === 'UP1' ? [{
                 code: coatCodes[1],
                 zIndex: 21,
                 type: 'coat_display',
@@ -275,15 +294,15 @@ const getStyleFrontCoatLayers = (selections = {}) => {
             part: 'Collar',
             coatType,
         }] : []),
-        ...(coatCodes[2] ? [{
-            code: coatCodes[2],
+        ...(coatCodes.includes('UP1') ? [{
+            code: 'UP1',
             zIndex: 22,
             type: 'coat_display',
             part: 'Pocket',
             coatType,
         }] : []),
-        ...(coatCodes[3] ? [{
-            code: coatCodes[3],
+        ...((coatCodes[coatCodes.length - 1] && coatCodes[coatCodes.length - 1] !== 'UP1') ? [{
+            code: coatCodes[coatCodes.length - 1],
             zIndex: 23,
             type: 'coat_display',
             part: 'Lapel',
@@ -445,6 +464,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         pajamaRenders: PAJAMA_RENDERS,
         sadriRenders: SADRI_RENDERS,
         coatRenders: COAT_RENDERS,
+        kurtaCoatTux: KURTA_COAT_TUX_RENDERS,
         embroideryRenders: EMBROIDERY_RENDERS,
     } = useFirebaseCatalog();
 
@@ -534,6 +554,8 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     const dynamicStyle = getDynamicModelStyle();
 
     const handsImage = selections.sleeve === "SC" ? kurta_hand_c : kurta_hand_n;
+    const isTuxedoCoat = isTuxedoCoatType(selections?.coatType);
+    const baseCoatSelections = isTuxedoCoat ? mapTuxedoSelectionsToBaseCoat(selections) : selections;
 
     const coatFabricId = selectedCoatFabric?.fabricID || 'FAB_001';
     const coatRenderSet =
@@ -545,15 +567,28 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     const coatStyleRenders = coatRenderSet.style || {};
     const coatDisplayFallbackRenders = COAT_RENDERS['FAB_001']?.display || {};
     const coatStyleFallbackRenders = COAT_RENDERS['FAB_001']?.style || {};
+    const coatTuxedoRenders = KURTA_COAT_TUX_RENDERS || {};
 
     if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
         const coatGarmentLayers = slideIndex === 4
-            ? getStyleFrontCoatLayers(selections)
-            : getStyleBackCoatLayers(selections);
+            ? (isTuxedoCoat
+                ? [
+                    ...getStyleFrontCoatLayers(baseCoatSelections).filter((layer) => layer?.part !== 'Collar' && layer?.part !== 'Lapel'),
+                    ...getKurtaCoatTuxStyleFrontLayers(selections),
+                ]
+                : getStyleFrontCoatLayers(selections))
+            : (isTuxedoCoat
+                ? [
+                    ...getStyleBackCoatLayers(baseCoatSelections),
+                    ...getKurtaCoatTuxBackLayers(selections),
+                ]
+                : getStyleBackCoatLayers(selections));
         const coatEmbroideryLayers = slideIndex === 4
             ? getCoatStyleEmbroideryLayers(selections, coatGarmentLayers)
             : getCoatBackEmbroideryLayers(selections, coatGarmentLayers);
-        const coatButtonCodes = getCoatButtonCodes(selections, slideIndex);
+        const coatButtonCodes = isTuxedoCoat
+            ? getCoatButtonCodes(baseCoatSelections, slideIndex)
+            : getCoatButtonCodes(selections, slideIndex);
         const coatSceneEntries = [];
 
         [...coatGarmentLayers, ...coatEmbroideryLayers]
@@ -572,6 +607,23 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     if (!src) return;
                     coatSceneEntries.push({
                         key: `coat-style-${layerObj.code}-${layerObj.part || 'base'}-${index}`,
+                        src,
+                        zIndex: layerObj.zIndex,
+                    });
+                    return;
+                }
+
+                if (layerObj.type === 'coat_tuxedo') {
+                    const src = pickFirstCoatSource(
+                        coatTuxedoRenders,
+                        null,
+                        Array.isArray(layerObj.codeCandidates) && layerObj.codeCandidates.length > 0
+                            ? layerObj.codeCandidates
+                            : [layerObj.code]
+                    );
+                    if (!src) return;
+                    coatSceneEntries.push({
+                        key: `coat-style-tuxedo-${layerObj.code}-${layerObj.part || 'base'}-${index}`,
                         src,
                         zIndex: layerObj.zIndex,
                     });
@@ -623,13 +675,18 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     }
 
     const coatDisplayLayers = hasCoat && slideIndex === 0
-        ? getDisplayCoatLayers(selections)
+        ? (isTuxedoCoat
+            ? [
+                ...getDisplayCoatLayers(baseCoatSelections).filter((layer) => layer?.part !== 'Collar' && layer?.part !== 'Lapel'),
+                ...getKurtaCoatTuxDisplayLayers(selections),
+            ]
+            : getDisplayCoatLayers(selections))
         : [];
     const coatDisplayEmbroideryLayers = hasCoat && slideIndex === 0
         ? getCoatDisplayEmbroideryLayers(selections, coatDisplayLayers)
         : [];
     const coatDisplayButtonLayers = hasCoat && slideIndex === 0
-        ? getCoatButtonCodes(selections, 0).map((code, idx) => ({
+        ? getCoatButtonCodes(isTuxedoCoat ? baseCoatSelections : selections, 0).map((code, idx) => ({
             code,
             zIndex: 92 + idx,
             type: 'coat_button'
@@ -691,6 +748,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             imageSource = pickFirstCoatSource(
                 coatDisplayRenders,
                 coatDisplayFallbackRenders,
+                Array.isArray(layerObj.codeCandidates) && layerObj.codeCandidates.length > 0
+                    ? layerObj.codeCandidates
+                    : [layerObj.code]
+            );
+        } else if (layerObj.type === 'coat_tuxedo') {
+            imageSource = pickFirstCoatSource(
+                coatTuxedoRenders,
+                null,
                 Array.isArray(layerObj.codeCandidates) && layerObj.codeCandidates.length > 0
                     ? layerObj.codeCandidates
                     : [layerObj.code]

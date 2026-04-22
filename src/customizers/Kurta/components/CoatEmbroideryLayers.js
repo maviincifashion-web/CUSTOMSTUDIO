@@ -60,6 +60,7 @@ export const parseEmbroideryValuePlacement = (value) => {
 };
 
 const COAT_EMBROIDERABLE_LAYER_PARTS = new Set(['Chest', 'Lapel', 'Collar', 'Sleeve', 'Pocket']);
+const isCoatGarmentLayer = (layer) => layer?.type === 'coat_display' || layer?.type === 'coat_tuxedo';
 
 const stripEmbroideryCode = (code) => {
     const rawCode = String(code || '').trim();
@@ -85,6 +86,10 @@ const normalizeCoatCollarCode = (layer, viewSuffix) => {
     }
 
     if (viewSuffix === 'B') {
+        if (normalizedCore === 'BC') {
+            return COAT_BACK_COLLAR_TYPE_BASE_CODES[coatType] || '';
+        }
+
         if (COAT_BACK_COLLAR_BASE_CODES.has(normalizedCore)) {
             return normalizedCore;
         }
@@ -209,12 +214,12 @@ const collectionHasPlacementPart = (matchingValues, garment, part) => {
 const getCoatEmbroideryAnchorLayer = (garmentLayers, part) => {
     const normalizedPart = String(part || '').trim();
     if (normalizedPart === 'Sleeve') {
-        return garmentLayers.find((layer) => layer?.type === 'coat_display' && layer.part === 'Chest')
-            || garmentLayers.find((layer) => layer?.type === 'coat_display');
+        return garmentLayers.find((layer) => isCoatGarmentLayer(layer) && layer.part === 'Chest')
+            || garmentLayers.find((layer) => isCoatGarmentLayer(layer));
     }
 
-    return garmentLayers.find((layer) => layer?.type === 'coat_display' && layer.part === normalizedPart)
-        || garmentLayers.find((layer) => layer?.type === 'coat_display');
+    return garmentLayers.find((layer) => isCoatGarmentLayer(layer) && layer.part === normalizedPart)
+        || garmentLayers.find((layer) => isCoatGarmentLayer(layer));
 };
 
 const buildSyntheticCoatEmbroideryLayer = (part, garmentLayers, viewSuffix, embroideryId) => {
@@ -270,7 +275,7 @@ const buildCoatEmbroideryLayers = (embroideryId, collection, garmentLayers, view
     const layersToRender = [];
     const renderedParts = new Set();
     garmentLayers.forEach((layer) => {
-        if (!layer || layer.type !== 'coat_display' || !COAT_EMBROIDERABLE_LAYER_PARTS.has(layer.part)) return;
+        if (!layer || !isCoatGarmentLayer(layer) || !COAT_EMBROIDERABLE_LAYER_PARTS.has(layer.part)) return;
 
         const code = normalizeEmbroideryRenderCode(layer, viewSuffix);
         if (!code) return;

@@ -13,7 +13,8 @@ import {
     IconPajamaRope, IconPajamaElastic,
     IconCoatSingleButton, IconCoatDoubleButton, IconCoatSeamlessJodhpuri, IconCoatRoundJodhpuri,
     IconCoatStraightJodhpuri, IconCoatOpenJodhpuri, IconCoatNotchLapel, IconCoatPeakLapel,
-    IconCoatNonVent, IconCoatSingleVent, IconCoatSideVent
+    IconCoatNonVent, IconCoatSingleVent, IconCoatSideVent,
+    IconCoatNoUpperPocket, IconCoatUpperPocket, IconCoatTuxSingle, IconCoatTuxDouble
 } from '../icons/KurtaIcons';
 
 export const KURTA_STYLE_OPTIONS = [
@@ -160,7 +161,7 @@ export const KURTA_STYLE_OPTIONS = [
         ]
     },
     {
-        title: "Single Brested", key: "coatType",
+        title: "SINGLE BREASTED", key: "coatType",
         dependency: { isContextItem: "coat" },
         options: [
             { label: "Single Button", value: "1B", icon: IconCoatSingleButton },
@@ -168,7 +169,23 @@ export const KURTA_STYLE_OPTIONS = [
         ]
     },
     {
-        title: "Jodhpuri", key: "coatType",
+        title: "TUXEDO", key: "coatType",
+        dependency: { isContextItem: "coat" },
+        options: [
+            { label: "Single Button", value: "T1", icon: IconCoatTuxSingle },
+            { label: "Double Button", value: "T2", icon: IconCoatTuxDouble }
+        ]
+    },
+    {
+        title: "LAPEL", key: "coatLapel",
+        dependency: { isContextItem: "coat" },
+        options: [
+            { label: "Notch", value: "N", icon: IconCoatNotchLapel },
+            { label: "Peak", value: "P", icon: IconCoatPeakLapel }
+        ]
+    },
+    {
+        title: "JODHPURI", key: "coatType",
         dependency: { isContextItem: "coat" },
         options: [
             { label: "Seamless", value: "JH", icon: IconCoatSeamlessJodhpuri },
@@ -178,15 +195,15 @@ export const KURTA_STYLE_OPTIONS = [
         ]
     },
     {
-        title: "Lapel", key: "coatLapel",
+        title: "UPPER POCKET", key: "coatUpperPocket",
         dependency: { isContextItem: "coat" },
         options: [
-            { label: "Notch", value: "N", icon: IconCoatNotchLapel },
-            { label: "Peak", value: "P", icon: IconCoatPeakLapel }
+            { label: "No Upper Pocket", value: "0", icon: IconCoatNoUpperPocket },
+            { label: "Upper Pocket", value: "1", icon: IconCoatUpperPocket }
         ]
     },
     {
-        title: "Back Style", key: "coatBackStyle",
+        title: "BACK STYLE", key: "coatBackStyle",
         dependency: { isContextItem: "coat" },
         options: [
             { label: "Non Vent", value: "NV", icon: IconCoatNonVent },
