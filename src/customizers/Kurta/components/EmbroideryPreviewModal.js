@@ -91,7 +91,10 @@ export default function EmbroideryPreviewModal({ visible, onClose, embroidery, p
 
                     {hasDesignCards ? (
                         <>
-                            <Text style={styles.sectionTitle}>Collection</Text>
+                            <View style={{ marginBottom: 16, alignItems: 'center' }}>
+                                <Text style={styles.sectionTitle}>Collection</Text>
+                                <Text style={styles.sectionSubtitle}>Tap any design to apply</Text>
+                            </View>
                             <View style={styles.designGrid}>
                                 {designCatalog.map((d) => (
                                     <TouchableOpacity
@@ -113,15 +116,16 @@ export default function EmbroideryPreviewModal({ visible, onClose, embroidery, p
                                                 </View>
                                             )}
                                         </View>
-                                        <Text style={styles.designTitle} numberOfLines={2}>
+                                        <Text style={styles.designTitle} numberOfLines={1}>
                                             {d.name}
                                         </Text>
-                                        <Text style={styles.designPrice}>
-                                            {d.price > 0
-                                                ? `\u20B9${Math.round(d.price).toLocaleString('en-IN')}`
-                                                : '—'}
-                                        </Text>
-                                        <Text style={styles.applyHint}>Tap to apply</Text>
+                                        <View style={styles.designFooter}>
+                                            <Text style={styles.designPrice}>
+                                                {d.price > 0
+                                                    ? `\u20B9${Math.round(d.price).toLocaleString('en-IN')}`
+                                                    : 'Free'}
+                                            </Text>
+                                        </View>
                                     </TouchableOpacity>
                                 ))}
                             </View>
@@ -216,11 +220,17 @@ const styles = StyleSheet.create({
     },
     loadingText: { fontSize: 14, fontWeight: '600', color: '#64748b' },
     sectionTitle: {
-        fontSize: 15,
-        fontWeight: '800',
-        color: '#1f2937',
-        textAlign: 'center',
-        marginBottom: 10,
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#0f172a',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+    },
+    sectionSubtitle: {
+        fontSize: 12,
+        color: CustomTheme.accentGold,
+        fontWeight: '700',
+        marginTop: 2,
     },
     designGrid: {
         flexDirection: 'row',
@@ -230,16 +240,23 @@ const styles = StyleSheet.create({
     designCard: {
         width: '48%',
         backgroundColor: '#fff',
-        borderRadius: 12,
+        borderRadius: 14,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
-        marginBottom: 12,
+        borderColor: '#f1f5f9',
+        marginBottom: 16,
         overflow: 'hidden',
-        paddingBottom: 12,
+        paddingBottom: 10,
+        // Premium shadow
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 3,
     },
     designCardSelected: {
         borderColor: CustomTheme.accentGold,
         backgroundColor: '#fffdf8',
+        borderWidth: 2,
     },
     designImageWrap: {
         backgroundColor: '#f3f4f6',
@@ -248,8 +265,8 @@ const styles = StyleSheet.create({
     },
     designImage: {
         width: '100%',
-        height: 120,
-        backgroundColor: '#f3f4f6',
+        height: 140, // Increased height for more space
+        backgroundColor: '#f8fafc',
     },
     designImagePlaceholder: {
         alignItems: 'center',
@@ -261,19 +278,23 @@ const styles = StyleSheet.create({
         color: '#94a3b8',
     },
     designTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#334155',
+        paddingHorizontal: 10,
+        paddingTop: 8,
+    },
+    designFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 10,
+        paddingTop: 4,
+    },
+    designPrice: {
         fontSize: 13,
         fontWeight: '800',
         color: '#0f172a',
-        paddingHorizontal: 10,
-        paddingTop: 8,
-        minHeight: 36,
-    },
-    designPrice: {
-        fontSize: 14,
-        fontWeight: '800',
-        color: '#111',
-        paddingHorizontal: 10,
-        paddingTop: 4,
     },
     applyHint: {
         fontSize: 11,

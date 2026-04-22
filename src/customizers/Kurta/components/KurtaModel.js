@@ -8,6 +8,11 @@ import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 import { getKurtaLayerCodes, getSadriLayerCodes } from '../../../Functions/layerEngine';
 import { getKurtaModelEmbroideryLayers } from './KurtaEmbroideryLayers';
+import {
+    getCoatBackEmbroideryLayers,
+    getCoatDisplayEmbroideryLayers,
+    getCoatStyleEmbroideryLayers,
+} from './CoatEmbroideryLayers';
 import { useBufferedRenderScene } from './useBufferedRenderScene';
 
 // ASSETS IMPORTS
@@ -122,10 +127,11 @@ const getStyleBackCoatCodes = (selections = {}) => {
     return [ventCode];
 };
 
-const pickFirstCoatStyleSource = (renderMap, codeCandidates) => {
+const pickFirstCoatSource = (renderMap, fallbackMap, codeCandidates) => {
     const candidates = Array.isArray(codeCandidates) ? codeCandidates : [codeCandidates];
     for (const code of candidates) {
         if (renderMap?.[code]) return renderMap[code];
+        if (fallbackMap?.[code]) return fallbackMap[code];
     }
     return null;
 };
@@ -172,6 +178,137 @@ const getCoatButtonCodes = (selections = {}, slideIndex = 0) => {
     }
 
     return [];
+};
+
+const getDisplayCoatLayers = (selections = {}) => {
+    const coatType = selections.coatType || '1B';
+    const coatCodes = getDisplayCoatCodes(selections);
+
+    if (JODHPURI_TYPES.includes(coatType)) {
+        return [
+            {
+                code: coatCodes[0],
+                zIndex: 85,
+                type: 'coat_display',
+                part: 'Chest',
+                sourceParts: ['base', 'collar', 'lapel'],
+                coatType,
+            },
+            ...(coatCodes[1] ? [{
+                code: coatCodes[1],
+                zIndex: 86,
+                type: 'coat_display',
+                part: 'Pocket',
+                coatType,
+            }] : []),
+        ];
+    }
+
+    return [
+        ...(coatCodes[0] ? [{
+            code: coatCodes[0],
+            zIndex: 85,
+            type: 'coat_display',
+            part: 'Chest',
+            coatType,
+        }] : []),
+        ...(coatCodes[1] ? [{
+            code: coatCodes[1],
+            zIndex: 86,
+            type: 'coat_display',
+            part: 'Collar',
+            coatType,
+        }] : []),
+        ...(coatCodes[2] ? [{
+            code: coatCodes[2],
+            zIndex: 87,
+            type: 'coat_display',
+            part: 'Pocket',
+            coatType,
+        }] : []),
+        ...(coatCodes[3] ? [{
+            code: coatCodes[3],
+            zIndex: 88,
+            type: 'coat_display',
+            part: 'Lapel',
+            coatType,
+        }] : []),
+    ];
+};
+
+const getStyleFrontCoatLayers = (selections = {}) => {
+    const coatType = selections.coatType || '1B';
+    const coatCodes = getStyleFrontCoatCodes(selections);
+
+    if (JODHPURI_TYPES.includes(coatType)) {
+        return [
+            {
+                code: coatCodes[0],
+                zIndex: 20,
+                type: 'coat_display',
+                part: 'Chest',
+                sourceParts: ['base', 'collar', 'lapel'],
+                coatType,
+            },
+            ...(coatCodes[1] ? [{
+                code: coatCodes[1],
+                zIndex: 21,
+                type: 'coat_display',
+                part: 'Pocket',
+                coatType,
+            }] : []),
+        ];
+    }
+
+    return [
+        ...(coatCodes[0] ? [{
+            code: coatCodes[0],
+            zIndex: 20,
+            type: 'coat_display',
+            part: 'Chest',
+            coatType,
+        }] : []),
+        ...(coatCodes[1] ? [{
+            code: coatCodes[1],
+            zIndex: 21,
+            type: 'coat_display',
+            part: 'Collar',
+            coatType,
+        }] : []),
+        ...(coatCodes[2] ? [{
+            code: coatCodes[2],
+            zIndex: 22,
+            type: 'coat_display',
+            part: 'Pocket',
+            coatType,
+        }] : []),
+        ...(coatCodes[3] ? [{
+            code: coatCodes[3],
+            zIndex: 23,
+            type: 'coat_display',
+            part: 'Lapel',
+            coatType,
+        }] : []),
+    ];
+};
+
+const getStyleBackCoatLayers = (selections = {}) => {
+    const coatType = selections.coatType || 'JO';
+    const coatCodes = getStyleBackCoatCodes(selections);
+    const codeCandidates = getStyleBackCoatCodeCandidates(selections);
+
+    if (codeCandidates.length === 0) {
+        return [];
+    }
+
+    return [{
+        code: coatCodes[0] || codeCandidates[0],
+        codeCandidates,
+        zIndex: 20,
+        type: 'coat_display',
+        part: 'Chest',
+        coatType,
+    }];
 };
 
 function pickWithSadriSuffixFallback(map, code) {
@@ -281,6 +418,16 @@ const pickEmbroiderySourcesForLayer = (bundle, collection, layerObj) => {
                 }
             }
         }
+        if (layerObj.type === 'coat_embroidery') {
+            for (const code of codeCandidates) {
+                if (uploadBundle.coatChestLeft?.[code]) {
+                    appendUniqueSource(sources, uploadBundle.coatChestLeft[code]);
+                }
+                if (uploadBundle.coatChestRight?.[code]) {
+                    appendUniqueSource(sources, uploadBundle.coatChestRight[code]);
+                }
+            }
+        }
         if (layerObj.type === 'sadri_embroidery_left' && uploadBundle.sadriChestLeft?.[layerObj.code]) {
             appendUniqueSource(sources, uploadBundle.sadriChestLeft[layerObj.code]);
         }
@@ -307,6 +454,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     // Yahan aap apne screens ke hisab se width/height aur margins edit kar sakte hain
     const getDynamicModelStyle = () => {
         const isSadriLastSlide = hasSadri && !hasCoat && slideIndex === 4;
+        const isCoatZoomSlide = hasCoat && (slideIndex === 4 || slideIndex === 5);
 
         // # MOBILE SCREEN
         if (isMobile) {
@@ -315,6 +463,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     width: '160%',
                     height: '160%',
                     marginTop: 250,
+                    marginBottom: 0
+                };
+            }
+            if (isCoatZoomSlide) {
+                return {
+                    width: '115%',
+                    height: '105%',
+                    marginTop: -30,
                     marginBottom: 0
                 };
             }
@@ -334,6 +490,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     marginBottom: 0
                 };
             }
+            if (isCoatZoomSlide) {
+                return {
+                    width: '110%',
+                    height: '102%',
+                    marginTop: -40,
+                    marginBottom: 0
+                };
+            }
             return {
                 width: '100%',
                 height: '93%',
@@ -347,6 +511,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     width: '132%',
                     height: '130%',
                     marginTop: -70,
+                    marginBottom: 0
+                };
+            }
+            if (isCoatZoomSlide) {
+                return {
+                    width: '125%',
+                    height: '125%',
+                    marginTop: -90,
                     marginBottom: 0
                 };
             }
@@ -371,32 +543,69 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         { display: {}, style: {} };
     const coatDisplayRenders = coatRenderSet.display || {};
     const coatStyleRenders = coatRenderSet.style || {};
+    const coatDisplayFallbackRenders = COAT_RENDERS['FAB_001']?.display || {};
+    const coatStyleFallbackRenders = COAT_RENDERS['FAB_001']?.style || {};
 
     if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
-        const coatCodes = slideIndex === 4 ? getStyleFrontCoatCodes(selections) : getStyleBackCoatCodes(selections);
+        const coatGarmentLayers = slideIndex === 4
+            ? getStyleFrontCoatLayers(selections)
+            : getStyleBackCoatLayers(selections);
+        const coatEmbroideryLayers = slideIndex === 4
+            ? getCoatStyleEmbroideryLayers(selections, coatGarmentLayers)
+            : getCoatBackEmbroideryLayers(selections, coatGarmentLayers);
         const coatButtonCodes = getCoatButtonCodes(selections, slideIndex);
-        const coatSceneEntries = [
-            ...(slideIndex === 5
-                ? [{
-                    key: `coat-style-back-${getStyleBackCoatCodes(selections).join('-')}`,
-                    src: pickFirstCoatStyleSource(coatStyleRenders, getStyleBackCoatCodeCandidates(selections)),
-                    zIndex: 20,
-                }]
-                : coatCodes.map((code, idx) => ({
-                    key: `coat-style-${code}-${idx}`,
-                    src: coatStyleRenders[code],
-                    zIndex: 20 + idx,
-                }))),
+        const coatSceneEntries = [];
+
+        [...coatGarmentLayers, ...coatEmbroideryLayers]
+            .sort((a, b) => a.zIndex - b.zIndex)
+            .forEach((layerObj, index) => {
+                if (!layerObj?.code) return;
+
+                if (layerObj.type === 'coat_display') {
+                    const src = pickFirstCoatSource(
+                        coatStyleRenders,
+                        coatStyleFallbackRenders,
+                        Array.isArray(layerObj.codeCandidates) && layerObj.codeCandidates.length > 0
+                            ? layerObj.codeCandidates
+                            : [layerObj.code]
+                    );
+                    if (!src) return;
+                    coatSceneEntries.push({
+                        key: `coat-style-${layerObj.code}-${layerObj.part || 'base'}-${index}`,
+                        src,
+                        zIndex: layerObj.zIndex,
+                    });
+                    return;
+                }
+
+                if (layerObj.type === 'coat_embroidery') {
+                    const imageSources = pickEmbroiderySourcesForLayer(
+                        EMBROIDERY_RENDERS[layerObj.collectionID],
+                        selections.coatEmbroideryCollection,
+                        layerObj
+                    );
+                    imageSources.forEach((src, sourceIndex) => {
+                        if (!src) return;
+                        coatSceneEntries.push({
+                            key: `coat-style-embroidery-${layerObj.code}-${layerObj.part}-${index}-${sourceIndex}`,
+                            src,
+                            zIndex: layerObj.zIndex + sourceIndex * 0.01,
+                        });
+                    });
+                }
+            });
+
+        coatSceneEntries.push(
             ...coatButtonCodes.map((code, idx) => ({
                 key: `coat-style-button-${code}-${idx}`,
                 src: selectedCoatButton?.renders?.[code],
                 zIndex: 40 + idx,
             })),
-        ].filter((entry) => entry.src);
+        );
 
         return (
             <BufferedLayerScene
-                entries={coatSceneEntries}
+                entries={coatSceneEntries.filter((entry) => entry.src)}
                 dynamicStyle={dynamicStyle}
             />
         );
@@ -414,11 +623,10 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     }
 
     const coatDisplayLayers = hasCoat && slideIndex === 0
-        ? getDisplayCoatCodes(selections).map((code, idx) => ({
-            code,
-            zIndex: 85 + idx,
-            type: 'coat_display'
-        }))
+        ? getDisplayCoatLayers(selections)
+        : [];
+    const coatDisplayEmbroideryLayers = hasCoat && slideIndex === 0
+        ? getCoatDisplayEmbroideryLayers(selections, coatDisplayLayers)
         : [];
     const coatDisplayButtonLayers = hasCoat && slideIndex === 0
         ? getCoatButtonCodes(selections, 0).map((code, idx) => ({
@@ -428,7 +636,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         }))
         : [];
 
-    const layersToRender = [...kurtaBaseLayers, ...kurtaEmbroideryLayers, ...sadriLayers, ...coatDisplayLayers, ...coatDisplayButtonLayers].sort((a, b) => a.zIndex - b.zIndex);
+    const layersToRender = [...kurtaBaseLayers, ...kurtaEmbroideryLayers, ...sadriLayers, ...coatDisplayLayers, ...coatDisplayEmbroideryLayers, ...coatDisplayButtonLayers].sort((a, b) => a.zIndex - b.zIndex);
 
     // DATABASE: Us kapde ki saari images yahan se nikalo
     const fabricRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {};
@@ -467,6 +675,12 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                 selections.sadriEmbroideryCollection,
                 layerObj
             );
+        } else if (layerObj.type === 'coat_embroidery') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.coatEmbroideryCollection,
+                layerObj
+            );
         } else if (layerObj.type === 'pajama') {
             imageSource = pajamaRenders[layerObj.code];
         } else if (layerObj.type === 'sadri_button') {
@@ -474,7 +688,13 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         } else if (layerObj.type === 'sadri_fabric') {
             imageSource = pickWithSadriSuffixFallback(sadriRenders, layerObj.code);
         } else if (layerObj.type === 'coat_display') {
-            imageSource = coatDisplayRenders[layerObj.code];
+            imageSource = pickFirstCoatSource(
+                coatDisplayRenders,
+                coatDisplayFallbackRenders,
+                Array.isArray(layerObj.codeCandidates) && layerObj.codeCandidates.length > 0
+                    ? layerObj.codeCandidates
+                    : [layerObj.code]
+            );
         } else if (layerObj.type === 'coat_button') {
             imageSource = selectedCoatButton?.renders?.[layerObj.code]
                 || selectedCoatButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];

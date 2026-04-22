@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, PixelRatio } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Reanimated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SvgCssUri } from 'react-native-svg/css';
@@ -38,6 +38,7 @@ import ExtrasSummary from '../../../assets/images/extra_icons/summary-01.svg';
 import ExtrasFavourite from '../../../assets/images/extra_icons/favourite-01.svg';
 import ExtrasShare from '../../../assets/images/extra_icons/share-01.svg';
 import ExtrasSkinTone from '../../../assets/images/extra_icons/skin tone-01.svg';
+import EmbTypeIcon from '../../../assets/images/style_icons/EMBTYPE.svg';
 import appLogo from '../../../assets/images/icon.png';
 
 import { useResponsive } from '../../../hooks/useResponsive';
@@ -1316,11 +1317,17 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
     const renderInfoDetailRow = (icon, label, value, opts = {}) => {
         const multiline = !!opts.multiline;
+        const IconLib = opts.iconLib === 'MaterialCommunityIcons' ? MaterialCommunityIcons : MaterialIcons;
+        const CustomIcon = opts.CustomIcon;
         return (
             <View style={[styles.infoRow, multiline && styles.infoRowMultiline]}>
                 <View style={[styles.infoRowLeft, multiline && styles.infoRowLeftMultiline]}>
                     <View style={styles.infoIconWrap}>
-                        <MaterialIcons name={icon} size={14} color={CustomTheme.accentGold} />
+                        {CustomIcon ? (
+                            <CustomIcon size={18} width={22} height={22} color={CustomTheme.accentGold} fill={CustomTheme.accentGold} />
+                        ) : (
+                            <IconLib name={icon} size={22} color={CustomTheme.accentGold} />
+                        )}
                     </View>
                     <Text style={styles.infoLabel}>{label}</Text>
                 </View>
@@ -2312,7 +2319,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                 if (!images.length) return null;
                                 const idx = Math.min(infoImageIndex, images.length - 1);
                                 return (
-                                    <View style={styles.infoImageWrap}>
+                                    <View style={[styles.infoImageWrap, { position: 'relative', overflow: 'hidden', borderRadius: 12 }]}>
                                         <TouchableOpacity
                                             activeOpacity={0.95}
                                             onPress={() => {
@@ -2324,21 +2331,25 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                             <Image source={images[idx]} style={styles.infoImage} resizeMode="cover" />
                                         </TouchableOpacity>
                                         {images.length > 1 ? (
-                                            <View style={styles.infoImageControls}>
+                                            <>
                                                 <TouchableOpacity
-                                                    style={styles.infoImageNav}
+                                                    style={[styles.embInfoNavArrow, styles.embInfoNavArrowLeft]}
                                                     onPress={() => setInfoImageIndex((p) => (p - 1 + images.length) % images.length)}
                                                 >
-                                                    <Text style={styles.infoImageNavText}>‹</Text>
+                                                    <MaterialIcons name="chevron-left" size={24} color="#0f172a" />
                                                 </TouchableOpacity>
-                                                <Text style={styles.infoImageCounter}>{idx + 1}/{images.length}</Text>
                                                 <TouchableOpacity
-                                                    style={styles.infoImageNav}
+                                                    style={[styles.embInfoNavArrow, styles.embInfoNavArrowRight]}
                                                     onPress={() => setInfoImageIndex((p) => (p + 1) % images.length)}
                                                 >
-                                                    <Text style={styles.infoImageNavText}>›</Text>
+                                                    <MaterialIcons name="chevron-right" size={24} color="#0f172a" />
                                                 </TouchableOpacity>
-                                            </View>
+                                                <View style={styles.embInfoSlideCounter} pointerEvents="none">
+                                                    <View style={styles.embInfoSlideCounterPill}>
+                                                        <Text style={styles.embInfoSlideCounterText}>{idx + 1}/{images.length}</Text>
+                                                    </View>
+                                                </View>
+                                            </>
                                         ) : null}
                                     </View>
                                 );
@@ -2405,11 +2416,20 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                         <View style={styles.embInfoCarouselOuter}>
                                             <View style={styles.embInfoHeroWrap}>
                                                 {hero ? (
-                                                    <Image
-                                                        source={hero}
-                                                        style={styles.embInfoHeroImage}
-                                                        resizeMode="cover"
-                                                    />
+                                                    <TouchableOpacity
+                                                        activeOpacity={0.95}
+                                                        onPress={() => {
+                                                            setFabricViewerImages(slides);
+                                                            setFabricViewerIndex(idx);
+                                                            setIsFabricViewerOpen(true);
+                                                        }}
+                                                    >
+                                                        <Image
+                                                            source={hero}
+                                                            style={styles.embInfoHeroImage}
+                                                            resizeMode="cover"
+                                                        />
+                                                    </TouchableOpacity>
                                                 ) : (
                                                     <View
                                                         style={[
@@ -2431,7 +2451,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                                                 )
                                                             }
                                                         >
-                                                            <MaterialIcons name="chevron-left" size={30} color="#0f172a" />
+                                                            <MaterialIcons name="chevron-left" size={24} color="#0f172a" />
                                                         </TouchableOpacity>
                                                         <TouchableOpacity
                                                             style={[styles.embInfoNavArrow, styles.embInfoNavArrowRight]}
@@ -2442,7 +2462,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                                                 setEmbInfoImageIndex((p) => (p + 1) % slides.length)
                                                             }
                                                         >
-                                                            <MaterialIcons name="chevron-right" size={30} color="#0f172a" />
+                                                            <MaterialIcons name="chevron-right" size={24} color="#0f172a" />
                                                         </TouchableOpacity>
                                                         <View style={styles.embInfoSlideCounter} pointerEvents="none">
                                                             <View style={styles.embInfoSlideCounterPill}>
@@ -2455,8 +2475,13 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                                 ) : null}
                                             </View>
                                         </View>
-                                        <Text style={styles.embInfoTitle}>{emb.name || 'Embroidery'}</Text>
-                                        <Text style={styles.embInfoDesc}>{desc}</Text>
+                                        <View style={[styles.infoDetailsCard, { marginTop: 15 }]}>
+                                            <View style={{ paddingHorizontal: 4, paddingBottom: 12 }}>
+                                                <Text style={[styles.embInfoTitle, { marginBottom: 0 }]}>{emb.name || 'Embroidery'}</Text>
+                                            </View>
+                                            {renderInfoDetailRow('description', 'Description', desc, { multiline: true })}
+                                            {renderInfoDetailRow(null, 'Work Type', emb.workType || '-', { CustomIcon: EmbTypeIcon })}
+                                        </View>
                                     </>
                                 );
                             })()}
@@ -2954,10 +2979,10 @@ const styles = StyleSheet.create({
         maxHeight: 460,
     },
     embInfoScroll: {
-        maxHeight: 580,
+        maxHeight: 480,
     },
     embInfoCarouselOuter: {
-        marginBottom: 16,
+        marginBottom: 8,
     },
     embInfoHeroWrap: {
         width: '100%',
@@ -2969,10 +2994,10 @@ const styles = StyleSheet.create({
     embInfoNavArrow: {
         position: 'absolute',
         top: '50%',
-        marginTop: -24,
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        marginTop: -17,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         backgroundColor: 'rgba(255,255,255,0.96)',
         alignItems: 'center',
         justifyContent: 'center',
@@ -3012,14 +3037,14 @@ const styles = StyleSheet.create({
     },
     embInfoHeroImage: {
         width: '100%',
-        aspectRatio: 4 / 5,
+        aspectRatio: 1,
         backgroundColor: '#f1f5f9',
     },
     embInfoTitle: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '800',
         color: '#0f172a',
-        marginBottom: 10,
+        marginBottom: 6,
         letterSpacing: -0.3,
     },
     embInfoDesc: {
@@ -3092,33 +3117,12 @@ const styles = StyleSheet.create({
     },
     infoImage: {
         width: '100%',
-        height: 168,
+        height: 220,
         borderRadius: 12,
         backgroundColor: '#f1f5f9',
     },
     infoImageWrap: {
         marginBottom: 14,
-    },
-    infoImageControls: {
-        marginTop: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-    },
-    infoImageNav: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#f1f5f9',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    infoImageNavText: {
-        fontSize: 18,
-        fontWeight: '800',
-        color: '#334155',
-        marginTop: -2,
     },
     infoImageCounter: {
         fontSize: 12,
@@ -3164,13 +3168,13 @@ const styles = StyleSheet.create({
         paddingRight: 0,
     },
     infoIconWrap: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
         backgroundColor: '#e2e8f0',
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 8,
+        marginRight: 10,
     },
     infoLabel: {
         fontSize: 12,

@@ -38,6 +38,7 @@ export default function RootLayout() {
                 <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
                 <Stack.Screen name="tv" options={{ headerShown: false }} />
                 <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="explore" options={{ headerShown: false }} />
               </Stack>
             </RemoteControlProvider>
           </OutfitProvider>

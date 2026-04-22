@@ -354,7 +354,10 @@ export default function HomeScreen() {
                                 ))}
                             </View>
 
-                            <TouchableOpacity style={styles.exploreMoreBtn}>
+                            <TouchableOpacity 
+                                style={styles.exploreMoreBtn}
+                                onPress={() => router.push('/explore')}
+                            >
                                 <Text style={styles.exploreMoreText}>EXPLORE MORE</Text>
                             </TouchableOpacity>
                         </>
@@ -374,12 +377,18 @@ export default function HomeScreen() {
                         snapToInterval={isMobile ? width * 0.85 : width * 0.5}
                         decelerationRate="fast"
                     >
-                        {TESTIMONIALS_DATA.map((item) => (
+                        {TESTIMONIALS_DATA.map((item: any) => (
                             <View key={item.id} style={[styles.testimonialCard, { width: isMobile ? width * 0.82 : isTablet ? width * 0.6 : width * 0.45 }]}>
-                                <View style={styles.starsRow}>
-                                    {[...Array(item.rating)].map((_, i) => (
-                                        <Ionicons key={i} name="star" size={14} color="#D4A843" />
-                                    ))}
+                                <View style={styles.testimonialHeader}>
+                                    <View style={styles.avatarWrapper}>
+                                        <Image source={item.image} style={styles.clientAvatar} />
+                                        <View style={styles.avatarRing} />
+                                    </View>
+                                    <View style={styles.starsRow}>
+                                        {[...Array(item.rating)].map((_, i) => (
+                                            <Ionicons key={i} name="star" size={14} color="#D4A843" />
+                                        ))}
+                                    </View>
                                 </View>
                                 <Text style={styles.testimonialQuote}>"{item.message}"</Text>
                                 <View style={styles.clientInfo}>
@@ -688,7 +697,35 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#eee',
     },
-    starsRow: { flexDirection: 'row', gap: 4, marginBottom: 15 },
+    starsRow: { flexDirection: 'row', gap: 4 },
+    testimonialHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    avatarWrapper: {
+        position: 'relative',
+        width: 48,
+        height: 48,
+    },
+    clientAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#f1f5f9',
+    },
+    avatarRing: {
+        position: 'absolute',
+        top: -3,
+        left: -3,
+        right: -3,
+        bottom: -3,
+        borderRadius: 27,
+        borderWidth: 1.5,
+        borderColor: '#D4A843',
+        opacity: 0.3,
+    },
     testimonialQuote: {
         fontSize: 14,
         color: '#444',

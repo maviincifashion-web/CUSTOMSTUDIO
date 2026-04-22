@@ -431,6 +431,7 @@ export function FirebaseCatalogProvider({ children }) {
             name: d.name || docSnap.id,
             description,
             price,
+            workType: d.type || d.workType || d.technique || d.work || d.work_type || '-',
             profileImage: thumb ? { uri: thumb } : null,
             profileImageSadri: sadriUri ? { uri: sadriUri } : null,
             /** Firebase “other” / gallery uploads — info carousel mein main / Sadri ke baad */
