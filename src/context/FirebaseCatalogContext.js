@@ -507,13 +507,6 @@ export function FirebaseCatalogProvider({ children }) {
     };
   }, [remoteFabrics, garmentAllowlists, garmentPriceHints]);
 
-  const firstKurtaFabricId = fabricsByGarment.Kurta?.[0]?.fabricID;
-  useEffect(() => {
-    if (!enabled || !fabrics?.length) return;
-    const firstKurta = fabricsByGarment.Kurta?.[0] || fabrics[0];
-    prefetchFabricRenders(firstKurta);
-  }, [enabled, fabrics?.length, firstKurtaFabricId, prefetchFabricRenders, fabrics, fabricsByGarment.Kurta]);
-
   useEffect(() => {
     if (!enabled) return undefined;
     let cancelled = false;

@@ -37,6 +37,7 @@ const tvFocusStyles = StyleSheet.create({
 import QRCode from 'react-native-qrcode-svg';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useRemoteControl } from '../src/context/RemoteControlContext';
+import { FirebaseCatalogProvider } from '../src/context/FirebaseCatalogContext';
 import { useResponsive } from '../hooks/useResponsive';
 import KurtaMain from '../src/customizers/Kurta/KurtaMain';
 import OutfitScreen from './(tabs)/outfit';
@@ -121,7 +122,11 @@ export default function TVScreen() {
   return (
     <View style={styles.fullScreen}>
       {isConnected ? (
-        currentScreen === 'kurta' ? <KurtaMain isTVView={true} initialPanel="Fabric" onNavigate={handleNavigate} /> : <OutfitScreen isTVView={true} onNavigate={handleNavigate} />
+        currentScreen === 'kurta' ? (
+          <FirebaseCatalogProvider>
+            <KurtaMain isTVView={true} initialPanel="Fabric" onNavigate={handleNavigate} />
+          </FirebaseCatalogProvider>
+        ) : <OutfitScreen isTVView={true} onNavigate={handleNavigate} />
       ) : null}
 
       {!isConnected ? (

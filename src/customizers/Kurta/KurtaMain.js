@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, InteractionManager } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -223,6 +223,28 @@ function hexToRgb(hex) {
     };
 }
 
+function rgbToHex(rgb) {
+    if (!rgb) return null;
+    const clamp = (value) => Math.max(0, Math.min(255, Math.round(value)));
+    return `#${[rgb.r, rgb.g, rgb.b]
+        .map((value) => clamp(value).toString(16).padStart(2, '0'))
+        .join('')}`;
+}
+
+function mixHexColors(fromHex, toHex, ratio = 0.5) {
+    const from = hexToRgb(fromHex);
+    const to = hexToRgb(toHex);
+    if (!from && !to) return fromHex || toHex || '#000000';
+    if (!from) return toHex;
+    if (!to) return fromHex;
+    const t = Math.max(0, Math.min(1, ratio));
+    return rgbToHex({
+        r: from.r + ((to.r - from.r) * t),
+        g: from.g + ((to.g - from.g) * t),
+        b: from.b + ((to.b - from.b) * t),
+    }) || fromHex;
+}
+
 function hueFromRgb(rgb) {
     if (!rgb) return null;
     const r = rgb.r / 255;
@@ -348,12 +370,17 @@ function pickThemeIndexFromFabrics(fabrics) {
 }
 
 function BackgroundGradient({ start, end }) {
+    const highlight = mixHexColors(start, '#ffffff', 0.24);
+    const bridge = mixHexColors(start, end, 0.48);
+    const lowlight = mixHexColors(end, '#9b9188', 0.14);
     return (
         <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
             <Defs>
-                <LinearGradient id="bgGrad" x1="100%" y1="100%" x2="0%" y2="0%">
-                    <Stop offset="0%" stopColor={start} stopOpacity="1" />
-                    <Stop offset="100%" stopColor={end} stopOpacity="1" />
+                <LinearGradient id="bgGrad" x1="6%" y1="0%" x2="94%" y2="100%">
+                    <Stop offset="0%" stopColor={highlight} stopOpacity="1" />
+                    <Stop offset="26%" stopColor={start} stopOpacity="1" />
+                    <Stop offset="64%" stopColor={bridge} stopOpacity="1" />
+                    <Stop offset="100%" stopColor={lowlight} stopOpacity="1" />
                 </LinearGradient>
             </Defs>
             <Rect x="0" y="0" width="100" height="100" fill="url(#bgGrad)" />
@@ -637,6 +664,11 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const brandNameTranslateX = useRef(new Animated.Value(0)).current;
     const brandNameMarqueeRef = useRef(null);
     const bgFadeAnim = useRef(new Animated.Value(0)).current;
+    const bgIncomingTranslateX = bgFadeAnim.interpolate({ inputRange: [0, 1], outputRange: [34, 0] });
+    const bgIncomingTranslateY = bgFadeAnim.interpolate({ inputRange: [0, 1], outputRange: [-22, 0] });
+    const bgIncomingScale = bgFadeAnim.interpolate({ inputRange: [0, 1], outputRange: [1.08, 1] });
+    const bgBaseScale = bgFadeAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] });
+    const bgBaseOpacity = bgFadeAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] });
     const bgTransitionTimerRef = useRef(null);
     const bgAnimatingRef = useRef(false);
     const bgPendingThemeRef = useRef(null);
@@ -1038,6 +1070,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const panelScrollTimer = useRef(null);
     const isRemoteScrolling = useRef(false);
     const slideAnim = useRef(new Animated.Value(-4000)).current;
+    const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
     useEffect(() => {
         // TV mode no longer auto-opens panel — panel opens via user interaction or SET_PANEL command
@@ -1383,8 +1416,8 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             bgFadeAnim.setValue(0);
             Animated.timing(bgFadeAnim, {
                 toValue: 1,
-                duration: 3200,
-                easing: Easing.inOut(Easing.ease),
+                duration: 4200,
+                easing: Easing.inOut(Easing.cubic),
                 useNativeDriver: true,
             }).start(() => {
                 setActiveBgThemeIndex(toThemeIndex);
@@ -1398,7 +1431,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     startBgTransition(pending);
                 }
             });
-        }, 520);
+        }, 140);
     }, [activeBgThemeIndex, bgFadeAnim]);
 
     useEffect(() => {
@@ -1979,6 +2012,105 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const hasCoat = selectedItems.includes('coat');
     const hasSadri = selectedItems.includes('sadri');
     const hasOuterwear = hasCoat || hasSadri;
+    const visibleFabricPrefetchQueue = useMemo(() => {
+        const selectedByGarment = {
+            Kurta: selectedFabric,
+            Pajama: selectedPajamaFabric,
+            Sadri: hasSadri ? selectedSadriFabric : null,
+            Coat: hasCoat ? selectedCoatFabric : null,
+        };
+        const priorityGarments = [];
+        const pushGarment = (label) => {
+            if (!label || priorityGarments.includes(label) || !selectedByGarment[label]) return;
+            priorityGarments.push(label);
+        };
+
+        if (hasOuterwear) {
+            if (currentSlideIndex === 3) {
+                pushGarment('Pajama');
+            } else if (currentSlideIndex === 2) {
+                pushGarment('Kurta');
+                pushGarment('Pajama');
+            } else if (currentSlideIndex === 4) {
+                if (hasCoat) {
+                    pushGarment('Coat');
+                    if (hasSadri) pushGarment('Sadri');
+                } else {
+                    pushGarment('Sadri');
+                }
+            } else if (currentSlideIndex === 5) {
+                pushGarment('Coat');
+                if (hasSadri) pushGarment('Sadri');
+            } else {
+                pushGarment('Kurta');
+                pushGarment('Pajama');
+                if (hasSadri) pushGarment('Sadri');
+                if (hasCoat) pushGarment('Coat');
+            }
+        } else if (currentSlideIndex === 2) {
+            pushGarment('Pajama');
+        } else {
+            pushGarment('Kurta');
+            pushGarment('Pajama');
+        }
+
+        pushGarment(fabricTab);
+        pushGarment('Kurta');
+        pushGarment('Pajama');
+        if (hasSadri) pushGarment('Sadri');
+        if (hasCoat) pushGarment('Coat');
+
+        const queue = [];
+        const seenFabricIds = new Set();
+        priorityGarments.forEach((label) => {
+            const selected = selectedByGarment[label];
+            if (!selected) return;
+            const fabricId = String(selected.fabricID || selected.id || selected.name || '');
+            if (!fabricId || seenFabricIds.has(fabricId)) return;
+            seenFabricIds.add(fabricId);
+            const profile = fabrics.find((f) => String(f.fabricID) === String(selected.fabricID)) || selected;
+            queue.push({ label, profile });
+        });
+
+        return queue;
+    }, [
+        currentSlideIndex,
+        fabricTab,
+        fabrics,
+        hasCoat,
+        hasOuterwear,
+        hasSadri,
+        selectedCoatFabric,
+        selectedFabric,
+        selectedPajamaFabric,
+        selectedSadriFabric,
+    ]);
+
+    useEffect(() => {
+        if (!visibleFabricPrefetchQueue.length) return undefined;
+
+        let cancelled = false;
+        const [first, ...rest] = visibleFabricPrefetchQueue;
+
+        if (first?.profile) {
+            prefetchFabricRenders(first.profile);
+        }
+
+        if (rest.length === 0) return undefined;
+
+        const task = InteractionManager.runAfterInteractions(() => {
+            if (cancelled) return;
+            rest.forEach(({ profile }) => {
+                if (profile) prefetchFabricRenders(profile);
+            });
+        });
+
+        return () => {
+            cancelled = true;
+            if (task && typeof task.cancel === 'function') task.cancel();
+        };
+    }, [prefetchFabricRenders, visibleFabricPrefetchQueue]);
+
     // Website-style total: selected garment collection prices only.
     const kurtaTotal = toNumber(selectedFabric?.price);
     const pajamaTotal = toNumber(selectedPajamaFabric?.price);
@@ -2044,12 +2176,36 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     return (
         <SafeAreaView style={styles.container}>
             <View pointerEvents="none" style={styles.dynamicBgLayer}>
-                <BackgroundGradient
-                    start={BG_THEMES[activeBgThemeIndex].start}
-                    end={BG_THEMES[activeBgThemeIndex].end}
-                />
+                <Animated.View
+                    style={[
+                        StyleSheet.absoluteFillObject,
+                        incomingBgThemeIndex != null
+                            ? {
+                                opacity: bgBaseOpacity,
+                                transform: [{ scale: bgBaseScale }],
+                            }
+                            : null,
+                    ]}
+                >
+                    <BackgroundGradient
+                        start={BG_THEMES[activeBgThemeIndex].start}
+                        end={BG_THEMES[activeBgThemeIndex].end}
+                    />
+                </Animated.View>
                 {incomingBgThemeIndex != null ? (
-                    <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: bgFadeAnim }]}>
+                    <Animated.View
+                        style={[
+                            StyleSheet.absoluteFillObject,
+                            {
+                                opacity: bgFadeAnim,
+                                transform: [
+                                    { translateX: bgIncomingTranslateX },
+                                    { translateY: bgIncomingTranslateY },
+                                    { scale: bgIncomingScale },
+                                ],
+                            },
+                        ]}
+                    >
                         <BackgroundGradient
                             start={BG_THEMES[incomingBgThemeIndex].start}
                             end={BG_THEMES[incomingBgThemeIndex].end}
@@ -2077,6 +2233,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                         data={buildSlides()}
                         carouselWidth={effectiveTV ? width * 0.82 : width}
                         onIndexChange={(index) => {
+                            setCurrentSlideIndex(index);
                             if (tvSessionId && !isRemoteScrolling.current) sendCommand('CAROUSEL_SCROLL', { index });
                         }}
                     />
@@ -2905,6 +3062,7 @@ const styles = StyleSheet.create({
     dynamicBgLayer: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 0,
+        overflow: 'hidden',
     },
     modelContainer: { flex: 1, zIndex: 1, position: 'relative', marginTop: -60 },
     shareShotOverlay: {

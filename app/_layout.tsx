@@ -6,7 +6,6 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { OutfitProvider } from '../src/context/OutfitContext';
-import { FirebaseCatalogProvider } from '../src/context/FirebaseCatalogContext';
 import { RemoteControlProvider } from '../src/context/RemoteControlContext';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
@@ -30,19 +29,17 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <FirebaseCatalogProvider>
-          <OutfitProvider>
-            <RemoteControlProvider>
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-                <Stack.Screen name="tv" options={{ headerShown: false }} />
-                <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-                <Stack.Screen name="explore" options={{ headerShown: false }} />
-              </Stack>
-            </RemoteControlProvider>
-          </OutfitProvider>
-        </FirebaseCatalogProvider>
+        <OutfitProvider>
+          <RemoteControlProvider>
+            <Stack>
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+              <Stack.Screen name="tv" options={{ headerShown: false }} />
+              <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+              <Stack.Screen name="explore" options={{ headerShown: false }} />
+            </Stack>
+          </RemoteControlProvider>
+        </OutfitProvider>
         <StatusBar style="auto" />
       </ThemeProvider>
     </SafeAreaProvider>
