@@ -22,10 +22,46 @@ import {
 } from './KurtaCoatTux';
 import { useBufferedRenderScene } from './useBufferedRenderScene';
 
-// ASSETS IMPORTS
-import kurta_body from '../../../../assets/images/body/kurta_body.webp';
-import kurta_hand_n from '../../../../assets/images/body/kurta_hand_n.webp';
-import kurta_hand_c from '../../../../assets/images/body/kurta_hand_c.webp';
+// ASSETS MAPPING
+const MODEL_ASSETS = {
+    1: {
+        body: require('../../../../assets/images/kurta_body/kurta_body_1.webp'),
+        hands_c: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_1.webp'),
+        hands_n: require('../../../../assets/images/kurta_body/hand_for_noncuff-sleeve_1.webp'),
+    },
+    2: {
+        body: require('../../../../assets/images/kurta_body/kurta_body_2.webp'),
+        hands_c: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_2.webp'),
+        hands_n: require('../../../../assets/images/kurta_body/hand_for_noncuff-sleeve_2.webp'),
+    },
+    3: {
+        body: require('../../../../assets/images/kurta_body/kurta_body_3.webp'),
+        hands_c: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_3.webp'),
+        hands_n: require('../../../../assets/images/kurta_body/hand_for_noncuff-sleeve_3.webp'),
+    },
+    4: {
+        body: require('../../../../assets/images/kurta_body/kurta_body_4.webp'),
+        hands_c: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_4.webp'),
+        hands_n: require('../../../../assets/images/kurta_body/hand_for_noncuff-sleeve_4.webp'),
+    },
+    5: {
+        body: require('../../../../assets/images/kurta_body/kurta_body_5.webp'),
+        hands_c: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_5.webp'),
+        hands_n: require('../../../../assets/images/kurta_body/hand_for_noncuff-sleeve_5.webp'),
+    },
+    6: {
+        body: require('../../../../assets/images/kurta_body/kurta_body_6.webp'),
+        hands_c: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_6.webp'),
+        hands_n: require('../../../../assets/images/kurta_body/hand_for_noncuff-sleeve_6.webp'),
+    },
+    7: {
+        body: require('../../../../assets/images/kurta_body/kurta_body_7.webp'),
+        hands_c: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_7.webp'),
+        hands_n: require('../../../../assets/images/kurta_body/hand_for_noncuff-sleeve_7.webp'),
+        extra: require('../../../../assets/images/kurta_body/extra_for_7.webp'),
+    },
+};
+
 
 
 const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
@@ -42,7 +78,7 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
     );
 };
 
-const BufferedLayerScene = ({ entries, dynamicStyle, bodySource = null, handsSource = null }) => {
+const BufferedLayerScene = ({ entries, dynamicStyle, bodySource = null, handsSource = null, extraSource = null }) => {
     const { displayEntries, isLoading, hasCommittedScene } = useBufferedRenderScene(entries);
 
     return (
@@ -62,6 +98,10 @@ const BufferedLayerScene = ({ entries, dynamicStyle, bodySource = null, handsSou
 
             {handsSource ? (
                 <RNImage source={handsSource} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
+            ) : null}
+
+            {extraSource ? (
+                <RNImage source={extraSource} style={[styles.modelLayer, dynamicStyle, { zIndex: 110 }]} resizeMode="contain" />
             ) : null}
 
             {isLoading ? (
@@ -552,8 +592,12 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     };
 
     const dynamicStyle = getDynamicModelStyle();
+    const modelId = selections.skinTone || 1;
+    const modelData = MODEL_ASSETS[modelId] || MODEL_ASSETS[1];
+    const bodyImage = modelData.body;
+    const handsImage = selections.sleeve === "SC" ? modelData.hands_c : modelData.hands_n;
+    const extraImage = modelData.extra || null;
 
-    const handsImage = selections.sleeve === "SC" ? kurta_hand_c : kurta_hand_n;
     const isTuxedoCoat = isTuxedoCoatType(selections?.coatType);
     const baseCoatSelections = isTuxedoCoat ? mapTuxedoSelectionsToBaseCoat(selections) : selections;
 
@@ -792,8 +836,9 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         <BufferedLayerScene
             entries={resolvedSceneEntries}
             dynamicStyle={dynamicStyle}
-            bodySource={kurta_body}
+            bodySource={bodyImage}
             handsSource={handsImage}
+            extraSource={extraImage}
         />
     );
 }

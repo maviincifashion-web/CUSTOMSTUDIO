@@ -137,6 +137,7 @@ export function FirebaseCatalogProvider({ children }) {
   const [remoteSadri, setRemoteSadri] = useState({});
   const [remoteCoat, setRemoteCoat] = useState({});
   const [kurtaCoatTuxRemote, setKurtaCoatTuxRemote] = useState({});
+  const [kurtaCoatTuxInfo, setKurtaCoatTuxInfo] = useState(null);
   const [remoteButtons, setRemoteButtons] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [fabricsLoading, setFabricsLoading] = useState(false);
@@ -524,6 +525,15 @@ export function FirebaseCatalogProvider({ children }) {
         const tuxDoc = await fetchNamedResourceMapCollectionDoc(db, ['Fabric', 'kurta', 'tuxedo'], KURTA_COAT_TUX_KEY);
         if (!cancelled) {
           setKurtaCoatTuxRemote(tuxDoc.resources || {});
+          setKurtaCoatTuxInfo(tuxDoc.data
+            ? {
+                id: tuxDoc.id || '',
+                name: tuxDoc.data.name || 'Tuxedo Fabric',
+                src: readSrcField(tuxDoc.data),
+                thumbnail: readSrcField(tuxDoc.data),
+                other_images: Array.isArray(tuxDoc.data.other_images) ? tuxDoc.data.other_images : [],
+              }
+            : null);
         }
       } catch (e) {
         if (typeof __DEV__ !== 'undefined' && __DEV__) {
@@ -561,6 +571,7 @@ export function FirebaseCatalogProvider({ children }) {
       sadriRenders,
       coatRenders,
       kurtaCoatTux: kurtaCoatTuxRemote,
+      kurtaCoatTuxInfo,
       embroideryRenders,
       buttons,
       sadriButtons: DUMMY_SADRI_BUTTONS,
@@ -570,7 +581,7 @@ export function FirebaseCatalogProvider({ children }) {
       enabled, fabricsLoading, loadError, fabrics, fabricsByGarment,
       prefetchFabricRenders, prefetchEmbroideryRenders, embroideryCollections,
       kurtaRenders, pajamaRenders, sadriRenders,
-      coatRenders, kurtaCoatTuxRemote, embroideryRenders, buttons,
+      coatRenders, kurtaCoatTuxRemote, kurtaCoatTuxInfo, embroideryRenders, buttons,
     ]
   );
 

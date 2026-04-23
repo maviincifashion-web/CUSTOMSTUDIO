@@ -212,3 +212,13 @@ export const KURTA_STYLE_OPTIONS = [
         ]
     }
 ];
+
+export const SKIN_TONE_OPTIONS = [
+    { label: "Model 1", value: 1, image: require("../../assets/images/kurta_body/face_1.jpg"), color: "#F7E2D6" },
+    { label: "Model 2", value: 2, image: require("../../assets/images/kurta_body/face_2.jpg"), color: "#F3CFB6" },
+    { label: "Model 3", value: 3, image: require("../../assets/images/kurta_body/face_3.jpg"), color: "#D2A181" },
+    { label: "Model 4", value: 4, image: require("../../assets/images/kurta_body/face_4.jpg"), color: "#A57251" },
+    { label: "Model 5", value: 5, image: require("../../assets/images/kurta_body/face_5.jpg"), color: "#634430" },
+    { label: "Model 6", value: 6, image: require("../../assets/images/kurta_body/face_6.jpg"), color: "#4A3224" },
+    { label: "Model 7", value: 7, image: require("../../assets/images/kurta_body/face_7.jpg"), color: "#312219" },
+];

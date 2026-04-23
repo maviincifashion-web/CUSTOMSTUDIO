@@ -20,7 +20,7 @@ import {
     DUMMY_COAT_BUTTONS,
 } from '../../Data/dummyData';
 import { useFirebaseCatalog } from '../../context/FirebaseCatalogContext';
-import { KURTA_STYLE_OPTIONS } from '../../Data/styleData';
+import { KURTA_STYLE_OPTIONS, SKIN_TONE_OPTIONS } from '../../Data/styleData';
 import { useOutfit } from '../../context/OutfitContext';
 import { useDeepLinkHandler } from '../../hooks/useDeepLinkHandler';
 import { useRemoteControl } from '../../context/RemoteControlContext';
@@ -511,6 +511,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         fabrics,
         fabricsByGarment,
         buttons,
+        kurtaCoatTuxInfo,
         embroideryRenders,
         embroideryCollections: embroideryCollectionsFromCtx,
         prefetchFabricRenders,
@@ -542,7 +543,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     // STATE MANAGEMENT
     const [selectedFabric, setSelectedFabric] = useState(fabrics?.[0] || {});
     const [selections, setSelections] = useState({
-        bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', coatUpperPocket: '1', embroideryID: null, sadriEmbroideryID: null, coatEmbroideryID: null,
+        bottomCut: 'R', length: 'K', placketStyle: 'NS', pocketQty: '00', pocketShape: 'R', flapYes: '0', flapShape: 'R', epaulette: '0', collar: 'CM', sleeve: 'SN', cuffStyle: 'US1', coatUpperPocket: '1', embroideryID: null, sadriEmbroideryID: null, coatEmbroideryID: null, skinTone: 1,
         ...(INITIAL_SELECTION || {}),
     });
     const [selectedButton, setSelectedButton] = useState(INITIAL_SELECTION?.button || (buttons?.[0] ?? null));
@@ -1545,6 +1546,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const renderPanelContent = () => {
         const coatType = selections.coatType || 'NONE';
         const isJodhpuriMode = ['JH', 'JR', 'JS', 'JO'].includes(coatType);
+        const isTuxedoMode = ['T1', 'T2'].includes(coatType);
 
         return (
             <View style={{ flex: 1, position: 'relative' }}>
@@ -1789,6 +1791,38 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                                 </View>
                                             </View>
                                         )}
+                                        {section.key === 'coatType' && idx === firstCoatTypeIndex && selectedItems.includes('coat') && isTuxedoMode && (
+                                            <View style={{ marginBottom: 15 }}>
+                                                <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Tuxedo Fabric</Text>
+                                                <View style={styles.optionRow}>
+                                                    <View style={{ width: '48%', marginBottom: 10 }}>
+                                                        <View style={styles.buttonIconWrapper}>
+                                                            {kurtaCoatTuxInfo?.src ? (
+                                                                <Image source={{ uri: kurtaCoatTuxInfo.src }} style={{ width: 78, height: 78, borderRadius: 10 }} resizeMode="contain" />
+                                                            ) : (
+                                                                <View style={{ width: 60, height: 60, borderRadius: 12, backgroundColor: '#888' }} />
+                                                            )}
+                                                        </View>
+                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
+                                                            {kurtaCoatTuxInfo?.name || 'Selected'}
+                                                        </Text>
+                                                    </View>
+
+                                                    <View style={{ width: '48%', marginBottom: 10 }}>
+                                                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => openFabricInfo(kurtaCoatTuxInfo || { name: 'Tuxedo Fabric' })}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                                                                <View style={styles.dot} />
+                                                                <View style={styles.dot} />
+                                                                <View style={styles.dot} />
+                                                            </View>
+                                                        </TouchableOpacity>
+                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
+                                                            More{"\n"}options
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        )}
                                         <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>{section.title}</Text>
                                         <View style={styles.optionRow}>
                                             {section.options.map((opt) => {
@@ -1897,8 +1931,38 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     )}
                 </View>
 
+                {/* --- SKIN TONE PANEL --- */}
+                <View style={[StyleSheet.absoluteFill, { opacity: activePanel === 'Skin Tone' ? 1 : 0, zIndex: activePanel === 'Skin Tone' ? 10 : 0 }]} pointerEvents={activePanel === 'Skin Tone' ? 'auto' : 'none'}>
+                    <ScrollView {...PANEL_SCROLL_PROPS} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 50 }}>
+                        <Text style={[styles.sectionTitle, { marginBottom: 15 }]}>Choose Model</Text>
+                        <View style={styles.optionRow}>
+                            {SKIN_TONE_OPTIONS.map((opt) => {
+                                const isActive = selections.skinTone === opt.value;
+                                return (
+                                    <View key={opt.label} style={{ width: '100%', marginBottom: 15 }}>
+                                        <TouchableOpacity
+                                            style={[styles.styleOption, isActive && styles.activeStyleOption, { padding: 0, overflow: 'hidden' }]}
+                                            onPress={() => handleStyleChange('skinTone', opt.value)}
+                                        >
+                                            <Image 
+                                                source={opt.image} 
+                                                style={{ 
+                                                    width: '100%', 
+                                                    height: '100%',
+                                                }}
+                                                resizeMode="cover"
+                                            />
+                                        </TouchableOpacity>
+                                        <Text style={[styles.optionLabel, { color: isActive ? '#000' : '#555' }]}>{opt.label}</Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </ScrollView>
+                </View>
+
                 {/* --- DEFAULT PANEL --- */}
-                {activePanel !== 'Fabric' && activePanel !== 'Style' && activePanel !== 'Embroidery' && (
+                {activePanel !== 'Fabric' && activePanel !== 'Style' && activePanel !== 'Embroidery' && activePanel !== 'Skin Tone' && (
                     <View style={[StyleSheet.absoluteFill, { opacity: 1, zIndex: 1 }]} pointerEvents="auto">
                         <Text style={styles.panelContent}>Select a category to customize.</Text>
                     </View>
@@ -2081,46 +2145,54 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                         },
                     ]}
                 >
-                    {EXTRAS_TRAY_ITEMS.map(({ id, Icon, label }) => (
-                        <Animated.View
-                            key={id}
-                            style={{
-                                opacity: extrasTrayAnim.interpolate({
-                                    inputRange: [0, 0.4, 1],
-                                    outputRange: [0, 0.2, 1],
-                                }),
-                                transform: [
-                                    {
-                                        translateY: extrasTrayAnim.interpolate({
-                                            inputRange: [0, 1],
-                                            outputRange: [16 * (id + 1), 0],
-                                        }),
-                                    },
-                                ],
-                            }}
-                        >
-                            <TouchableOpacity
-                                style={[styles.extrasTraySlot, effectiveTV && { width: normalize(40), height: normalize(40), borderRadius: normalize(8) }]}
-                                activeOpacity={0.85}
-                                onPress={() => {
-                                    if (id === 0) {
-                                        setSummaryTab(fabricTab || 'Kurta');
-                                        setSummaryOpen(true);
-                                        animateExtrasTray(false);
-                                        return;
-                                    }
-                                    if (id === 2) {
-                                        handleSharePreset();
-                                        animateExtrasTray(false);
-                                        return;
-                                    }
+                    {EXTRAS_TRAY_ITEMS.map(({ id, Icon, label }) => {
+                        const isActive = (id === 3 && activePanel === 'Skin Tone') || (id === 0 && isSummaryOpen);
+                        return (
+                            <Animated.View
+                                key={id}
+                                style={{
+                                    opacity: extrasTrayAnim.interpolate({
+                                        inputRange: [0, 0.4, 1],
+                                        outputRange: [0, 0.2, 1],
+                                    }),
+                                    transform: [
+                                        {
+                                            translateY: extrasTrayAnim.interpolate({
+                                                inputRange: [0, 1],
+                                                outputRange: [16 * (id + 1), 0],
+                                            }),
+                                        },
+                                    ],
                                 }}
                             >
-                                <Icon width={effectiveTV ? normalize(24) : 40} height={effectiveTV ? normalize(24) : 40} />
-                                <Text style={[styles.extrasTraySlotLabel, effectiveTV && { fontSize: normalize(7) }]}>{label}</Text>
-                            </TouchableOpacity>
-                        </Animated.View>
-                    ))}
+                                <TouchableOpacity
+                                    style={[styles.extrasTraySlot, isActive && styles.iconButtonActive, effectiveTV && { width: normalize(40), height: normalize(40), borderRadius: normalize(8) }]}
+                                    activeOpacity={0.85}
+                                    onPress={() => {
+                                        if (id === 0) {
+                                            setSummaryTab(fabricTab || 'Kurta');
+                                            setSummaryOpen(true);
+                                            animateExtrasTray(false);
+                                            return;
+                                        }
+                                        if (id === 2) {
+                                            handleSharePreset();
+                                            animateExtrasTray(false);
+                                            return;
+                                        }
+                                        if (id === 3) {
+                                            togglePanel('Skin Tone');
+                                            animateExtrasTray(false);
+                                            return;
+                                        }
+                                    }}
+                                >
+                                    <Icon width={effectiveTV ? normalize(18) : 24} height={effectiveTV ? normalize(18) : 24} fill={isActive ? '#fff' : '#14213D'} />
+                                    <Text style={[styles.extrasTraySlotLabel, isActive && { color: '#fff' }, effectiveTV && { fontSize: normalize(7) }]}>{label}</Text>
+                                </TouchableOpacity>
+                            </Animated.View>
+                        );
+                    })}
                 </Animated.View>
 
                 <TouchableOpacity

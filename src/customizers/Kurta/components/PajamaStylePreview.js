@@ -14,6 +14,7 @@ export default function PajamaStylePreview({ selections, selectedPajamaFabric })
     const pajamaType = selections?.pajamaType || "PJ";
     const beltType = selections?.beltType || "R";
 
+
     // Yahan aap apne screens ke hisab se width/height 
     // manually edit kar sakte hain taaki testing aasan ho.
     const getDynamicPajamaStyle = () => {
