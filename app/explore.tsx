@@ -57,13 +57,19 @@ export default function ExploreScreen() {
     const [selectedCategory, setSelectedCategory] = useState('ALL');
     const [selectedItemType, setSelectedItemType] = useState('ALL');
     const [selectedCustomStatus, setSelectedCustomStatus] = useState('ALL');
+    const [selectedOccasion, setSelectedOccasion] = useState('ALL');
     
     // Modal State
-    const [activeModal, setActiveModal] = useState<null | 'CATEGORY' | 'TYPE' | 'STATUS'>(null);
+    const [isSmartFilterVisible, setIsSmartFilterVisible] = useState(false);
 
     const CATEGORY_OPTIONS = ['ALL', 'SUIT', 'KURTA', 'FORMAL'];
     const TYPE_OPTIONS = ['ALL', 'SINGLE ITEM', 'SET'];
     const STATUS_OPTIONS = ['ALL', 'CUSTOMIZABLE', 'STANDARD'];
+    const OCCASION_OPTIONS = [
+        'ALL', 'HALDI', 'MEHENDI', 'SANGEET', 'WEDDING', 
+        'RECEPTION', 'EID', 'DIWALI', 'PARTY', 'CASUAL', 
+        'FORMAL', 'INTERVIEW'
+    ];
 
     // Enable LayoutAnimation on Android
     if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -105,7 +111,14 @@ export default function ExploreScreen() {
             filtered = filtered.filter(p => p.customize === isCustom);
         }
 
-        // 4. Search Query
+        // 4. Occasion Filter
+        if (selectedOccasion !== 'ALL') {
+            filtered = filtered.filter(p => 
+                (p.occasion || '').toLowerCase().includes(selectedOccasion.toLowerCase())
+            );
+        }
+
+        // 5. Search Query
         if (searchQuery.trim() !== '') {
             filtered = filtered.filter(p => 
                 p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -131,141 +144,148 @@ export default function ExploreScreen() {
                 <View style={{ width: 40 }} />
             </View>
 
-            {/* Row 2: Interaction Row (Filters + Search) */}
+            {/* Row 2: Interaction Row (Smart Filter + Search) */}
             <View style={styles.interactionRow}>
-                {!isSearchFocused ? (
-                    <View style={styles.combinedRow}>
-                        <View style={styles.filtersGroup}>
-                            <TouchableOpacity 
-                                style={styles.smallFilterBtn}
-                                onPress={() => setActiveModal('CATEGORY')}
-                            >
-                                <Text 
-                                    style={styles.smallFilterText} 
-                                    numberOfLines={1}
-                                    adjustsFontSizeToFit={true}
-                                    minimumFontScale={0.8}
-                                >
-                                    {selectedCategory}
-                                </Text>
-                                <Ionicons name="chevron-down" size={14} color="#D4A843" />
+                <View style={styles.smartInteractionContainer}>
+                    <TouchableOpacity 
+                        style={styles.smartFilterBtn}
+                        onPress={() => setIsSmartFilterVisible(true)}
+                    >
+                        <Ionicons name="options-outline" size={18} color="#FFFFFF" />
+                        <Text style={styles.smartFilterText}>Smart Filter</Text>
+                    </TouchableOpacity>
+                    
+                    <View style={styles.smartSearchContainer}>
+                        <Ionicons name="search-outline" size={18} color="#64748b" />
+                        <TextInput
+                            style={styles.smartSearchInput}
+                            placeholder="Search styles..."
+                            placeholderTextColor="#94a3b8"
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                <Ionicons name="close-circle" size={18} color="#cbd5e1" />
                             </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={styles.smallFilterBtn}
-                                onPress={() => setActiveModal('TYPE')}
-                            >
-                                <Text 
-                                    style={styles.smallFilterText} 
-                                    numberOfLines={1}
-                                    adjustsFontSizeToFit={true}
-                                    minimumFontScale={0.8}
-                                >
-                                    {selectedItemType}
-                                </Text>
-                                <Ionicons name="chevron-down" size={14} color="#D4A843" />
-                            </TouchableOpacity>
-                            <TouchableOpacity 
-                                style={styles.smallFilterBtn}
-                                onPress={() => setActiveModal('STATUS')}
-                            >
-                                <Text 
-                                    style={styles.smallFilterText} 
-                                    numberOfLines={1}
-                                    adjustsFontSizeToFit={true}
-                                    minimumFontScale={0.8}
-                                >
-                                    {selectedCustomStatus}
-                                </Text>
-                                <Ionicons name="chevron-down" size={14} color="#D4A843" />
-                            </TouchableOpacity>
-                        </View>
-                        
-                        <TouchableOpacity 
-                            style={styles.searchInitiator}
-                            onPress={() => {
-                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                                setIsSearchFocused(true);
-                            }}
-                        >
-                            <Ionicons name="search-outline" size={20} color="#D4A843" />
-                        </TouchableOpacity>
+                        )}
                     </View>
-                ) : (
-                    <View style={styles.searchContainerFull}>
-                        <View style={styles.searchInnerMain}>
-                            <Ionicons name="search-outline" size={20} color="#64748b" style={styles.searchIcon} />
-                            <TextInput
-                                style={styles.searchInputField}
-                                placeholder="Search for styles..."
-                                placeholderTextColor="#64748b"
-                                autoFocus={true}
-                                value={searchQuery}
-                                onChangeText={setSearchQuery}
-                            />
-                            <TouchableOpacity 
-                                onPress={() => {
-                                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                                    setIsSearchFocused(false);
-                                    setSearchQuery('');
-                                }}
-                            >
-                                <Ionicons name="close-circle" size={22} color="#64748b" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
+                </View>
             </View>
 
-            {/* Filter Selection Modal */}
             <Modal
                 transparent={true}
-                visible={!!activeModal}
+                visible={isSmartFilterVisible}
                 animationType="slide"
-                onRequestClose={() => setActiveModal(null)}
+                onRequestClose={() => setIsSmartFilterVisible(false)}
             >
-                <Pressable 
-                    style={styles.modalOverlay} 
-                    onPress={() => setActiveModal(null)}
-                >
+                <View style={styles.modalOverlay}>
+                    <Pressable 
+                        style={StyleSheet.absoluteFill} 
+                        onPress={() => setIsSmartFilterVisible(false)} 
+                    />
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
-                                {activeModal === 'CATEGORY' ? 'Select Category' : 
-                                 activeModal === 'TYPE' ? 'Select Item Type' : 'Select Status'}
-                            </Text>
-                            <TouchableOpacity onPress={() => setActiveModal(null)}>
+                            <Text style={styles.modalTitle}>Smart Filters</Text>
+                            <TouchableOpacity onPress={() => setIsSmartFilterVisible(false)}>
                                 <Ionicons name="close" size={24} color="#0f172a" />
                             </TouchableOpacity>
                         </View>
 
-                        <View style={styles.optionsList}>
-                            {(activeModal === 'CATEGORY' ? CATEGORY_OPTIONS : 
-                              activeModal === 'TYPE' ? TYPE_OPTIONS : STATUS_OPTIONS).map((option) => {
-                                const isSelected = (activeModal === 'CATEGORY' && selectedCategory === option) ||
-                                                 (activeModal === 'TYPE' && selectedItemType === option) ||
-                                                 (activeModal === 'STATUS' && selectedCustomStatus === option);
-                                
-                                return (
-                                    <TouchableOpacity 
-                                        key={option}
-                                        style={[styles.optionItem, isSelected && styles.optionItemSelected]}
-                                        onPress={() => {
-                                            if (activeModal === 'CATEGORY') setSelectedCategory(option);
-                                            if (activeModal === 'TYPE') setSelectedItemType(option);
-                                            if (activeModal === 'STATUS') setSelectedCustomStatus(option);
-                                            setActiveModal(null);
-                                        }}
-                                    >
-                                        <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
-                                            {option}
-                                        </Text>
-                                        {isSelected && <Ionicons name="checkmark-circle" size={20} color={CustomTheme.accentGold} />}
-                                    </TouchableOpacity>
-                                );
-                            })}
+                        <ScrollView 
+                            style={styles.filterScrollView}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>Category</Text>
+                                <View style={styles.filterOptionsRow}>
+                                    {CATEGORY_OPTIONS.map((option) => (
+                                        <TouchableOpacity 
+                                            key={option}
+                                            style={[styles.chip, selectedCategory === option && styles.chipSelected]}
+                                            onPress={() => setSelectedCategory(option)}
+                                        >
+                                            <Text style={[styles.chipText, selectedCategory === option && styles.chipTextSelected]}>
+                                                {option}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>Item Type</Text>
+                                <View style={styles.filterOptionsRow}>
+                                    {TYPE_OPTIONS.map((option) => (
+                                        <TouchableOpacity 
+                                            key={option}
+                                            style={[styles.chip, selectedItemType === option && styles.chipSelected]}
+                                            onPress={() => setSelectedItemType(option)}
+                                        >
+                                            <Text style={[styles.chipText, selectedItemType === option && styles.chipTextSelected]}>
+                                                {option}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>Status</Text>
+                                <View style={styles.filterOptionsRow}>
+                                    {STATUS_OPTIONS.map((option) => (
+                                        <TouchableOpacity 
+                                            key={option}
+                                            style={[styles.chip, selectedCustomStatus === option && styles.chipSelected]}
+                                            onPress={() => setSelectedCustomStatus(option)}
+                                        >
+                                            <Text style={[styles.chipText, selectedCustomStatus === option && styles.chipTextSelected]}>
+                                                {option}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>Occasion</Text>
+                                <View style={styles.filterOptionsRow}>
+                                    {OCCASION_OPTIONS.map((option) => (
+                                        <TouchableOpacity 
+                                            key={option}
+                                            style={[styles.chip, selectedOccasion === option && styles.chipSelected]}
+                                            onPress={() => setSelectedOccasion(option)}
+                                        >
+                                            <Text style={[styles.chipText, selectedOccasion === option && styles.chipTextSelected]}>
+                                                {option}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                        <View style={styles.modalFooter}>
+                            <TouchableOpacity 
+                                style={styles.resetAllBtn}
+                                onPress={() => {
+                                    setSelectedCategory('ALL');
+                                    setSelectedItemType('ALL');
+                                    setSelectedCustomStatus('ALL');
+                                    setSelectedOccasion('ALL');
+                                }}
+                            >
+                                <Text style={styles.resetAllText}>Reset All</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={styles.applyBtn}
+                                onPress={() => setIsSmartFilterVisible(false)}
+                            >
+                                <Text style={styles.applyBtnText}>Apply Filters</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
-                </Pressable>
+                </View>
             </Modal>
 
             {/* Results Grid */}
@@ -296,7 +316,7 @@ export default function ExploreScreen() {
                             <Text style={styles.emptySub}>Try adjusting your search or filters</Text>
                             <TouchableOpacity 
                                 style={styles.resetBtn}
-                                onPress={() => { setSearchQuery(''); setIsSearchFocused(false); }}
+                                onPress={() => { setSearchQuery(''); }}
                             >
                                 <Text style={styles.resetBtnText}>Clear All</Text>
                             </TouchableOpacity>
@@ -337,67 +357,50 @@ const styles = StyleSheet.create({
     },
     interactionRow: {
         paddingHorizontal: 16,
-        paddingBottom: 12,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
+        marginBottom: 16,
     },
-    combinedRow: {
+    smartInteractionContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        gap: 10,
+    },
+    smartFilterBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#18130F',
+        paddingHorizontal: 14,
+        height: 48,
+        borderRadius: 14,
         gap: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
-    filtersGroup: {
-        flex: 1,
-        flexDirection: 'row',
-        gap: 6,
-    },
-     smallFilterBtn: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 4,
-        backgroundColor: '#f8fafc',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        gap: 2,
-    },
-    smallFilterText: {
-        fontSize: 11,
+    smartFilterText: {
+        color: '#FFFFFF',
+        fontSize: 13,
         fontWeight: '800',
-        color: '#334155',
+        letterSpacing: 0.3,
     },
-    searchInitiator: {
-        width: 40,
-        height: 40,
-        borderRadius: 8,
-        backgroundColor: '#f1f5f9',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    searchContainerFull: {
-        width: '100%',
-    },
-    searchInnerMain: {
+    smartSearchContainer: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f1f5f9',
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        height: 40,
+        backgroundColor: '#F8FAFC',
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        height: 48,
     },
-    searchIcon: {
-        marginRight: 8,
-    },
-    searchInputField: {
+    smartSearchInput: {
         flex: 1,
+        marginLeft: 10,
         fontSize: 14,
-        color: '#0f172a',
         fontWeight: '600',
+        color: '#1E293B',
     },
     gridContainer: {
         padding: 16,
@@ -410,20 +413,21 @@ const styles = StyleSheet.create({
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.6)',
         justifyContent: 'flex-end',
     },
     modalContent: {
         backgroundColor: '#fff',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        paddingBottom: 40,
-        maxHeight: '60%',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        maxHeight: '85%',
+        minHeight: '50%',
+        paddingBottom: Platform.OS === 'ios' ? 30 : 10,
     },
     modalHeader: {
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'space-between',
+        alignItems: 'center',
         padding: 20,
         borderBottomWidth: 1,
         borderBottomColor: '#f1f5f9',
@@ -433,29 +437,90 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: '#0f172a',
     },
-    optionsList: {
-        padding: 16,
+    filterScrollView: {
+        flex: 1,
+        padding: 20,
     },
-    optionItem: {
+    filterSection: {
+        marginBottom: 32,
+    },
+    filterSectionTitle: {
+        fontSize: 13,
+        fontWeight: '900',
+        color: '#18130F',
+        marginBottom: 16,
+        textTransform: 'uppercase',
+        letterSpacing: 1.2,
+    },
+    filterOptionsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginHorizontal: -4,
+    },
+    chip: {
+        width: '47%',
+        margin: '1.5%',
+        paddingVertical: 12,
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    chipSelected: {
+        backgroundColor: '#18130F',
+        borderColor: '#18130F',
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    chipText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#64748B',
+        letterSpacing: 0.4,
+    },
+    chipTextSelected: {
+        color: '#FFFFFF',
+    },
+    modalFooter: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-        paddingHorizontal: 12,
-        borderRadius: 12,
-        marginBottom: 8,
+        padding: 20,
+        gap: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+        backgroundColor: '#fff',
     },
-    optionItemSelected: {
-        backgroundColor: '#f8fafc',
+    applyBtn: {
+        flex: 2,
+        backgroundColor: '#18130F',
+        paddingVertical: 14,
+        borderRadius: 14,
+        alignItems: 'center',
     },
-    optionText: {
+    applyBtnText: {
+        color: '#fff',
         fontSize: 15,
-        fontWeight: '700',
-        color: '#64748b',
-        textTransform: 'capitalize',
+        fontWeight: '800',
     },
-    optionTextSelected: {
-        color: '#0f172a',
+    resetAllBtn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 14,
+        backgroundColor: '#F1F5F9',
+        alignItems: 'center',
+    },
+    resetAllText: {
+        color: '#64748B',
+        fontSize: 14,
+        fontWeight: '700',
     },
     loaderContainer: {
         flex: 1,

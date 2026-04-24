@@ -95,7 +95,8 @@ export async function fetchAllPresets(category = null) {
         category: (data.category || 'suit').toLowerCase(),
         discount: data.discount || 0,
         customize: data.customize !== undefined ? data.customize : false,
-        itemType: (componentCount > 1 || isSetCategory) ? 'set' : 'single'
+        itemType: (componentCount > 1 || isSetCategory) ? 'set' : 'single',
+        occasion: data.occasion || ''
       };
 
       // Client-side category filtering for more flexibility with tab names

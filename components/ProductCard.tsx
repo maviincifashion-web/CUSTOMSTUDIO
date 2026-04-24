@@ -68,8 +68,10 @@ export const ProductCard = ({ product, cardWidth, style }: ProductCardProps) => 
                 <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
                 <View style={styles.productFooter}>
                     <View style={styles.priceRow}>
-                        <Text style={styles.productPrice}>₹{product.price}</Text>
-                        {product.discount > 0 && (
+                        <Text style={styles.productPrice}>
+                            ₹{Math.round(Number(product.price || 0) * (1 - Number(product.discount || 0) / 100))}
+                        </Text>
+                        {Number(product.discount) > 0 && (
                             <Text style={styles.priceDiscountText}>{product.discount}% OFF</Text>
                         )}
                     </View>
@@ -130,6 +132,11 @@ const styles = StyleSheet.create({
         color: '#27ae60',
         fontSize: 11,
         fontWeight: '800',
+    },
+    originalPrice: {
+        fontSize: 12,
+        color: '#94a3b8',
+        textDecorationLine: 'line-through',
     },
     customizableBadge: {
         position: 'absolute',

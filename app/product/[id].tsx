@@ -622,8 +622,9 @@ export default function ProductDetailScreen() {
     const heroImage = uploadedProductImages[safeActiveImageIndex] || null;
     const productName = summarizeValue(product?.name) || 'Untitled Design';
     const categoryLabel = (summarizeValue(product?.category) || 'Preset').toUpperCase();
-    const displayPrice = formatCurrency(product?.price);
     const discountValue = parseNumber(product?.discount);
+    const sellingPrice = Math.round(parseNumber(product?.price) * (1 - discountValue / 100));
+    const displayPrice = formatCurrency(sellingPrice);
     const fabricDetails = useMemo(
         () => dedupeStrings(extractDisplayList(product?.fabric).concat(extractDisplayList(product?.fabrics))),
         [product]
@@ -671,14 +672,14 @@ export default function ProductDetailScreen() {
 
 
 
-    const estimatedDeliveryLabel = useMemo(() => {
+    const estDeliveryDate = useMemo(() => {
         const d = new Date();
         d.setDate(d.getDate() + 12);
         const weekday = d.toLocaleDateString('en-IN', { weekday: 'short' });
         const day = d.toLocaleDateString('en-IN', { day: '2-digit' });
         const month = d.toLocaleDateString('en-IN', { month: 'short' });
         const year = d.toLocaleDateString('en-IN', { year: '2-digit' });
-        return `Est. delivery by ${weekday}, ${day} ${month} ${year}`;
+        return `${weekday}, ${day} ${month} ${year}`;
     }, []);
 
     const attributeFields = useMemo(
@@ -872,18 +873,26 @@ export default function ProductDetailScreen() {
                     <View style={styles.summaryCard}>
                         <View style={styles.summaryTopRow}>
                             <View style={styles.summaryHeadingWrap}>
-                                <Text style={styles.sectionEyebrow}>{categoryLabel}</Text>
-                                <Text style={styles.summaryTitle}>{productName}</Text>
+                                <Text style={styles.summaryTitle} numberOfLines={2}>{productName}</Text>
                                 <View style={styles.deliveryBadge}>
-                                    <MaterialIcons name="local-shipping" size={14} color="#8A5A12" />
-                                    <Text style={styles.deliveryText}>{estimatedDeliveryLabel}</Text>
+                                    <Ionicons name="time-outline" size={normalize(12)} color="#8A5A12" />
+                                    <Text style={styles.deliveryText}>Est. Delivery: {estDeliveryDate}</Text>
                                 </View>
                             </View>
+                        </View>
 
-                            <View style={styles.summaryPriceWrap}>
-                                <Text style={styles.summaryPrice}>{displayPrice}</Text>
-                                {discountValue > 0 ? <Text style={styles.summaryDiscount}>{discountValue}% OFF</Text> : null}
-                            </View>
+                        <View style={styles.priceRow}>
+                            <Text style={styles.summaryPrice}>{displayPrice}</Text>
+                            {discountValue > 0 && (
+                                <>
+                                    <Text style={styles.originalPrice}>
+                                        {formatCurrency(parseNumber(product?.price))}
+                                    </Text>
+                                    <View style={styles.discountBadge}>
+                                        <Text style={styles.discountBadgeText}>{discountValue}% off</Text>
+                                    </View>
+                                </>
+                            )}
                         </View>
 
                         {customizationAvailable ? (
@@ -916,16 +925,12 @@ export default function ProductDetailScreen() {
                         ) : null}
                     </View>
 
-
-
                     {fabricProfiles.length > 0 && activeFabric ? (
                         <View style={styles.summaryCard}>
                             <View style={styles.summaryTopRow}>
                                 <View style={styles.summaryHeadingWrap}>
                                     <Text style={styles.sectionEyebrow}>FABRIC INFO</Text>
                                 </View>
-
-
                             </View>
 
                             {fabricProfiles.length > 1 ? (
@@ -1156,10 +1161,6 @@ export default function ProductDetailScreen() {
                             </View>
                         ))}
                     </View>
-
-
-
-
 
                     <View style={styles.bottomSpacer} />
                 </View>
@@ -1451,10 +1452,6 @@ const styles = StyleSheet.create({
         flex: 1,
         gap: 6,
     },
-    summaryPriceWrap: {
-        alignItems: 'flex-end',
-        gap: 4,
-    },
     summaryTitle: {
         color: '#18130F',
         fontSize: 24,
@@ -1462,15 +1459,33 @@ const styles = StyleSheet.create({
         lineHeight: 28,
     },
     summaryPrice: {
-        color: '#18130F',
-        fontSize: 20,
+        fontSize: 26,
         fontWeight: '900',
+        color: '#000000',
     },
-    summaryDiscount: {
-        color: '#8A5A12',
-        fontSize: 11,
-        fontWeight: '900',
-        letterSpacing: 0.8,
+    priceRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        marginBottom: 16,
+    },
+    originalPrice: {
+        fontSize: 15,
+        color: '#64748B',
+        textDecorationLine: 'line-through',
+        marginLeft: 10,
+        fontWeight: '500',
+    },
+    discountBadge: {
+        backgroundColor: '#008000',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 2,
+        marginLeft: 10,
+    },
+    discountBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
     },
     sectionEyebrow: {
         color: '#8A5A12',
@@ -1478,13 +1493,6 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         letterSpacing: 1.1,
         textTransform: 'uppercase',
-    },
-    sectionSubtitle: {
-        color: '#7A6752',
-        fontSize: 14,
-        lineHeight: 21,
-        marginTop: 6,
-        marginBottom: 14,
     },
     customizeBadge: {
         flexDirection: 'row',
@@ -1522,7 +1530,6 @@ const styles = StyleSheet.create({
         marginTop: 2,
         fontWeight: '700',
     },
-
     summaryAttributesSection: {
         marginTop: 10,
         gap: 6,
@@ -1556,7 +1563,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         letterSpacing: -0.2,
     },
-
     paymentHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -1671,7 +1677,22 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
     },
-
+    codInfoBox: {
+        flexDirection: 'row',
+        backgroundColor: '#FFF8ED',
+        padding: 10,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(138, 90, 18, 0.1)',
+        marginTop: 4,
+    },
+    codNoteText: {
+        flex: 1,
+        color: '#8A5A12',
+        fontSize: 11,
+        lineHeight: 16,
+        fontWeight: '500',
+    },
     policiesContainer: {
         marginTop: 12,
         paddingHorizontal: 4,
@@ -1716,23 +1737,6 @@ const styles = StyleSheet.create({
         lineHeight: 18,
         fontWeight: '500',
     },
-    codInfoBox: {
-        flexDirection: 'row',
-        backgroundColor: '#FFF8ED',
-        padding: 10,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(138, 90, 18, 0.1)',
-        marginTop: 4,
-    },
-    codNoteText: {
-        flex: 1,
-        color: '#8A5A12',
-        fontSize: 11,
-        lineHeight: 16,
-        fontWeight: '500',
-    },
-
     customizerFabricTabsRow: {
         flexDirection: 'row',
         backgroundColor: '#E8E1D5',
@@ -1769,7 +1773,6 @@ const styles = StyleSheet.create({
     customizerFabricTabTextActive: {
         color: '#18130F',
     },
-
     customizerBrandBanner: {
         flexDirection: 'row',
         alignSelf: 'flex-start',
@@ -1822,13 +1825,6 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
         textTransform: 'uppercase',
     },
-    customizerBrandSubText: {
-        marginTop: 2,
-        fontSize: 11,
-        color: '#64748B',
-        fontWeight: '700',
-        textTransform: 'uppercase',
-    },
     customizerInfoImageWrap: {
         marginBottom: 14,
     },
@@ -1868,9 +1864,6 @@ const styles = StyleSheet.create({
         marginTop: -2,
     },
     customizerInfoImageCounter: {
-        fontSize: 11,
-        fontWeight: '800',
-        color: '#18130F',
         backgroundColor: 'rgba(255, 255, 255, 0.85)',
         paddingHorizontal: 10,
         paddingVertical: 5,
