@@ -41,6 +41,7 @@ import { FirebaseCatalogProvider } from '../src/context/FirebaseCatalogContext';
 import { useResponsive } from '../hooks/useResponsive';
 import KurtaMain from '../src/customizers/Kurta/KurtaMain';
 import OutfitScreen from './(tabs)/outfit';
+import AppLogo from '../assets/images/bussiness/only logo-01.svg';
 
 export default function TVScreen() {
   const { width, height, normalize, isTV } = useResponsive();
@@ -132,8 +133,9 @@ export default function TVScreen() {
       {!isConnected ? (
         <SafeAreaView style={styles.container}>
           <View style={styles.content}>
-        <Text style={[styles.brandTitle, { fontSize: normalize(36), letterSpacing: normalize(8) }]}>MAVIINCI</Text>
-        <Text style={[styles.brandSub, { fontSize: normalize(15), letterSpacing: normalize(3) }]}>Bespoke Tailoring</Text>
+        <View style={styles.brandContainer}>
+          <AppLogo width={normalize(320)} height={normalize(120)} />
+        </View>
 
         {initError && (
           <View style={styles.errorCard}>
@@ -210,6 +212,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
   fullScreen: { flex: 1, backgroundColor: '#0a0a0a' },
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
+  brandContainer: { marginBottom: 40, alignItems: 'center' },
   brandTitle: { color: '#ffffff', fontSize: 36, fontWeight: '900', letterSpacing: 8, marginBottom: 4 },
   brandSub: { color: '#888', fontSize: 15, letterSpacing: 3, marginBottom: 40 },
   errorCard: { backgroundColor: '#2a0a0a', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#ff4444', width: '100%', maxWidth: 500, alignItems: 'center' },

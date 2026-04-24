@@ -195,6 +195,7 @@ export const INITIAL_SELECTION = {
     pajamaType: 'PJ',
     beltType: 'R',
     sadriType: 'SR',
+    sadriUpperPocket: '1',
     coatType: '1B',
     coatBackStyle: 'NV',
     coatLapel: 'N'

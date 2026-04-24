@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,8 @@ import {
     ScrollView,
     Image,
     ImageBackground,
-    TextInput
+    TextInput,
+    Animated
 } from 'react-native';
 import { router } from 'expo-router';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -20,6 +21,8 @@ import { useSharedValue } from 'react-native-reanimated';
 import { fetchTrendingPresets } from '../../src/firebase/TrendingApi';
 import { TESTIMONIALS_DATA } from '../../src/Data/testimonials';
 import SidebarDrawer from '../../components/SidebarDrawer';
+import AppLogo from '../../assets/images/bussiness/only logo-01.svg';
+import { ProductCard } from '../../components/ProductCard';
 
 const THEME = {
     background: '#0a0a0a',
@@ -192,7 +195,7 @@ export default function HomeScreen() {
                                 <View style={styles.heroOverlay}>
                                     {/* Top Bar for Sidebar Trigger (Notifications only now) */}
                                     <View style={styles.topHeader}>
-                                        <View style={{ width: 44 }} />
+                                        <AppLogo width={normalize(120)} height={normalize(40)} />
                                         <TouchableOpacity style={styles.notificationBtn}>
                                             <Ionicons name="notifications-outline" size={24} color="#fff" />
                                         </TouchableOpacity>
@@ -324,33 +327,11 @@ export default function HomeScreen() {
                         <>
                             <View style={styles.trendingGrid}>
                                 {trendingProducts.map((product) => (
-                                    <TouchableOpacity 
+                                    <ProductCard 
                                         key={product.id} 
-                                        style={styles.trendingCard}
-                                        onPress={() => router.push(product.category === 'kurta' ? '/kurta' : '/outfit')}
-                                    >
-                                        <View style={styles.trendingImageContainer}>
-                                            <Image 
-                                                source={product.image ? { uri: product.image } : require('../../assets/images/hero_banner.jpg')} 
-                                                style={styles.trendingImage} 
-                                            />
-                                            {product.discount > 0 && (
-                                                <View style={styles.discountBadge}>
-                                                    <Text style={styles.discountText}>{product.discount}% OFF</Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                        <View style={styles.trendingContent}>
-                                            <Text style={styles.trendingName} numberOfLines={1}>{product.name}</Text>
-                                            <Text style={styles.trendingPrice}>₹{product.price}</Text>
-                                            <TouchableOpacity 
-                                                style={[styles.trendingMiniBtn, !product.customize && { backgroundColor: "#333" }]}
-                                                onPress={() => router.push(product.category === 'kurta' ? '/kurta' : '/outfit')}
-                                            >
-                                                <Text style={styles.trendingMiniBtnText}>{product.customize ? "CUSTOMIZE" : "BUY NOW"}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </TouchableOpacity>
+                                        product={product} 
+                                        cardWidth="47%" 
+                                    />
                                 ))}
                             </View>
 
@@ -601,63 +582,6 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         paddingHorizontal: 15,
         justifyContent: 'space-between',
-    },
-    trendingCard: {
-        width: '47%',
-        backgroundColor: '#fff',
-        marginBottom: 20,
-        borderRadius: 8,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#f0f0f0',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-        elevation: 2,
-    },
-    trendingImageContainer: {
-        height: 200,
-        backgroundColor: '#f9f9f9',
-    },
-    trendingImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    discountBadge: {
-        position: 'absolute',
-        top: 10,
-        left: 10,
-        backgroundColor: '#D4A843',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 2,
-    },
-    discountText: {
-        color: '#fff',
-        fontSize: 10,
-        fontWeight: '900',
-    },
-    trendingContent: {
-        padding: 10,
-    },
-    trendingName: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#000',
-        marginBottom: 4,
-    },
-    trendingPrice: {
-        fontSize: 12,
-        color: '#666',
-        marginBottom: 8,
-    },
-    trendingMiniBtn: {
-        backgroundColor: '#000',
-        paddingVertical: 6,
-        borderRadius: 4,
-        alignItems: 'center',
     },
     trendingMiniBtnText: {
         color: '#fff',

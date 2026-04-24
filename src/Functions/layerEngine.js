@@ -1,8 +1,11 @@
+import { hasSadriRightBaseEmbroidery } from '../customizers/Kurta/utils/sadriUpperPocket';
+
 const SHIRT_COLLARS = ['CR', 'CB', 'CT', 'CS', 'CE'];
 const MANDARIN_COLLARS = ['CM', 'CC', 'CN'];
 const CATEGORY_A_SADRI = ['SR', 'RR', 'SS', 'AA', 'BB', 'CC', 'DD', 'EE', 'FF', 'GG', 'HH', 'KK'];
 const CATEGORY_B_BASE_TYPES = ['L', 'M', 'N'];
 const JODHPURI_COAT_TYPES = ['JH', 'JR', 'JS'];
+const SADRI_UPPER_POCKET_BLOCKED_TYPES = new Set(['SS', 'AA', 'CC', 'DD', 'EE', 'N']);
 
 const isShirtCollar = (collar) => SHIRT_COLLARS.includes(collar);
 const isMandarinCollar = (collar) => MANDARIN_COLLARS.includes(collar);
@@ -46,6 +49,9 @@ export const getSadriLayerCodes = (
     const collar = selections.collar || 'CM';
     const isCategoryA = CATEGORY_A_SADRI.includes(sadriCode);
     const categoryPrefix = sadriCode?.charAt(0);
+    const sadriTypeRaw = String(sadriCode || '').trim().toUpperCase();
+    const allowSadriCollarEmbroidery = !CATEGORY_B_BASE_TYPES.includes(sadriTypeRaw)
+        && !CATEGORY_B_BASE_TYPES.includes(String(categoryPrefix || '').trim().toUpperCase());
 
     let finalSadriCode = sadriCode;
     if (!isCategoryA) {
@@ -57,6 +63,7 @@ export const getSadriLayerCodes = (
     }
 
     const layersToRender = [];
+    let sadriHasRightBaseEmbroidery = false;
     const addGarmentPart = (partName, fabricCode, baseZIndex, type = 'sadri_fabric') => {
         layersToRender.push({ code: fabricCode, zIndex: baseZIndex, type });
 
@@ -67,29 +74,41 @@ export const getSadriLayerCodes = (
                 coll?.sadriChestLeft?.[code] || coll?.sadriChestRight?.[code]
             ) || `E${finalSadriCode}`;
             const leftAsset = coll?.sadriChestLeft?.[embCode] || coll?.sadriChestRight?.[embCode];
-            const rightAsset = coll?.sadriChestRight?.[embCode] || coll?.sadriChestLeft?.[embCode];
+            const rightAsset = coll?.sadriChestRight?.[embCode];
             if (leftAsset) {
                 layersToRender.push({
                     code: embCode,
                     zIndex: baseZIndex + 1,
                     type: 'sadri_embroidery_left',
                     collectionID: selections.sadriEmbroideryID,
-                    part: partName
+                    part: partName,
+                    sadriAllowCollarEmbroidery: allowSadriCollarEmbroidery,
                 });
             }
+            sadriHasRightBaseEmbroidery = hasSadriRightBaseEmbroidery(
+                coll,
+                selections.sadriEmbroideryCollection
+            );
             if (rightAsset) {
                 layersToRender.push({
                     code: embCode,
                     zIndex: baseZIndex + 2,
                     type: 'sadri_embroidery_right',
                     collectionID: selections.sadriEmbroideryID,
-                    part: partName
+                    part: partName,
+                    sadriAllowCollarEmbroidery: allowSadriCollarEmbroidery,
                 });
             }
         }
     };
 
     addGarmentPart('SadriBase', `${finalSadriCode}${bSuffix}`, 85, 'sadri_fabric');
+
+    // Sadri upper pocket toggle (same behavior pattern as coat UP1 layer).
+    const allowSadriUpperPocket = !SADRI_UPPER_POCKET_BLOCKED_TYPES.has(sadriTypeRaw);
+    if (allowSadriUpperPocket && !sadriHasRightBaseEmbroidery && String(selections.sadriUpperPocket || '0') === '1') {
+        layersToRender.push({ code: `VPOCKET${bSuffix}`, zIndex: 88, type: 'sadri_fabric' });
+    }
 
     const hideSadriButtons = finalSadriCode === 'KK';
     if (!hideSadriButtons && selectedSadriButton?.material !== 'Ring') {

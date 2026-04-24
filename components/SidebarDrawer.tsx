@@ -19,6 +19,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
+import AppLogo from '../assets/images/bussiness/only logo-01.svg';
 
 
 
@@ -75,6 +76,10 @@ export default function SidebarDrawer({ isOpen, onClose }: SidebarDrawerProps) {
                 <Animated.View style={[styles.drawer, { width: drawerWidth }, animatedStyle]}>
                     <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
                     
+                    <View style={styles.logoContainer}>
+                        <AppLogo width={140} height={50} />
+                    </View>
+
                     <View style={styles.header}>
                         <View style={styles.profileImageContainer}>
                             <Image 
@@ -126,13 +131,17 @@ const styles = StyleSheet.create({
     drawer: {
         height: '100%',
         backgroundColor: '#1F1F1F',
-        paddingTop: 60,
+        paddingTop: 40,
         paddingHorizontal: 20,
         shadowColor: '#000',
         shadowOffset: { width: 4, height: 0 },
         shadowOpacity: 0.5,
         shadowRadius: 10,
         elevation: 10,
+    },
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: 20,
     },
     header: {
         alignItems: 'center',

@@ -1,4 +1,4 @@
-import { collection, query, limit, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, limit, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
 import { getFirestoreDb } from './config';
 
 /**
@@ -108,5 +108,34 @@ export async function fetchAllPresets(category = null) {
   } catch (error) {
     console.error('[TrendingApi] Error fetching all presets:', error);
     return [];
+  }
+}
+
+/**
+ * Fetch a single preset by its Firestore ID.
+ * @param {string} id The document ID in the 'Presets' collection
+ */
+export async function fetchPresetById(id) {
+  try {
+    const db = getFirestoreDb();
+    if (!db) return null;
+    
+    const docRef = doc(db, 'Presets', id);
+    const snap = await getDoc(docRef);
+    
+    if (!snap.exists()) return null;
+    
+    const data = snap.data();
+    return {
+      id: snap.id,
+      ...data,
+      name: data.name || 'Untitled Design',
+      price: data.price || '0',
+      image: data.src || null,
+      category: (data.category || 'suit').toLowerCase(),
+    };
+  } catch (error) {
+    console.error('[TrendingApi] Error fetching preset by id:', error);
+    return null;
   }
 }

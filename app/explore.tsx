@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -15,12 +15,14 @@ import {
     UIManager,
     Modal,
     FlatList,
+    Animated,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useResponsive } from '../hooks/useResponsive';
 import { fetchAllPresets } from '../src/firebase/TrendingApi';
 import { CustomTheme } from '../constants/theme';
+import { ProductCard } from '../components/ProductCard';
 
 // Removed CATEGORIES constant as per user request
 
@@ -146,7 +148,7 @@ export default function ExploreScreen() {
                                 >
                                     {selectedCategory}
                                 </Text>
-                                <Ionicons name="chevron-down" size={14} color="#64748b" />
+                                <Ionicons name="chevron-down" size={14} color="#D4A843" />
                             </TouchableOpacity>
                             <TouchableOpacity 
                                 style={styles.smallFilterBtn}
@@ -160,7 +162,7 @@ export default function ExploreScreen() {
                                 >
                                     {selectedItemType}
                                 </Text>
-                                <Ionicons name="chevron-down" size={14} color="#64748b" />
+                                <Ionicons name="chevron-down" size={14} color="#D4A843" />
                             </TouchableOpacity>
                             <TouchableOpacity 
                                 style={styles.smallFilterBtn}
@@ -174,7 +176,7 @@ export default function ExploreScreen() {
                                 >
                                     {selectedCustomStatus}
                                 </Text>
-                                <Ionicons name="chevron-down" size={14} color="#64748b" />
+                                <Ionicons name="chevron-down" size={14} color="#D4A843" />
                             </TouchableOpacity>
                         </View>
                         
@@ -185,7 +187,7 @@ export default function ExploreScreen() {
                                 setIsSearchFocused(true);
                             }}
                         >
-                            <Ionicons name="search-outline" size={20} color="#64748b" />
+                            <Ionicons name="search-outline" size={20} color="#D4A843" />
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -195,7 +197,7 @@ export default function ExploreScreen() {
                             <TextInput
                                 style={styles.searchInputField}
                                 placeholder="Search for styles..."
-                                placeholderTextColor="#94a3b8"
+                                placeholderTextColor="#64748b"
                                 autoFocus={true}
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
@@ -207,7 +209,7 @@ export default function ExploreScreen() {
                                     setSearchQuery('');
                                 }}
                             >
-                                <Ionicons name="close-circle" size={22} color="#94a3b8" />
+                                <Ionicons name="close-circle" size={22} color="#64748b" />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -279,36 +281,12 @@ export default function ExploreScreen() {
                 >
                     {filteredProducts.length > 0 ? (
                         <View style={styles.grid}>
-                            {filteredProducts.map(product => (
-                                <TouchableOpacity 
-                                    key={product.id}
-                                    style={styles.productCard}
-                                    activeOpacity={0.9}
-                                    onPress={() => router.push(product.category === 'kurta' ? '/kurta' : '/outfit')}
-                                >
-                                    <View style={styles.imageContainer}>
-                                        <Image 
-                                            source={product.image ? { uri: product.image } : require('../assets/images/hero_banner.jpg')} 
-                                            style={styles.productImage} 
-                                        />
-                                        {product.discount > 0 && (
-                                            <View style={styles.discountBadge}>
-                                                <Text style={styles.discountText}>{product.discount}% OFF</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                    <View style={styles.productContent}>
-                                        <Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
-                                        <View style={styles.productFooter}>
-                                            <Text style={styles.productPrice}>₹{product.price}</Text>
-                                            <View style={styles.customizeBtn}>
-                                                <Text style={styles.customizeBtnText}>
-                                                    {product.customize ? 'CUSTOMIZE' : 'BUY'}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                </TouchableOpacity>
+                            {filteredProducts.map((product) => (
+                                <ProductCard 
+                                    key={product.id} 
+                                    product={product} 
+                                    cardWidth="48%" 
+                                />
                             ))}
                         </View>
                     ) : (
@@ -477,73 +455,6 @@ const styles = StyleSheet.create({
         textTransform: 'capitalize',
     },
     optionTextSelected: {
-        color: '#0f172a',
-    },
-    productCard: {
-        width: '48%',
-        backgroundColor: '#fff',
-        marginBottom: 16,
-        borderRadius: 16,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#f1f5f9',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    imageContainer: {
-        height: 180,
-        backgroundColor: '#f8fafc',
-    },
-    productImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    discountBadge: {
-        position: 'absolute',
-        top: 10,
-        left: 10,
-        backgroundColor: CustomTheme.accentGold,
-        paddingHorizontal: 6,
-        paddingVertical: 3,
-        borderRadius: 4,
-    },
-    discountText: {
-        color: '#000',
-        fontSize: 10,
-        fontWeight: '900',
-    },
-    productContent: {
-        padding: 12,
-    },
-    productName: {
-        fontSize: 14,
-        fontWeight: '800',
-        color: '#0f172a',
-        marginBottom: 6,
-    },
-    productFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    productPrice: {
-        fontSize: 15,
-        fontWeight: '900',
-        color: '#1e293b',
-    },
-    customizeBtn: {
-        backgroundColor: '#f1f5f9',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    customizeBtnText: {
-        fontSize: 10,
-        fontWeight: '800',
         color: '#0f172a',
     },
     loaderContainer: {

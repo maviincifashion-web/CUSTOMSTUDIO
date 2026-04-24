@@ -161,6 +161,14 @@ export const KURTA_STYLE_OPTIONS = [
         ]
     },
     {
+        title: "UPPER POCKET", key: "sadriUpperPocket",
+        dependency: { isContextItem: "sadri" },
+        options: [
+            { label: "No Upper Pocket", value: "0", icon: IconCoatNoUpperPocket },
+            { label: "Upper Pocket", value: "1", icon: IconCoatUpperPocket }
+        ]
+    },
+    {
         title: "SINGLE BREASTED", key: "coatType",
         dependency: { isContextItem: "coat" },
         options: [

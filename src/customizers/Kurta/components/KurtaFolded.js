@@ -1,14 +1,12 @@
 // src/customizers/Kurta/components/KurtaFolded.js
 
-import React from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Image, StyleSheet } from 'react-native';
 
 // ENGINE & DATA IMPORTS
 import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 import { getKurtaFoldedEmbroideryLayers } from './KurtaEmbroideryLayers';
-import { useBufferedRenderScene } from './useBufferedRenderScene';
 
 const normalizeEmbKey = (value) => (value == null ? '' : String(value).trim().toLowerCase());
 
@@ -149,16 +147,60 @@ const pickFoldedEmbroiderySources = (bundle, collection, layerObj) => {
 
 // --- FLICKER-FREE LAYER COMPONENT ---
 const SmartLayer = ({ src, zIndex }) => {
-    if (!src) return null;
+    const [displaySrc, setDisplaySrc] = useState(src || null);
+    const [pendingSrc, setPendingSrc] = useState(null);
+    const [pendingToken, setPendingToken] = useState(0);
+    const tokenRef = useRef(0);
+
+    useEffect(() => {
+        if (!src) {
+            setDisplaySrc(null);
+            setPendingSrc(null);
+            return;
+        }
+
+        if (!displaySrc) {
+            setDisplaySrc(src);
+            return;
+        }
+
+        if (src !== displaySrc && src !== pendingSrc) {
+            tokenRef.current += 1;
+            setPendingSrc(src);
+            setPendingToken(tokenRef.current);
+        }
+    }, [src, displaySrc, pendingSrc]);
+
+    if (!displaySrc) return null;
 
     return (
-        <ExpoImage
-            source={src}
-            style={[styles.modelLayer, { zIndex }]}
-            contentFit="contain"
-            cachePolicy="memory-disk"
-            transition={0}
-        />
+        <>
+            <Image
+                source={displaySrc}
+                style={[styles.modelLayer, { zIndex: zIndex }]}
+                resizeMode="contain"
+            />
+            {pendingSrc ? (
+                <Image
+                    key={`pending-${pendingToken}`}
+                    source={pendingSrc}
+                    style={[styles.modelLayer, { zIndex: zIndex, opacity: 0 }]}
+                    resizeMode="contain"
+                    onLoad={() => {
+                        if (pendingToken === tokenRef.current) {
+                            setDisplaySrc(pendingSrc);
+                            setPendingSrc(null);
+                        }
+                    }}
+                    onError={() => {
+                        if (pendingToken === tokenRef.current) {
+                            setDisplaySrc(pendingSrc);
+                            setPendingSrc(null);
+                        }
+                    }}
+                />
+            ) : null}
+        </>
     );
 };
 
@@ -284,62 +326,44 @@ export default function KurtaFolded({ selections, selectedFabric, selectedButton
     // Pajama style renders by fabricID
     const pajamaStyleRenders = pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.style || {};
 
-    const resolvedSceneEntries = [];
-    getFoldedLayerCodes().forEach((layerObj, index) => {
-        let imageSource = null;
-        let imageSources = null;
-        if (layerObj.type === 'button') {
-            imageSource = selectedButton?.renders?.[layerObj.code];
-        } else if (layerObj.type === 'embroidery') {
-            imageSources = pickFoldedEmbroiderySources(
-                EMBROIDERY_RENDERS[layerObj.collectionID],
-                selections.embroideryCollection,
-                layerObj
-            );
-        } else if (layerObj.type === 'pajama') {
-            imageSource = pajamaStyleRenders[layerObj.code];
-        } else {
-            imageSource = fabricStyleRenders[layerObj.code];
-        }
-
-        if (Array.isArray(imageSources) && imageSources.length > 0) {
-            imageSources.forEach((src, sourceIndex) => {
-                if (!src) return;
-                resolvedSceneEntries.push({
-                    key: `folded-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`,
-                    src,
-                    zIndex: layerObj.zIndex + sourceIndex * 0.01,
-                });
-            });
-            return;
-        }
-
-        if (imageSource) {
-            resolvedSceneEntries.push({
-                key: `folded-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`,
-                src: imageSource,
-                zIndex: layerObj.zIndex,
-            });
-        }
-    });
-
-    const { displayEntries, isLoading, hasCommittedScene } = useBufferedRenderScene(resolvedSceneEntries);
-
     return (
         <View style={styles.container}>
             {/* Dynamic Folded Garment Layers (Z-Index 10 se 90 tak) */}
-            {displayEntries.map((entry) => (
-                <SmartLayer
-                    key={entry.key}
-                    src={entry.src}
-                    zIndex={entry.zIndex}
-                />
-            ))}
-            {isLoading ? (
-                <View style={[styles.loadingOverlay, !hasCommittedScene && styles.loadingOverlayOpaque]}>
-                    <ActivityIndicator size="large" color="#1f2937" />
-                </View>
-            ) : null}
+            {getFoldedLayerCodes().map((layerObj, index) => {
+                let imageSource = null;
+                let imageSources = null;
+                if (layerObj.type === 'button') {
+                    imageSource = selectedButton?.renders?.[layerObj.code];
+                } else if (layerObj.type === 'embroidery') {
+                    imageSources = pickFoldedEmbroiderySources(
+                        EMBROIDERY_RENDERS[layerObj.collectionID],
+                        selections.embroideryCollection,
+                        layerObj
+                    );
+                } else if (layerObj.type === 'pajama') {
+                    imageSource = pajamaStyleRenders[layerObj.code];
+                } else {
+                    imageSource = fabricStyleRenders[layerObj.code];
+                }
+
+                if (Array.isArray(imageSources) && imageSources.length > 0) {
+                    return imageSources.map((src, sourceIndex) => (
+                        <SmartLayer
+                            key={`folded-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`}
+                            src={src}
+                            zIndex={layerObj.zIndex + sourceIndex * 0.01}
+                        />
+                    ));
+                }
+
+                return (
+                    <SmartLayer
+                        key={`folded-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`}
+                        src={imageSource}
+                        zIndex={layerObj.zIndex}
+                    />
+                );
+            })}
         </View>
     );
 }
@@ -356,15 +380,5 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '105%',
         marginTop: -30
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 120,
-        backgroundColor: 'rgba(255,255,255,0.28)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    loadingOverlayOpaque: {
-        backgroundColor: 'rgba(255,255,255,0.92)',
     }
 });
