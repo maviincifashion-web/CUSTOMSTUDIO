@@ -18,6 +18,8 @@ import {
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { fetchPresetById } from '../../src/firebase/TrendingApi';
+import { getFirestoreDb } from '../../src/firebase/config';
+import { fetchFabricById } from '../../src/firebase/catalogApi';
 import { useResponsive } from '../../hooks/useResponsive';
 import { BlurView } from 'expo-blur';
 import WrenchIcon from '../../assets/images/extra_icons/settings-wrench-svgrepo-com.svg';
@@ -347,18 +349,22 @@ function buildFabricProfiles(product: ProductRecord | null): FabricProfile[] {
             const brand = firstMeaningfulText(entry.brand, nestedFabric?.brand, entry.mill, 'Premium Fabric');
             const rawPrice = entry.price ?? nestedFabric?.price;
             const price = parseNumber(rawPrice) > 0 ? formatCurrency(rawPrice) : '';
-            const imageUris = collectFabricInfoImages(
-                entry.imageList,
-                entry.fabricImg,
-                entry.src,
-                entry.thumbnail,
-                entry.single,
-                nestedFabric?.imageList,
-                nestedFabric?.fabricImg,
+            const fabricMasterImages = collectFabricInfoImages(
                 nestedFabric?.src,
-                nestedFabric?.thumbnail,
-                nestedFabric?.single
+                nestedFabric?.single,
+                nestedFabric?.fabricImg,
+                nestedFabric?.imageList
             );
+
+            const imageUris = fabricMasterImages.length > 0
+                ? fabricMasterImages
+                : collectFabricInfoImages(
+                    entry.src,
+                    entry.single,
+                    entry.fabricImg,
+                    entry.imageList
+                );
+
             const defaultImageIndex = imageUris.length >= 2 ? 1 : 0;
 
             return {
@@ -370,12 +376,12 @@ function buildFabricProfiles(product: ProductRecord | null): FabricProfile[] {
                 link: firstMeaningfulText(entry.link, nestedFabric?.link),
                 imageUris,
                 imageUri: imageUris[defaultImageIndex] || firstMeaningfulImage(
-                    entry.single,
-                    entry.src,
-                    entry.fabricImg,
+                    nestedFabric?.src,
                     nestedFabric?.single,
                     nestedFabric?.fabricImg,
-                    nestedFabric?.src
+                    entry.src,
+                    entry.single,
+                    entry.fabricImg
                 ),
                 composition: firstMeaningfulText(entry.composition, entry.material, nestedFabric?.composition, nestedFabric?.material),
                 color: firstMeaningfulText(entry.color, entry.colorCode, nestedFabric?.color, nestedFabric?.colorCode),
@@ -383,7 +389,7 @@ function buildFabricProfiles(product: ProductRecord | null): FabricProfile[] {
                 pattern: firstMeaningfulText(entry.pattern, nestedFabric?.pattern),
                 width: firstMeaningfulText(entry.width, nestedFabric?.width),
                 weight: firstMeaningfulText(entry.weight, nestedFabric?.weight),
-                description: firstMeaningfulText(entry.des, nestedFabric?.des, entry.description, nestedFabric?.description),
+                description: firstMeaningfulText(entry.des, entry.description, nestedFabric?.des, nestedFabric?.description),
                 price,
                 sortOrder,
                 sourceOrder,
@@ -523,6 +529,9 @@ export default function ProductDetailScreen() {
     const [modalImages, setModalImages] = useState<string[]>([]);
     const [modalInitialIndex, setModalInitialIndex] = useState(0);
     const [isPinching, setIsPinching] = useState(false);
+    const [isPaymentOptionsExpanded, setIsPaymentOptionsExpanded] = useState(false);
+    const [expandedPolicy, setExpandedPolicy] = useState<string | null>(null);
+    const [isFavorite, setIsFavorite] = useState(false);
 
     const openFullScreen = (images: string[], index: number) => {
         setModalImages(images);
@@ -548,6 +557,30 @@ export default function ProductDetailScreen() {
                 setErrorMessage('No preset found for this product.');
                 return;
             }
+
+            // Fetch actual fabric data from database for each assigned fabric
+            const db = getFirestoreDb();
+            if (db) {
+                const fabrics = Array.isArray(data.fabrics) ? data.fabrics : (data.fabric ? [data.fabric] : []);
+                
+                const updatedFabrics = await Promise.all(fabrics.map(async (entry: any) => {
+                    const fabricID = entry.fabricID || entry.fabricId || entry.id;
+                    if (fabricID) {
+                        const dbFabric = await fetchFabricById(db, fabricID);
+                        if (dbFabric) {
+                            return { ...entry, fabric: dbFabric };
+                        }
+                    }
+                    return entry;
+                }));
+
+                if (Array.isArray(data.fabrics)) {
+                    data.fabrics = updatedFabrics;
+                } else if (data.fabric) {
+                    data.fabric = updatedFabrics[0];
+                }
+            }
+
             setProduct(data);
         } catch (error) {
             console.error('[ProductDetailScreen] Failed to load preset:', error);
@@ -638,6 +671,16 @@ export default function ProductDetailScreen() {
 
 
 
+    const estimatedDeliveryLabel = useMemo(() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 12);
+        const weekday = d.toLocaleDateString('en-IN', { weekday: 'short' });
+        const day = d.toLocaleDateString('en-IN', { day: '2-digit' });
+        const month = d.toLocaleDateString('en-IN', { month: 'short' });
+        const year = d.toLocaleDateString('en-IN', { year: '2-digit' });
+        return `Est. delivery by ${weekday}, ${day} ${month} ${year}`;
+    }, []);
+
     const attributeFields = useMemo(
         () => [
             {
@@ -689,6 +732,12 @@ export default function ProductDetailScreen() {
     const handleCustomize = useCallback(() => {
         if (!product) return;
 
+        // Prioritize the database-provided reference/customize URL
+        if (referenceUrl) {
+            handleOpenReference();
+            return;
+        }
+
         const presetData = encodeURIComponent(JSON.stringify(product));
         const category = String(product.category || '').toLowerCase();
 
@@ -704,7 +753,7 @@ export default function ProductDetailScreen() {
             pathname: '/outfit',
             params: { presetParam: presetData, presetIdParam: String(product.id || '') },
         });
-    }, [product, router]);
+    }, [product, referenceUrl, handleOpenReference, router]);
 
     const handleShare = useCallback(async () => {
         if (!product) return;
@@ -825,6 +874,10 @@ export default function ProductDetailScreen() {
                             <View style={styles.summaryHeadingWrap}>
                                 <Text style={styles.sectionEyebrow}>{categoryLabel}</Text>
                                 <Text style={styles.summaryTitle}>{productName}</Text>
+                                <View style={styles.deliveryBadge}>
+                                    <MaterialIcons name="local-shipping" size={14} color="#8A5A12" />
+                                    <Text style={styles.deliveryText}>{estimatedDeliveryLabel}</Text>
+                                </View>
                             </View>
 
                             <View style={styles.summaryPriceWrap}>
@@ -879,7 +932,7 @@ export default function ProductDetailScreen() {
                                 <ScrollView
                                     horizontal
                                     showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={[styles.customizerFabricTabsRow, { paddingBottom: 4 }]}
+                                    contentContainerStyle={[styles.customizerFabricTabsRow, { paddingVertical: 8, paddingHorizontal: 4 }]}
                                 >
                                     {fabricProfiles.map((fabric, index) => (
                                         <TouchableOpacity
@@ -985,6 +1038,125 @@ export default function ProductDetailScreen() {
                         </View>
                     ) : null}
 
+                    {/* Payment Options Section */}
+                    <View style={styles.summaryCard}>
+                        <TouchableOpacity 
+                            style={styles.paymentHeader}
+                            onPress={() => setIsPaymentOptionsExpanded(!isPaymentOptionsExpanded)}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.paymentTitleRow}>
+                                <MaterialIcons name="payment" size={18} color="#8A5A12" style={{ marginRight: 8 }} />
+                                <Text style={styles.paymentTitle}>Payment Options</Text>
+                            </View>
+                            <Ionicons 
+                                name={isPaymentOptionsExpanded ? "chevron-up" : "chevron-down"} 
+                                size={20} 
+                                color="#18130F" 
+                            />
+                        </TouchableOpacity>
+
+                        {isPaymentOptionsExpanded && (
+                            <View style={styles.paymentContent}>
+                                <View style={styles.paymentLogosRow}>
+                                    <View style={styles.paymentIconBox}><Text style={styles.paymentIconText}>UPI</Text></View>
+                                    <View style={styles.paymentIconBox}><Ionicons name="card" size={14} color="#4B3F34" /></View>
+                                    <View style={styles.paymentIconBox}><Text style={styles.paymentIconText}>GPay</Text></View>
+                                    <View style={styles.paymentIconBox}><Text style={styles.paymentIconText}>Paytm</Text></View>
+                                    <Text style={styles.plusMore}>+10</Text>
+                                </View>
+                                
+                                <View style={styles.prepaidOfferBadge}>
+                                    <Text style={styles.prepaidOfferText}>Get Extra 5% off on pre-paid Orders</Text>
+                                </View>
+
+                                <Text style={styles.paymentNote}>
+                                    Pay full amount with your payment options. You will be redirected to Razorpay for Payment.
+                                </Text>
+
+                                <View style={styles.razorpayBranding}>
+                                    <Text style={styles.poweredByText}>Powered by </Text>
+                                    <Text style={styles.razorpayLogoText}>Razorpay</Text>
+                                </View>
+
+                                <View style={styles.paymentSeparator}>
+                                    <View style={styles.paymentLine} />
+                                    <Text style={styles.paymentOrText}>OR</Text>
+                                    <View style={styles.paymentLine} />
+                                </View>
+
+                                <View style={styles.codBadge}>
+                                    <MaterialIcons name="money" size={16} color="#4B3F34" />
+                                    <Text style={styles.codText}>Cash on Delivery</Text>
+                                </View>
+                                <View style={styles.codInfoBox}>
+                                    <MaterialIcons name="info-outline" size={12} color="#8A5A12" style={{ marginRight: 6, marginTop: 2 }} />
+                                    <Text style={styles.codNoteText}>
+                                        Since we provide an <Text style={{ fontWeight: '800' }}>Exclusive Custom-Tailored Service</Text> where every garment is handcrafted specifically for you, a <Text style={{ fontWeight: '800' }}>₹500 advance token</Text> is required to confirm COD orders.
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+
+                    {/* Policies Section */}
+                    <View style={styles.policiesContainer}>
+                        <Text style={styles.policiesHeading}>Policies & Information</Text>
+                        
+                        {[
+                            {
+                                id: 'tnc',
+                                title: 'Terms and Conditions',
+                                content: `Blue Pearl Industries Inc.\n\nFor the purpose of these Terms and Conditions, the term "we", "us", "our" used anywhere on this page shall mean Blue Pearl, whose registered/operational office is Ward 15 indira para, shanti nagar bhilai Durg CHATTISGARH 490021. "you", “your”, "user", “visitor” shall mean any natural or legal person who is visiting our website and/or agreed to purchase from us.\n\nYour use of the website and/or purchase from us are governed by following Terms and Conditions:\n\n• The content of the pages of this website is subject to change without notice.\n• Neither we nor any third parties provide any warranty or guarantee as to the accuracy, timeliness, performance, completeness or suitability of the information and materials found or offered on this website for any particular purpose.\n• Your use of any information or materials on our website and/or product pages is entirely at your own risk, for which we shall not be liable.\n• Reproduction of material owned by or licensed to us is prohibited.\n• Any dispute arising out of use of our website and/or purchase is subject to the laws of India.`
+                            },
+                            {
+                                id: 'privacy',
+                                title: 'Privacy Policy',
+                                content: `Last updated on Aug 30th 2024\n\nBlue Pearl is committed to ensuring that your privacy is protected. Should we ask you to provide certain information by which you can be identified when using this website, then you can be assured that it will only be used in accordance with this privacy statement.\n\nWe may collect:\n• Name and Contact information\n• Demographic information\n• Other relevant survey/offer info\n\nWhat we do with information:\n• Internal record keeping\n• To improve products and services\n• Periodically send promotional emails`
+                            },
+                            {
+                                id: 'shipping',
+                                title: 'Shipping & Delivery Policy',
+                                content: `Last updated on Aug 30th 2024\n\n• International buyers: Orders are delivered through registered international courier companies.\n• Domestic buyers: Orders are shipped through registered domestic courier companies/speed post.\n• Timeline: Orders are shipped within 8-14 days from the date of the order and payment.\n• Delay: Blue Pearl is not liable for any delay by courier company/postal authorities.`
+                            },
+                            {
+                                id: 'refund',
+                                title: 'Cancellation & Refund Policy',
+                                content: `Last updated on Aug 30th 2024\n\n• Cancellations: Considered only if request is made within same day of placing order.\n• Perishables: No cancellation request for perishable items.\n• Damaged Items: Please report to Customer Service within same day of receipt.\n• Refunds: Approval will take 6-8 days to be processed to the end customer.`
+                            },
+                            {
+                                id: 'return',
+                                title: 'Return Policy',
+                                content: `At Maviinci, we are dedicated to providing high-quality custom-tailored clothing.\n\nEligibility:\n• Not as per Your Chosen Style/Fabric\n• Damaged Product on arrival\n• Late Delivery (>3 days after scheduled date)\n• After Two Alterations still not meeting expectations\n\nReturn Window: Report issue within 24 hours of receiving order.\nRefund Process: Approved returns receive purchase price refund subject to 2% deduction.`
+                            },
+                            {
+                                id: 'contact',
+                                title: 'Contact Us',
+                                content: `Merchant Legal entity name: Blue Pearl\n\nRegistered/Operational Address:\nWard 15 indira para, shanti nagar bhilai Durg CHATTISGARH 490021\n\nEmail: connect@bluepearlindustries.com\nPhone: +91-8871081395`
+                            }
+                        ].map((policy) => (
+                            <View key={policy.id} style={styles.policyItem}>
+                                <TouchableOpacity 
+                                    style={styles.policyItemHeader}
+                                    onPress={() => setExpandedPolicy(expandedPolicy === policy.id ? null : policy.id)}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.policyItemTitle}>{policy.title}</Text>
+                                    <Ionicons 
+                                        name={expandedPolicy === policy.id ? "remove" : "add"} 
+                                        size={20} 
+                                        color="#64748B" 
+                                    />
+                                </TouchableOpacity>
+                                {expandedPolicy === policy.id && (
+                                    <View style={styles.policyItemContent}>
+                                        <Text style={styles.policyItemText}>{policy.content}</Text>
+                                    </View>
+                                )}
+                            </View>
+                        ))}
+                    </View>
+
 
 
 
@@ -994,19 +1166,42 @@ export default function ProductDetailScreen() {
             </ScrollView>
 
             <BlurView intensity={85} tint="light" style={styles.bottomActions}>
-                <TouchableOpacity style={styles.secondaryAction} onPress={referenceUrl ? handleOpenReference : handleShare}>
-                    <Ionicons
-                        name={referenceUrl ? 'open-outline' : 'share-social-outline'}
-                        size={18}
-                        color="#18130F"
-                    />
-                    <Text style={styles.secondaryActionText}>{referenceUrl ? 'OPEN REFERENCE' : 'SHARE PRESET'}</Text>
-                </TouchableOpacity>
+                <View style={styles.bottomActionsTop}>
+                    <View style={styles.topActionsLeft}>
+                        <TouchableOpacity style={styles.iconAction} onPress={handleShare}>
+                            <Ionicons
+                                name="share-social-outline"
+                                size={20}
+                                color="#18130F"
+                            />
+                        </TouchableOpacity>
 
-                <TouchableOpacity style={styles.primaryAction} onPress={handleCustomize}>
-                    <Text style={styles.primaryActionText}>CUSTOMIZE NOW</Text>
-                    <Ionicons name="chevron-forward" size={18} color="#F6F1E8" />
-                </TouchableOpacity>
+                        <TouchableOpacity style={styles.iconAction} onPress={() => setIsFavorite(!isFavorite)}>
+                            <Ionicons
+                                name={isFavorite ? 'heart' : 'heart-outline'}
+                                size={22}
+                                color={isFavorite ? '#EF4444' : '#18130F'}
+                            />
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity style={styles.cartAction} onPress={() => alert('Added to cart.')}>
+                        <Ionicons name="cart-outline" size={18} color="#18130F" />
+                        <Text style={styles.cartActionText}>ADD TO CART</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.bottomActionsBottom}>
+                    <TouchableOpacity style={styles.orderAction} onPress={() => alert('Starting order.')}>
+                        <Text style={styles.orderActionText}>ORDER NOW</Text>
+                    </TouchableOpacity>
+
+                    {customizationAvailable && (
+                        <TouchableOpacity style={styles.primaryAction} onPress={handleCustomize}>
+                            <Text style={styles.primaryActionText}>CUSTOMIZE NOW</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </BlurView>
 
             <Modal
@@ -1349,6 +1544,194 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '500',
     },
+    deliveryBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+        gap: 6,
+    },
+    deliveryText: {
+        color: '#8A5A12',
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: -0.2,
+    },
+
+    paymentHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 4,
+    },
+    paymentTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    paymentTitle: {
+        color: '#18130F',
+        fontSize: 15,
+        fontWeight: '800',
+    },
+    paymentContent: {
+        marginTop: 16,
+        alignItems: 'center',
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(24, 19, 15, 0.05)',
+    },
+    paymentLogosRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 16,
+    },
+    paymentIconBox: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        backgroundColor: '#F1EDE5',
+        borderWidth: 1,
+        borderColor: 'rgba(24, 19, 15, 0.08)',
+        minWidth: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    paymentIconText: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#4B3F34',
+    },
+    plusMore: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#8A5A12',
+        marginLeft: 4,
+    },
+    prepaidOfferBadge: {
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+        marginBottom: 12,
+    },
+    prepaidOfferText: {
+        color: '#15803D',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    paymentNote: {
+        textAlign: 'center',
+        color: '#64748B',
+        fontSize: 12,
+        lineHeight: 18,
+        paddingHorizontal: 20,
+        marginBottom: 12,
+    },
+    razorpayBranding: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    poweredByText: {
+        color: '#94A3B8',
+        fontSize: 11,
+        fontWeight: '500',
+    },
+    razorpayLogoText: {
+        color: '#3395FF',
+        fontSize: 13,
+        fontWeight: '900',
+        fontStyle: 'italic',
+    },
+    paymentSeparator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        width: '100%',
+        marginBottom: 16,
+    },
+    paymentLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: 'rgba(24, 19, 15, 0.05)',
+    },
+    paymentOrText: {
+        marginHorizontal: 12,
+        color: '#94A3B8',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    codBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingBottom: 8,
+    },
+    codText: {
+        color: '#4B3F34',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+
+    policiesContainer: {
+        marginTop: 12,
+        paddingHorizontal: 4,
+    },
+    policiesHeading: {
+        color: '#18130F',
+        fontSize: 18,
+        fontWeight: '900',
+        marginBottom: 16,
+        paddingLeft: 4,
+    },
+    policyItem: {
+        backgroundColor: '#FFFDF9',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(24, 19, 15, 0.08)',
+        marginBottom: 10,
+        overflow: 'hidden',
+    },
+    policyItemHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+    },
+    policyItemTitle: {
+        color: '#18130F',
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    policyItemContent: {
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        paddingTop: 4,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(24, 19, 15, 0.05)',
+    },
+    policyItemText: {
+        color: '#64748B',
+        fontSize: 12,
+        lineHeight: 18,
+        fontWeight: '500',
+    },
+    codInfoBox: {
+        flexDirection: 'row',
+        backgroundColor: '#FFF8ED',
+        padding: 10,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(138, 90, 18, 0.1)',
+        marginTop: 4,
+    },
+    codNoteText: {
+        flex: 1,
+        color: '#8A5A12',
+        fontSize: 11,
+        lineHeight: 16,
+        fontWeight: '500',
+    },
 
     customizerFabricTabsRow: {
         flexDirection: 'row',
@@ -1371,10 +1754,11 @@ const styles = StyleSheet.create({
     customizerFabricTabActive: {
         backgroundColor: '#FFFFFF',
         shadowColor: '#18130F',
-        shadowOffset: { width: 0, height: 1.5 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.18,
+        shadowRadius: 6,
+        elevation: 4,
+        zIndex: 1,
     },
     customizerFabricTabText: {
         color: '#8B7662',
@@ -1392,7 +1776,10 @@ const styles = StyleSheet.create({
         height: 38,
         marginBottom: 14,
         overflow: 'hidden',
-        backgroundColor: 'transparent',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: 'rgba(24, 19, 15, 0.08)',
+        borderRadius: 4,
     },
     customizerBrandLogoPanel: {
         width: 132,
@@ -1401,6 +1788,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
+        borderRightWidth: 1,
+        borderRightColor: 'rgba(24, 19, 15, 0.05)',
     },
     customizerBrandLogoImage: {
         width: '100%',
@@ -1421,15 +1810,17 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
     },
     customizerBrandNamePanel: {
-        width: 160,
-        backgroundColor: '#E5E5E5',
+        backgroundColor: '#FFFFFF',
+        flex: 1,
         justifyContent: 'center',
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
     },
     customizerBrandNameText: {
+        color: '#18130F',
         fontSize: 13,
         fontWeight: '800',
-        color: '#000000',
+        letterSpacing: 0.3,
+        textTransform: 'uppercase',
     },
     customizerBrandSubText: {
         marginTop: 2,
@@ -1630,48 +2021,88 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        flexDirection: 'row',
+        flexDirection: 'column',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        paddingBottom: 32,
         gap: 12,
-        paddingHorizontal: 18,
-        paddingTop: 14,
-        paddingBottom: 26,
+        backgroundColor: 'rgba(246, 241, 232, 0.95)',
         borderTopWidth: 1,
-        borderTopColor: 'rgba(24, 19, 15, 0.08)',
-        backgroundColor: 'rgba(248, 242, 232, 0.82)',
+        borderTopColor: 'rgba(24, 19, 15, 0.05)',
     },
-    secondaryAction: {
-        flex: 1.05,
+    bottomActionsTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+    },
+    topActionsLeft: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    bottomActionsBottom: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    iconAction: {
+        width: 48,
+        height: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFDF9',
+        borderWidth: 1,
+        borderColor: 'rgba(24, 19, 15, 0.1)',
+        borderRadius: 12,
+    },
+    cartAction: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        minHeight: 58,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 253, 249, 0.94)',
+        backgroundColor: '#FFFDF9',
         borderWidth: 1,
-        borderColor: 'rgba(24, 19, 15, 0.08)',
+        borderColor: 'rgba(24, 19, 15, 0.1)',
+        borderRadius: 12,
+        height: 48,
+        gap: 8,
     },
-    secondaryActionText: {
+    cartActionText: {
+        color: '#18130F',
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+    },
+    orderAction: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFDF9',
+        borderWidth: 2,
+        borderColor: '#18130F',
+        borderRadius: 12,
+        height: 52,
+    },
+    orderActionText: {
         color: '#18130F',
         fontSize: 12,
         fontWeight: '900',
-        letterSpacing: 0.6,
+        letterSpacing: 0.5,
     },
     primaryAction: {
-        flex: 1.4,
+        flex: 1.2,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        minHeight: 58,
-        borderRadius: 20,
         backgroundColor: '#18130F',
+        borderRadius: 12,
+        height: 52,
     },
     primaryActionText: {
         color: '#F6F1E8',
-        fontSize: 13,
-        fontWeight: '900',
-        letterSpacing: 0.8,
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 0.5,
     },
     loaderContainer: {
         flex: 1,

@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { fabricGarmentPath, KURTA_FABRIC_LIST_PATH_CANDIDATES, kurtaFabricListPath } from './paths';
 
 // ==========================================
@@ -1063,4 +1063,30 @@ export function mergeEmbroideryRenderMaps(localMap, remoteMap) {
     };
   }
   return out;
+}
+/**
+ * Fetch a single fabric document from the master Fabrics collection by its SKU/ID.
+ * @param {import('firebase/firestore').Firestore} db
+ * @param {string} fabricId The 'id' field in the fabric document (e.g., '1777...')
+ */
+export async function fetchFabricById(db, fabricId) {
+  if (!fabricId) return null;
+  try {
+    const colRef = collection(db, 'Fabric', 'Suits', 'fabrics');
+    const q = query(colRef, where('id', '==', String(fabricId)));
+    const snap = await getDocs(q);
+    
+    if (snap.empty) {
+      // Try doc id fallback
+      const docRef = doc(db, 'Fabric', 'Suits', 'fabrics', String(fabricId));
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) return mapFabricDocToProfile(docSnap);
+      return null;
+    }
+    
+    return mapFabricDocToProfile(snap.docs[0]);
+  } catch (error) {
+    console.error('[catalogApi] Error fetching fabric by id:', error);
+    return null;
+  }
 }
