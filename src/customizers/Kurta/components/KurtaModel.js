@@ -7,6 +7,18 @@ import { useFirebaseCatalog } from '../../../context/FirebaseCatalogContext';
 import { pickFabricRenderEntry } from '../../../firebase/catalogApi';
 import { getKurtaLayerCodes, getSadriLayerCodes } from '../../../Functions/layerEngine';
 import { getKurtaModelEmbroideryLayers } from './KurtaEmbroideryLayers';
+import {
+    getCoatBackEmbroideryLayers,
+    getCoatDisplayEmbroideryLayers,
+    getCoatStyleEmbroideryLayers,
+} from './CoatEmbroideryLayers';
+import {
+    getKurtaCoatTuxBackLayers,
+    getKurtaCoatTuxDisplayLayers,
+    getKurtaCoatTuxStyleFrontLayers,
+    isTuxedoCoatType,
+    mapTuxedoSelectionsToBaseCoat,
+} from './KurtaCoatTux';
 
 // ASSETS IMPORTS
 import kurta_body from '../../../../assets/images/body/kurta_body.webp';
@@ -131,10 +143,15 @@ const getCoatCollarGroup = (kurtaCollar = 'CM') => {
     return 'C';
 };
 
+const shouldShowCoatUpperPocket = (selections = {}) => String(
+    selections?.coatUpperPocket == null ? '1' : selections.coatUpperPocket,
+).trim() !== '0';
+
 const getDisplayCoatCodes = (selections = {}) => {
     const coatType = selections.coatType || '1B';
+    const showUpperPocket = shouldShowCoatUpperPocket(selections);
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
-        return [coatType, 'UP1'];
+        return showUpperPocket ? [coatType, 'UP1'] : [coatType];
     }
     if (coatType === 'JO') {
         return [coatType];
@@ -148,15 +165,16 @@ const getDisplayCoatCodes = (selections = {}) => {
     return [
         `${coatType}-${lapelCode}-${collarGroup}`,
         collarCode,
-        'UP1',
+        ...(showUpperPocket ? ['UP1'] : []),
         lapelLayerCode,
     ];
 };
 
 const getStyleFrontCoatCodes = (selections = {}) => {
     const coatType = selections.coatType || '1B';
+    const showUpperPocket = shouldShowCoatUpperPocket(selections);
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
-        return [coatType, 'UP1'];
+        return showUpperPocket ? [coatType, 'UP1'] : [coatType];
     }
     if (coatType === 'JO') {
         return [coatType];
@@ -169,7 +187,7 @@ const getStyleFrontCoatCodes = (selections = {}) => {
     return [
         `${coatType}-${lapelCode}`,
         collarCode,
-        'UP1',
+        ...(showUpperPocket ? ['UP1'] : []),
         lapelLayerCode,
     ];
 };
@@ -183,7 +201,10 @@ const getStyleBackCoatCodes = (selections = {}) => {
 };
 
 const getCoatButtonCodes = (selections = {}, slideIndex = 0) => {
-    const coatType = selections.coatType || '1B';
+    const baseSelections = isTuxedoCoatType(selections?.coatType)
+        ? mapTuxedoSelectionsToBaseCoat(selections)
+        : selections;
+    const coatType = baseSelections.coatType || '1B';
     const hideFrontMainButtons = coatType === 'JH' || coatType === 'JO';
 
     if (slideIndex === 0) {
@@ -209,6 +230,78 @@ const getCoatButtonCodes = (selections = {}, slideIndex = 0) => {
     }
 
     return [];
+};
+
+const isCoatCollarCode = (code, sourceSet = 'display') => {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!normalized) return false;
+    return sourceSet === 'style'
+        ? /^(C1|C2)$/.test(normalized)
+        : /^(C1|C2)-/.test(normalized);
+};
+
+const isCoatLapelCode = (code) => /^(L1|L2)-/.test(String(code || '').trim().toUpperCase());
+
+const createCoatLayer = (code, zIndex, selections = {}, sourceSet = 'display') => {
+    let part = 'Chest';
+    let sourceParts = ['base'];
+
+    if (String(code || '').trim().toUpperCase() === 'UP1') {
+        part = 'Pocket';
+        sourceParts = ['pocket'];
+    } else if (isCoatCollarCode(code, sourceSet)) {
+        part = 'Collar';
+        sourceParts = ['collar'];
+    } else if (isCoatLapelCode(code)) {
+        part = 'Lapel';
+        sourceParts = ['lapel'];
+    }
+
+    return {
+        code,
+        zIndex,
+        type: 'coat_display',
+        sourceSet,
+        part,
+        sourceParts,
+        coatType: selections?.coatType,
+        embroideryBaseCode: part === 'Chest' ? selections?.coatType : undefined,
+    };
+};
+
+const getDisplayCoatLayers = (selections = {}, options = {}) => {
+    const includeTrimLayers = options.includeTrimLayers !== false;
+    return getDisplayCoatCodes(selections).flatMap((code, idx) => {
+        if (!includeTrimLayers && (isCoatCollarCode(code, 'display') || isCoatLapelCode(code))) {
+            return [];
+        }
+        return [createCoatLayer(code, 85 + idx, selections, 'display')];
+    });
+};
+
+const getStyleFrontCoatLayers = (selections = {}, options = {}) => {
+    const includeTrimLayers = options.includeTrimLayers !== false;
+    return getStyleFrontCoatCodes(selections).flatMap((code, idx) => {
+        if (!includeTrimLayers && (isCoatCollarCode(code, 'style') || isCoatLapelCode(code))) {
+            return [];
+        }
+        return [createCoatLayer(code, 20 + idx, selections, 'style')];
+    });
+};
+
+const getStyleBackCoatLayers = (selections = {}) => getStyleBackCoatCodes(selections).map((code, idx) => (
+    createCoatLayer(code, 20 + idx, selections, 'style')
+));
+
+const pickFirstCoatSource = (primaryMap, fallbackMap, codeCandidates) => {
+    const candidates = Array.isArray(codeCandidates) ? codeCandidates : [codeCandidates];
+    for (const candidate of candidates) {
+        const normalized = String(candidate || '').trim();
+        if (!normalized) continue;
+        if (primaryMap?.[normalized]) return primaryMap[normalized];
+        if (fallbackMap?.[normalized]) return fallbackMap[normalized];
+    }
+    return null;
 };
 
 function pickWithSadriSuffixFallback(map, code) {
@@ -355,6 +448,16 @@ const pickEmbroiderySourcesForLayer = (bundle, collection, layerObj) => {
                 }
             }
         }
+        if (layerObj.type === 'coat_embroidery') {
+            for (const code of codeCandidates) {
+                if (uploadBundle.coatChestLeft?.[code]) {
+                    appendUniqueSource(sources, uploadBundle.coatChestLeft[code]);
+                }
+                if (uploadBundle.coatChestRight?.[code]) {
+                    appendUniqueSource(sources, uploadBundle.coatChestRight[code]);
+                }
+            }
+        }
     }
     return sources;
 };
@@ -366,6 +469,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         pajamaRenders: PAJAMA_RENDERS,
         sadriRenders: SADRI_RENDERS,
         coatRenders: COAT_RENDERS,
+        kurtaCoatTux: KURTA_COAT_TUX,
         embroideryRenders: EMBROIDERY_RENDERS,
     } = useFirebaseCatalog();
 
@@ -442,28 +546,111 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         { display: {}, style: {} };
     const coatDisplayRenders = coatRenderSet.display || {};
     const coatStyleRenders = coatRenderSet.style || {};
+    const coatFallbackDisplayRenders = COAT_RENDERS['FAB_001']?.display || {};
+    const coatFallbackStyleRenders = COAT_RENDERS['FAB_001']?.style || {};
+    const baseCoatSelections = isTuxedoCoatType(selections?.coatType)
+        ? mapTuxedoSelectionsToBaseCoat(selections)
+        : selections;
+
+    const resolveLayerSources = (layerObj) => {
+        let imageSource = null;
+        let imageSources = null;
+
+        if (layerObj.type === 'button') {
+            imageSource = selectedButton?.renders?.[layerObj.code]
+                || selectedButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
+        } else if (layerObj.type === 'embroidery') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.embroideryCollection,
+                layerObj
+            );
+        } else if (layerObj.type === 'sadri_embroidery_left') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.sadriEmbroideryCollection,
+                layerObj
+            );
+        } else if (layerObj.type === 'sadri_embroidery_right') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.sadriEmbroideryCollection,
+                layerObj
+            );
+        } else if (layerObj.type === 'coat_embroidery') {
+            imageSources = pickEmbroiderySourcesForLayer(
+                EMBROIDERY_RENDERS[layerObj.collectionID],
+                selections.coatEmbroideryCollection,
+                layerObj
+            );
+        } else if (layerObj.type === 'pajama') {
+            imageSource = pajamaRenders[layerObj.code];
+        } else if (layerObj.type === 'sadri_button') {
+            imageSource = selectedSadriButton?.renders?.[layerObj.code];
+        } else if (layerObj.type === 'sadri_fabric') {
+            imageSource = pickWithSadriSuffixFallback(sadriRenders, layerObj.code);
+        } else if (layerObj.type === 'coat_display') {
+            const primaryMap = layerObj.sourceSet === 'style' ? coatStyleRenders : coatDisplayRenders;
+            const fallbackMap = layerObj.sourceSet === 'style' ? coatFallbackStyleRenders : coatFallbackDisplayRenders;
+            imageSource = pickFirstCoatSource(primaryMap, fallbackMap, layerObj.codeCandidates || layerObj.code);
+        } else if (layerObj.type === 'coat_tuxedo') {
+            imageSource = pickFirstCoatSource(KURTA_COAT_TUX, null, layerObj.codeCandidates || layerObj.code);
+        } else if (layerObj.type === 'coat_button') {
+            imageSource = selectedCoatButton?.renders?.[layerObj.code]
+                || selectedCoatButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
+        } else {
+            imageSource = fabricRenders[layerObj.code];
+        }
+
+        return { imageSource, imageSources };
+    };
 
     if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
-        const coatCodes = slideIndex === 4 ? getStyleFrontCoatCodes(selections) : getStyleBackCoatCodes(selections);
-        const coatButtonCodes = getCoatButtonCodes(selections, slideIndex);
+        const coatGarmentLayers = slideIndex === 4
+            ? [
+                ...getStyleFrontCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(selections?.coatType) }),
+                ...getKurtaCoatTuxStyleFrontLayers(selections).map((layer) => ({ ...layer, sourceSet: 'style' })),
+            ]
+            : [
+                ...getStyleBackCoatLayers(baseCoatSelections),
+                ...getKurtaCoatTuxBackLayers(selections).map((layer) => ({ ...layer, sourceSet: 'style' })),
+            ];
+        const coatEmbroideryLayers = slideIndex === 4
+            ? getCoatStyleEmbroideryLayers(selections, coatGarmentLayers)
+            : getCoatBackEmbroideryLayers(selections, coatGarmentLayers);
+        const coatButtonLayers = getCoatButtonCodes(selections, slideIndex).map((code, idx) => ({
+            code,
+            zIndex: (slideIndex === 4 ? 40 : 41) + idx,
+            type: 'coat_button',
+        }));
+        const coatLayersToRender = [...coatGarmentLayers, ...coatEmbroideryLayers, ...coatButtonLayers]
+            .sort((a, b) => a.zIndex - b.zIndex);
         return (
             <View style={styles.container}>
-                {coatCodes.map((code, idx) => (
-                    <SmartLayer
-                        key={`coat-style-${code}-${idx}`}
-                        src={coatStyleRenders[code]}
-                        zIndex={20 + idx}
-                        dynamicStyle={dynamicStyle}
-                    />
-                ))}
-                {coatButtonCodes.map((code, idx) => (
-                    <SmartLayer
-                        key={`coat-style-button-${code}-${idx}`}
-                        src={selectedCoatButton?.renders?.[code]}
-                        zIndex={40 + idx}
-                        dynamicStyle={dynamicStyle}
-                    />
-                ))}
+                {coatLayersToRender.map((layerObj, index) => {
+                    if (!layerObj?.code) return null;
+                    const { imageSource, imageSources } = resolveLayerSources(layerObj);
+
+                    if (Array.isArray(imageSources) && imageSources.length > 0) {
+                        return imageSources.map((src, sourceIndex) => (
+                            <SmartLayer
+                                key={`coat-layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`}
+                                src={src}
+                                zIndex={layerObj.zIndex + sourceIndex * 0.01}
+                                dynamicStyle={dynamicStyle}
+                            />
+                        ));
+                    }
+
+                    return (
+                        <SmartLayer
+                            key={`coat-layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`}
+                            src={imageSource}
+                            zIndex={layerObj.zIndex}
+                            dynamicStyle={dynamicStyle}
+                        />
+                    );
+                })}
             </View>
         );
     }
@@ -480,12 +667,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         sadriLayers = getSadriLayerCodes(sadriCode, selections, selectedSadriButton, sadriViewMode, slideIndex, EMBROIDERY_RENDERS) || [];
     }
 
-    const coatDisplayLayers = hasCoat && slideIndex === 0
-        ? getDisplayCoatCodes(selections).map((code, idx) => ({
-            code,
-            zIndex: 85 + idx,
-            type: 'coat_display'
-        }))
+    const coatDisplayGarmentLayers = hasCoat && slideIndex === 0
+        ? [
+            ...getDisplayCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(selections?.coatType) }),
+            ...getKurtaCoatTuxDisplayLayers(selections),
+        ]
+        : [];
+    const coatDisplayEmbroideryLayers = hasCoat && slideIndex === 0
+        ? getCoatDisplayEmbroideryLayers(selections, coatDisplayGarmentLayers)
         : [];
     const coatDisplayButtonLayers = hasCoat && slideIndex === 0
         ? getCoatButtonCodes(selections, 0).map((code, idx) => ({
@@ -495,7 +684,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         }))
         : [];
 
-    const layersToRender = [...kurtaBaseLayers, ...kurtaEmbroideryLayers, ...sadriLayers, ...coatDisplayLayers, ...coatDisplayButtonLayers].sort((a, b) => a.zIndex - b.zIndex);
+    const layersToRender = [
+        ...kurtaBaseLayers,
+        ...kurtaEmbroideryLayers,
+        ...sadriLayers,
+        ...coatDisplayGarmentLayers,
+        ...coatDisplayEmbroideryLayers,
+        ...coatDisplayButtonLayers,
+    ].sort((a, b) => a.zIndex - b.zIndex);
 
     // DATABASE: Us kapde ki saari images yahan se nikalo
     const fabricRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {};
@@ -516,44 +712,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             {layersToRender.map((layerObj, index) => {
                 if (!layerObj || !layerObj.code) return null;
 
-                // Resolve image based on type
-                let imageSource = null;
-                let imageSources = null;
-                if (layerObj.type === 'button') {
-                    imageSource = selectedButton?.renders?.[layerObj.code]
-                        || selectedButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
-                } else if (layerObj.type === 'embroidery') {
-                    imageSources = pickEmbroiderySourcesForLayer(
-                        EMBROIDERY_RENDERS[layerObj.collectionID],
-                        selections.embroideryCollection,
-                        layerObj
-                    );
-                } else if (layerObj.type === 'sadri_embroidery_left') {
-                    imageSources = pickEmbroiderySourcesForLayer(
-                        EMBROIDERY_RENDERS[layerObj.collectionID],
-                        selections.sadriEmbroideryCollection,
-                        layerObj
-                    );
-                } else if (layerObj.type === 'sadri_embroidery_right') {
-                    imageSources = pickEmbroiderySourcesForLayer(
-                        EMBROIDERY_RENDERS[layerObj.collectionID],
-                        selections.sadriEmbroideryCollection,
-                        layerObj
-                    );
-                } else if (layerObj.type === 'pajama') {
-                    imageSource = pajamaRenders[layerObj.code];
-                } else if (layerObj.type === 'sadri_button') {
-                    imageSource = selectedSadriButton?.renders?.[layerObj.code];
-                } else if (layerObj.type === 'sadri_fabric') {
-                    imageSource = pickWithSadriSuffixFallback(sadriRenders, layerObj.code);
-                } else if (layerObj.type === 'coat_display') {
-                    imageSource = coatDisplayRenders[layerObj.code];
-                } else if (layerObj.type === 'coat_button') {
-                    imageSource = selectedCoatButton?.renders?.[layerObj.code]
-                        || selectedCoatButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
-                } else {
-                    imageSource = fabricRenders[layerObj.code];
-                }
+                const { imageSource, imageSources } = resolveLayerSources(layerObj);
 
                 if (Array.isArray(imageSources) && imageSources.length > 0) {
                     return imageSources.map((src, sourceIndex) => (
