@@ -19,6 +19,7 @@ import {
     isTuxedoCoatType,
     mapTuxedoSelectionsToBaseCoat,
 } from './KurtaCoatTux';
+import { useBufferedRenderScene } from './useBufferedRenderScene';
 
 // ASSETS IMPORTS
 import kurta_body from '../../../../assets/images/body/kurta_body.webp';
@@ -148,7 +149,7 @@ const shouldShowCoatUpperPocket = (selections = {}) => String(
 ).trim() !== '0';
 
 const getDisplayCoatCodes = (selections = {}) => {
-    const coatType = selections.coatType || '1B';
+    const coatType = selections?.coatType || '1B';
     const showUpperPocket = shouldShowCoatUpperPocket(selections);
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
         return showUpperPocket ? [coatType, 'UP1'] : [coatType];
@@ -157,8 +158,8 @@ const getDisplayCoatCodes = (selections = {}) => {
         return [coatType];
     }
 
-    const lapelCode = selections.coatLapel || 'N';
-    const collarGroup = getCoatCollarGroup(selections.collar);
+    const lapelCode = selections?.coatLapel || 'N';
+    const collarGroup = getCoatCollarGroup(selections?.collar);
     const collarCode = `${coatType === '2B' ? 'C2' : 'C1'}-${collarGroup}`;
     const lapelLayerCode = `${coatType === '2B' ? 'L2' : 'L1'}-${lapelCode}`;
 
@@ -171,7 +172,7 @@ const getDisplayCoatCodes = (selections = {}) => {
 };
 
 const getStyleFrontCoatCodes = (selections = {}) => {
-    const coatType = selections.coatType || '1B';
+    const coatType = selections?.coatType || '1B';
     const showUpperPocket = shouldShowCoatUpperPocket(selections);
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
         return showUpperPocket ? [coatType, 'UP1'] : [coatType];
@@ -180,7 +181,7 @@ const getStyleFrontCoatCodes = (selections = {}) => {
         return [coatType];
     }
 
-    const lapelCode = selections.coatLapel || 'N';
+    const lapelCode = selections?.coatLapel || 'N';
     const collarCode = coatType === '2B' ? 'C2' : 'C1';
     const lapelLayerCode = `${coatType === '2B' ? 'L2' : 'L1'}-${lapelCode}`;
 
@@ -193,8 +194,8 @@ const getStyleFrontCoatCodes = (selections = {}) => {
 };
 
 const getStyleBackCoatCodes = (selections = {}) => {
-    const coatType = selections.coatType || 'JO';
-    const ventCode = selections.coatBackStyle || 'NV';
+    const coatType = selections?.coatType || 'JO';
+    const ventCode = selections?.coatBackStyle || 'NV';
 
     if (coatType === 'JH') return [`JH-${ventCode}`];
     return [ventCode];
@@ -462,7 +463,7 @@ const pickEmbroiderySourcesForLayer = (bundle, collection, layerObj) => {
     return sources;
 };
 
-export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, selectedCoatFabric, hasCoat = false, hasSadri, sadriCode, slideIndex = 0, selectedSkinTone = 1 }) {
+export default function KurtaModel({ selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, selectedCoatFabric, hasCoat = false, hasSadri, sadriCode, slideIndex = 0, selectedSkinTone = 1, onSceneReadyChange, bufferInitialScene = false }) {
     const { isMobile, isTablet, isDesktop } = useResponsive();
     const {
         kurtaRenders: KURTA_RENDERS,
@@ -472,9 +473,8 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         kurtaCoatTux: KURTA_COAT_TUX,
         embroideryRenders: EMBROIDERY_RENDERS,
     } = useFirebaseCatalog();
-
-    // SAFETY CHECK: Jab tak data ready na ho, model render mat karo
-    if (!selections || !selectedFabric) return null;
+    const hasRequiredSceneInputs = Boolean(selections && selectedFabric);
+    const baseSelections = selections || {};
 
     // Yahan aap apne screens ke hisab se width/height aur margins edit kar sakte hain
     const getDynamicModelStyle = () => {
@@ -534,7 +534,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     const dynamicStyle = getDynamicModelStyle();
 
     const bodyImage = KURTA_BODY_BY_TONE[selectedSkinTone] || kurta_body;
-    const handsImage = selections.sleeve === "SC"
+    const handsImage = baseSelections?.sleeve === "SC"
         ? (KURTA_HANDS_CUFF_BY_TONE[selectedSkinTone] || kurta_hand_c)
         : (KURTA_HANDS_NONCUFF_BY_TONE[selectedSkinTone] || kurta_hand_n);
 
@@ -548,9 +548,9 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     const coatStyleRenders = coatRenderSet.style || {};
     const coatFallbackDisplayRenders = COAT_RENDERS['FAB_001']?.display || {};
     const coatFallbackStyleRenders = COAT_RENDERS['FAB_001']?.style || {};
-    const baseCoatSelections = isTuxedoCoatType(selections?.coatType)
-        ? mapTuxedoSelectionsToBaseCoat(selections)
-        : selections;
+    const baseCoatSelections = isTuxedoCoatType(baseSelections?.coatType)
+        ? mapTuxedoSelectionsToBaseCoat(baseSelections)
+        : baseSelections;
 
     const resolveLayerSources = (layerObj) => {
         let imageSource = null;
@@ -562,25 +562,25 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         } else if (layerObj.type === 'embroidery') {
             imageSources = pickEmbroiderySourcesForLayer(
                 EMBROIDERY_RENDERS[layerObj.collectionID],
-                selections.embroideryCollection,
+                baseSelections?.embroideryCollection,
                 layerObj
             );
         } else if (layerObj.type === 'sadri_embroidery_left') {
             imageSources = pickEmbroiderySourcesForLayer(
                 EMBROIDERY_RENDERS[layerObj.collectionID],
-                selections.sadriEmbroideryCollection,
+                baseSelections?.sadriEmbroideryCollection,
                 layerObj
             );
         } else if (layerObj.type === 'sadri_embroidery_right') {
             imageSources = pickEmbroiderySourcesForLayer(
                 EMBROIDERY_RENDERS[layerObj.collectionID],
-                selections.sadriEmbroideryCollection,
+                baseSelections?.sadriEmbroideryCollection,
                 layerObj
             );
         } else if (layerObj.type === 'coat_embroidery') {
             imageSources = pickEmbroiderySourcesForLayer(
                 EMBROIDERY_RENDERS[layerObj.collectionID],
-                selections.coatEmbroideryCollection,
+                baseSelections?.coatEmbroideryCollection,
                 layerObj
             );
         } else if (layerObj.type === 'pajama') {
@@ -605,20 +605,114 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         return { imageSource, imageSources };
     };
 
+    // ENGINE KO BULAO: Kurta Arrays
+    const kurtaLayers = getKurtaLayerCodes(baseSelections, selectedButton, 0, slideIndex, hasCoat, hasSadri, sadriCode) || [];
+    const kurtaBaseLayers = kurtaLayers.filter((layer) => layer?.type !== 'embroidery');
+    const kurtaEmbroideryLayers = getKurtaModelEmbroideryLayers(baseSelections, kurtaBaseLayers);
+
+    // ENGINE KO BULAO: Sadri Arrays
+    let sadriLayers = [];
+    if (hasSadri && (slideIndex === 0 || slideIndex === 4 || slideIndex === 5)) {
+        const sadriViewMode = slideIndex === 4 ? 1 : 0;
+        sadriLayers = getSadriLayerCodes(sadriCode, baseSelections, selectedSadriButton, sadriViewMode, slideIndex, EMBROIDERY_RENDERS) || [];
+    }
+
+    const coatDisplayGarmentLayers = hasCoat && slideIndex === 0
+        ? [
+            ...getDisplayCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(baseSelections?.coatType) }),
+            ...getKurtaCoatTuxDisplayLayers(baseSelections),
+        ]
+        : [];
+    const coatDisplayEmbroideryLayers = hasCoat && slideIndex === 0
+        ? getCoatDisplayEmbroideryLayers(baseSelections, coatDisplayGarmentLayers)
+        : [];
+    const coatDisplayButtonLayers = hasCoat && slideIndex === 0
+        ? getCoatButtonCodes(baseSelections, 0).map((code, idx) => ({
+            code,
+            zIndex: 92 + idx,
+            type: 'coat_button'
+        }))
+        : [];
+
+    const layersToRender = [
+        ...kurtaBaseLayers,
+        ...kurtaEmbroideryLayers,
+        ...sadriLayers,
+        ...coatDisplayGarmentLayers,
+        ...coatDisplayEmbroideryLayers,
+        ...coatDisplayButtonLayers,
+    ].sort((a, b) => a.zIndex - b.zIndex);
+
+    // DATABASE: Us kapde ki saari images yahan se nikalo
+    const fabricRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {};
+    // Pajama renders by fabricID (same fabric can have a matching pajama render)
+    const pajamaRenders = pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.display || {};
+    // Sadri renders by fabricID, fallback to FAB_001 until all fabrics are mapped
+    const sadriRenders =
+        pickFabricRenderEntry(SADRI_RENDERS, selectedSadriFabric)?.display ||
+        SADRI_RENDERS['FAB_001']?.display ||
+        {};
+
+    const buildSceneEntries = (renderLayers, keyPrefix = 'layer') => {
+        const entries = [];
+
+        renderLayers.forEach((layerObj, index) => {
+            if (!layerObj?.code) return;
+
+            const { imageSource, imageSources } = resolveLayerSources(layerObj);
+            if (Array.isArray(imageSources) && imageSources.length > 0) {
+                imageSources.forEach((src, sourceIndex) => {
+                    if (!src) return;
+                    entries.push({
+                        key: `${keyPrefix}-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`,
+                        src,
+                        zIndex: layerObj.zIndex + sourceIndex * 0.01,
+                    });
+                });
+                return;
+            }
+
+            if (!imageSource) return;
+
+            entries.push({
+                key: `${keyPrefix}-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`,
+                src: imageSource,
+                zIndex: layerObj.zIndex,
+            });
+        });
+
+        return entries;
+    };
+
+    const sceneEntries = slideIndex === 0 ? buildSceneEntries(layersToRender) : [];
+    const shouldHoldInitialScene = slideIndex === 0 && bufferInitialScene;
+    const bufferedSceneEntries = shouldHoldInitialScene ? sceneEntries : [];
+    const { displayEntries, hasCommittedScene } = useBufferedRenderScene(bufferedSceneEntries);
+    const canRenderInitialScene = !shouldHoldInitialScene || hasCommittedScene || bufferedSceneEntries.length === 0;
+
+    useEffect(() => {
+        if (typeof onSceneReadyChange !== 'function') return;
+        onSceneReadyChange(canRenderInitialScene);
+    }, [onSceneReadyChange, canRenderInitialScene]);
+
+    const visibleSceneEntries = shouldHoldInitialScene ? (canRenderInitialScene ? displayEntries : []) : sceneEntries;
+
+    if (!hasRequiredSceneInputs) return null;
+
     if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
         const coatGarmentLayers = slideIndex === 4
             ? [
-                ...getStyleFrontCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(selections?.coatType) }),
-                ...getKurtaCoatTuxStyleFrontLayers(selections).map((layer) => ({ ...layer, sourceSet: 'style' })),
+                ...getStyleFrontCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(baseSelections?.coatType) }),
+                ...getKurtaCoatTuxStyleFrontLayers(baseSelections).map((layer) => ({ ...layer, sourceSet: 'style' })),
             ]
             : [
                 ...getStyleBackCoatLayers(baseCoatSelections),
-                ...getKurtaCoatTuxBackLayers(selections).map((layer) => ({ ...layer, sourceSet: 'style' })),
+                ...getKurtaCoatTuxBackLayers(baseSelections).map((layer) => ({ ...layer, sourceSet: 'style' })),
             ];
         const coatEmbroideryLayers = slideIndex === 4
-            ? getCoatStyleEmbroideryLayers(selections, coatGarmentLayers)
-            : getCoatBackEmbroideryLayers(selections, coatGarmentLayers);
-        const coatButtonLayers = getCoatButtonCodes(selections, slideIndex).map((code, idx) => ({
+            ? getCoatStyleEmbroideryLayers(baseSelections, coatGarmentLayers)
+            : getCoatBackEmbroideryLayers(baseSelections, coatGarmentLayers);
+        const coatButtonLayers = getCoatButtonCodes(baseSelections, slideIndex).map((code, idx) => ({
             code,
             zIndex: (slideIndex === 4 ? 40 : 41) + idx,
             type: 'coat_button',
@@ -655,88 +749,31 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         );
     }
 
-    // ENGINE KO BULAO: Kurta Arrays
-    const kurtaLayers = getKurtaLayerCodes(selections, selectedButton, 0, slideIndex, hasCoat, hasSadri, sadriCode) || [];
-    const kurtaBaseLayers = kurtaLayers.filter((layer) => layer?.type !== 'embroidery');
-    const kurtaEmbroideryLayers = getKurtaModelEmbroideryLayers(selections, kurtaBaseLayers);
-
-    // ENGINE KO BULAO: Sadri Arrays
-    let sadriLayers = [];
-    if (hasSadri && (slideIndex === 0 || slideIndex === 4 || slideIndex === 5)) {
-        const sadriViewMode = slideIndex === 4 ? 1 : 0;
-        sadriLayers = getSadriLayerCodes(sadriCode, selections, selectedSadriButton, sadriViewMode, slideIndex, EMBROIDERY_RENDERS) || [];
-    }
-
-    const coatDisplayGarmentLayers = hasCoat && slideIndex === 0
-        ? [
-            ...getDisplayCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(selections?.coatType) }),
-            ...getKurtaCoatTuxDisplayLayers(selections),
-        ]
-        : [];
-    const coatDisplayEmbroideryLayers = hasCoat && slideIndex === 0
-        ? getCoatDisplayEmbroideryLayers(selections, coatDisplayGarmentLayers)
-        : [];
-    const coatDisplayButtonLayers = hasCoat && slideIndex === 0
-        ? getCoatButtonCodes(selections, 0).map((code, idx) => ({
-            code,
-            zIndex: 92 + idx,
-            type: 'coat_button'
-        }))
-        : [];
-
-    const layersToRender = [
-        ...kurtaBaseLayers,
-        ...kurtaEmbroideryLayers,
-        ...sadriLayers,
-        ...coatDisplayGarmentLayers,
-        ...coatDisplayEmbroideryLayers,
-        ...coatDisplayButtonLayers,
-    ].sort((a, b) => a.zIndex - b.zIndex);
-
-    // DATABASE: Us kapde ki saari images yahan se nikalo
-    const fabricRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {};
-    // Pajama renders by fabricID (same fabric can have a matching pajama render)
-    const pajamaRenders = pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.display || {};
-    // Sadri renders by fabricID, fallback to FAB_001 until all fabrics are mapped
-    const sadriRenders =
-        pickFabricRenderEntry(SADRI_RENDERS, selectedSadriFabric)?.display ||
-        SADRI_RENDERS['FAB_001']?.display ||
-        {};
-
     return (
         <View style={styles.container}>
             {/* 1. Nanga Ladka (Z-Index: 1) */}
-            <Image source={bodyImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
+            {canRenderInitialScene ? (
+                <Image source={bodyImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
+            ) : null}
 
             {/* 2. Kapde ki Layers (Z-Index: 10 se 90) */}
-            {layersToRender.map((layerObj, index) => {
-                if (!layerObj || !layerObj.code) return null;
-
-                const { imageSource, imageSources } = resolveLayerSources(layerObj);
-
-                if (Array.isArray(imageSources) && imageSources.length > 0) {
-                    return imageSources.map((src, sourceIndex) => (
-                        <SmartLayer
-                            key={`layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`}
-                            src={src}
-                            zIndex={layerObj.zIndex + sourceIndex * 0.01}
-                            dynamicStyle={dynamicStyle}
-                        />
-                    ));
-                }
+            {visibleSceneEntries.map((entry) => {
+                if (!entry?.src) return null;
 
                 return (
                     <SmartLayer
-                        key={`layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`}
-                        src={imageSource}
-                        zIndex={layerObj.zIndex}
+                        key={entry.key}
+                        src={entry.src}
+                        zIndex={entry.zIndex}
                         dynamicStyle={dynamicStyle}
                     />
                 );
             })}
 
             {/* 3. Hands Overlay (Z-Index: 100) */}
-            <Image source={handsImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
+            {canRenderInitialScene ? (
+                <Image source={handsImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
+            ) : null}
 
         </View>
     );

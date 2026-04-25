@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Dimensions, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, PixelRatio } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, InteractionManager } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Reanimated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SvgCssUri } from 'react-native-svg/css';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { DotLottie } from '@lottiefiles/dotlottie-react-native';
 import * as ExpoLinking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -20,6 +21,7 @@ import {
     DUMMY_COAT_BUTTONS,
 } from '../../Data/dummyData';
 import { useFirebaseCatalog } from '../../context/FirebaseCatalogContext';
+import { pickFabricRenderEntry } from '../../firebase/catalogApi';
 import { KURTA_STYLE_OPTIONS, SKIN_TONE_OPTIONS } from '../../Data/styleData';
 import { useOutfit } from '../../context/OutfitContext';
 import { useDeepLinkHandler } from '../../hooks/useDeepLinkHandler';
@@ -52,6 +54,7 @@ const EXTRAS_TRAY_ITEMS = [
 ];
 
 const PUBLIC_SHARE_BASE_URL = 'https://maviinci.in/s';
+const RENDER_LOADING_ANIMATION_URL = 'https://lottie.host/16b69e12-0efb-4061-b33d-12dc2b93fd84/Ax2k12jKRd.lottie';
 const SADRI_UPPER_POCKET_BLOCKED_TYPES = new Set(['SS', 'AA', 'CC', 'DD', 'EE', 'N']);
 const isSadriUpperPocketBlocked = (sadriType) => SADRI_UPPER_POCKET_BLOCKED_TYPES.has(String(sadriType || '').trim().toUpperCase());
 
@@ -457,6 +460,10 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         fabrics,
         fabricsByGarment,
         buttons,
+        kurtaRenders,
+        pajamaRenders,
+        sadriRenders,
+        coatRenders,
         embroideryRenders,
         embroideryCollections: embroideryCollectionsFromCtx,
         prefetchFabricRenders,
@@ -506,9 +513,14 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const [selectedPajamaFabric, setSelectedPajamaFabric] = useState(fabrics?.[0] || {});
     const [selectedSadriFabric, setSelectedSadriFabric] = useState(fabrics?.[0] || {});
     const [selectedCoatFabric, setSelectedCoatFabric] = useState(fabrics?.[0] || {});
+    const [renderSelectedFabric, setRenderSelectedFabric] = useState(selectedFabric);
+    const [renderSelectedPajamaFabric, setRenderSelectedPajamaFabric] = useState(selectedPajamaFabric);
+    const [renderSelectedSadriFabric, setRenderSelectedSadriFabric] = useState(selectedSadriFabric);
+    const [renderSelectedCoatFabric, setRenderSelectedCoatFabric] = useState(selectedCoatFabric);
     const [fabricTab, setFabricTab] = useState('Kurta'); // 'Kurta' | 'Pajama' | 'Sadri' | 'Coat'
     const [embroideryPanelTab, setEmbroideryPanelTab] = useState('Kurta'); // 'Kurta' | 'Sadri' | 'Coat'
     const [embroideryPreview, setEmbroideryPreview] = useState(null); // { item, panelMode } | null
+    const [currentCarouselIndex, setCurrentCarouselIndex] = useState(0);
 
     const [pendingKurtaBtnId, setPendingKurtaBtnId] = useState(null);
     const [pendingSadriBtnId, setPendingSadriBtnId] = useState(null);
@@ -585,14 +597,153 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const bgTransitionTimerRef = useRef(null);
     const bgAnimatingRef = useRef(false);
     const bgPendingThemeRef = useRef(null);
+    const styleTransitionTimerRef = useRef(null);
     const [activeBgThemeIndex, setActiveBgThemeIndex] = useState(0);
     const [incomingBgThemeIndex, setIncomingBgThemeIndex] = useState(null);
     const [isPreparingShareShot, setIsPreparingShareShot] = useState(false);
     const [shareLinkForShot, setShareLinkForShot] = useState('');
     const shareCaptureRef = useRef(null);
     const appliedPresetRef = useRef('');
+    const [hasInitialHeroRenderLoaded, setHasInitialHeroRenderLoaded] = useState(false);
+    const [isInitialSlideSceneReady, setIsInitialSlideSceneReady] = useState(false);
+    const [isStyleTransitionLoading, setIsStyleTransitionLoading] = useState(false);
 
     const [remotePresetData, setRemotePresetData] = useState(null);
+
+    const triggerStyleTransitionLoading = useCallback(() => {
+        if (styleTransitionTimerRef.current) {
+            clearTimeout(styleTransitionTimerRef.current);
+        }
+        setIsStyleTransitionLoading(true);
+        styleTransitionTimerRef.current = setTimeout(() => {
+            setIsStyleTransitionLoading(false);
+            styleTransitionTimerRef.current = null;
+        }, 450);
+    }, []);
+
+    useEffect(() => () => {
+        if (styleTransitionTimerRef.current) {
+            clearTimeout(styleTransitionTimerRef.current);
+            styleTransitionTimerRef.current = null;
+        }
+    }, []);
+
+    const getFabricIdentityKey = useCallback((fabric) => normalizeId(
+        fabric?.fabricID || fabric?.id || fabric?.name || '',
+    ), []);
+
+    const hasRenderableBundle = useCallback((bundle) => {
+        if (!bundle || typeof bundle !== 'object') return false;
+        return Object.keys(bundle?.display || {}).length > 0 || Object.keys(bundle?.style || {}).length > 0;
+    }, []);
+
+    const firstHeroRenderReady = useMemo(() => {
+        const kurtaReady = hasRenderableBundle(pickFabricRenderEntry(kurtaRenders, renderSelectedFabric));
+        const pajamaReady = hasRenderableBundle(pickFabricRenderEntry(pajamaRenders, renderSelectedPajamaFabric));
+        const sadriReady = !selectedItems.includes('sadri')
+            || hasRenderableBundle(pickFabricRenderEntry(sadriRenders, renderSelectedSadriFabric));
+        const coatReady = !selectedItems.includes('coat')
+            || hasRenderableBundle(pickFabricRenderEntry(coatRenders, renderSelectedCoatFabric));
+
+        return kurtaReady && pajamaReady && sadriReady && coatReady && isInitialSlideSceneReady;
+    }, [
+        hasRenderableBundle,
+        kurtaRenders,
+        pajamaRenders,
+        sadriRenders,
+        coatRenders,
+        renderSelectedFabric,
+        renderSelectedPajamaFabric,
+        renderSelectedSadriFabric,
+        renderSelectedCoatFabric,
+        isInitialSlideSceneReady,
+        selectedItems,
+    ]);
+
+    useEffect(() => {
+        const selectedKey = getFabricIdentityKey(selectedFabric);
+        const renderKey = getFabricIdentityKey(renderSelectedFabric);
+        if (selectedKey === renderKey) return;
+        if (hasRenderableBundle(pickFabricRenderEntry(kurtaRenders, selectedFabric))) {
+            setRenderSelectedFabric(selectedFabric);
+        }
+    }, [selectedFabric, renderSelectedFabric, getFabricIdentityKey, hasRenderableBundle, kurtaRenders]);
+
+    useEffect(() => {
+        const selectedKey = getFabricIdentityKey(selectedPajamaFabric);
+        const renderKey = getFabricIdentityKey(renderSelectedPajamaFabric);
+        if (selectedKey === renderKey) return;
+        if (hasRenderableBundle(pickFabricRenderEntry(pajamaRenders, selectedPajamaFabric))) {
+            setRenderSelectedPajamaFabric(selectedPajamaFabric);
+        }
+    }, [selectedPajamaFabric, renderSelectedPajamaFabric, getFabricIdentityKey, hasRenderableBundle, pajamaRenders]);
+
+    useEffect(() => {
+        const selectedKey = getFabricIdentityKey(selectedSadriFabric);
+        const renderKey = getFabricIdentityKey(renderSelectedSadriFabric);
+        if (selectedKey === renderKey) return;
+        if (!selectedItems.includes('sadri')) {
+            setRenderSelectedSadriFabric(selectedSadriFabric);
+            return;
+        }
+        if (hasRenderableBundle(pickFabricRenderEntry(sadriRenders, selectedSadriFabric))) {
+            setRenderSelectedSadriFabric(selectedSadriFabric);
+        }
+    }, [selectedSadriFabric, renderSelectedSadriFabric, selectedItems, getFabricIdentityKey, hasRenderableBundle, sadriRenders]);
+
+    useEffect(() => {
+        const selectedKey = getFabricIdentityKey(selectedCoatFabric);
+        const renderKey = getFabricIdentityKey(renderSelectedCoatFabric);
+        if (selectedKey === renderKey) return;
+        if (!selectedItems.includes('coat')) {
+            setRenderSelectedCoatFabric(selectedCoatFabric);
+            return;
+        }
+        if (hasRenderableBundle(pickFabricRenderEntry(coatRenders, selectedCoatFabric))) {
+            setRenderSelectedCoatFabric(selectedCoatFabric);
+        }
+    }, [selectedCoatFabric, renderSelectedCoatFabric, selectedItems, getFabricIdentityKey, hasRenderableBundle, coatRenders]);
+
+    const isFabricTransitionLoading = useMemo(() => {
+        if (!hasInitialHeroRenderLoaded) return false;
+
+        const kurtaPending = getFabricIdentityKey(selectedFabric) !== getFabricIdentityKey(renderSelectedFabric);
+        const pajamaPending = getFabricIdentityKey(selectedPajamaFabric) !== getFabricIdentityKey(renderSelectedPajamaFabric);
+        const sadriPending = selectedItems.includes('sadri')
+            && getFabricIdentityKey(selectedSadriFabric) !== getFabricIdentityKey(renderSelectedSadriFabric);
+        const coatPending = selectedItems.includes('coat')
+            && getFabricIdentityKey(selectedCoatFabric) !== getFabricIdentityKey(renderSelectedCoatFabric);
+
+        return kurtaPending || pajamaPending || sadriPending || coatPending;
+    }, [
+        hasInitialHeroRenderLoaded,
+        selectedFabric,
+        selectedPajamaFabric,
+        selectedSadriFabric,
+        selectedCoatFabric,
+        renderSelectedFabric,
+        renderSelectedPajamaFabric,
+        renderSelectedSadriFabric,
+        renderSelectedCoatFabric,
+        selectedItems,
+        getFabricIdentityKey,
+    ]);
+
+    const showRenderLoadingOverlay = !isPreparingShareShot
+        && (!hasInitialHeroRenderLoaded || isFabricTransitionLoading || isStyleTransitionLoading);
+
+    const renderLoadingLabel = loadError
+        ? 'Render load failed'
+        : hasInitialHeroRenderLoaded
+            ? 'Updating render...'
+            : 'Loading render...';
+
+    useEffect(() => {
+        if (hasInitialHeroRenderLoaded) return;
+        if (firstHeroRenderReady) {
+            setHasInitialHeroRenderLoaded(true);
+        }
+    }, [firstHeroRenderReady, hasInitialHeroRenderLoaded]);
 
     const localPresetData = useMemo(() => {
         if (!presetParam || typeof presetParam !== 'string') return null;
@@ -697,6 +848,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 }
                 case 'STYLE_CHANGE': {
                     if (cmd.payload?.type && cmd.payload?.value !== undefined) {
+                        triggerStyleTransitionLoading();
                         setSelections(prev => ({ ...prev, [cmd.payload.type]: cmd.payload.value }));
                     }
                     break;
@@ -747,7 +899,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             }
         });
         return unsubscribe;
-    }, [tvSessionId, subscribeToCommands, setSelectedItems, slideAnim]);
+    }, [tvSessionId, subscribeToCommands, setSelectedItems, slideAnim, triggerStyleTransitionLoading]);
 
     // Update selectedSadriButton / selectedCoatButton when Firebase data arrives
     useEffect(() => {
@@ -851,29 +1003,88 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         setSelectedCoatFabric((f) => fix(f, 'Coat', hasAutoDefaultedCoatRef, setPendingCoatBtnId));
     }, [fabrics, fabricsByGarment, listForGarmentTab, presetData]);
 
-    useEffect(() => {
-        const picks = [
-            selectedFabric,
-            selectedPajamaFabric,
-            selectedSadriFabric,
-            selectedCoatFabric,
-        ].filter(Boolean);
-        const seen = new Set();
-        picks.forEach((sel) => {
-            if (!sel.fabricID || seen.has(sel.fabricID)) return;
-            seen.add(sel.fabricID);
-            const profile =
-                fabrics.find((f) => String(f.fabricID) === String(sel.fabricID)) || sel;
-            prefetchFabricRenders(profile);
-        });
+    const buildSlidePrefetchPlan = useCallback((slideIndex) => {
+        const immediate = [];
+        const background = [];
+
+        const addRequest = (list, fabric, garment) => {
+            if (!fabric || !garment) return;
+            const fabricKey = String(fabric.fabricID || fabric.id || fabric.name || '').trim();
+            if (!fabricKey) return;
+            const requestKey = `${garment}:${fabricKey}`;
+            if (list.some((item) => item.key === requestKey)) return;
+            const profile = fabrics.find((item) => String(item.fabricID || item.id || item.name || '').trim() === fabricKey) || fabric;
+            list.push({ key: requestKey, fabric: profile, garment });
+        };
+
+        const addSelectedGarments = (list) => {
+            addRequest(list, selectedFabric, 'kurta');
+            addRequest(list, selectedPajamaFabric, 'pajama');
+            if (selectedItems?.includes('sadri')) addRequest(list, selectedSadriFabric, 'sadri');
+            if (selectedItems?.includes('coat')) addRequest(list, selectedCoatFabric, 'coat');
+        };
+
+        switch (slideIndex) {
+            case 0:
+                addSelectedGarments(immediate);
+                break;
+            case 1:
+                addRequest(immediate, selectedFabric, 'kurta');
+                addRequest(immediate, selectedPajamaFabric, 'pajama');
+                break;
+            case 2:
+                addRequest(immediate, selectedFabric, 'kurta');
+                break;
+            case 3:
+                addRequest(immediate, selectedPajamaFabric, 'pajama');
+                break;
+            case 4:
+                if (selectedItems?.includes('coat')) addRequest(immediate, selectedCoatFabric, 'coat');
+                else if (selectedItems?.includes('sadri')) addRequest(immediate, selectedSadriFabric, 'sadri');
+                else addSelectedGarments(immediate);
+                break;
+            case 5:
+                if (selectedItems?.includes('coat')) addRequest(immediate, selectedCoatFabric, 'coat');
+                break;
+            default:
+                addSelectedGarments(immediate);
+                break;
+        }
+
+        addSelectedGarments(background);
+        const immediateKeys = new Set(immediate.map((item) => item.key));
+        return {
+            immediate,
+            background: background.filter((item) => !immediateKeys.has(item.key)),
+        };
     }, [
         fabrics,
         selectedFabric,
         selectedPajamaFabric,
         selectedSadriFabric,
         selectedCoatFabric,
-        prefetchFabricRenders,
+        selectedItems,
     ]);
+
+    useEffect(() => {
+        const { immediate, background } = buildSlidePrefetchPlan(currentCarouselIndex);
+
+        immediate.forEach(({ fabric, garment }) => {
+            prefetchFabricRenders(fabric, { garments: [garment] });
+        });
+
+        if (!background.length) return undefined;
+
+        const task = InteractionManager.runAfterInteractions(() => {
+            background.forEach(({ fabric, garment }) => {
+                prefetchFabricRenders(fabric, { garments: [garment] });
+            });
+        });
+
+        return () => {
+            if (task && typeof task.cancel === 'function') task.cancel();
+        };
+    }, [currentCarouselIndex, buildSlidePrefetchPlan, prefetchFabricRenders]);
 
     useEffect(() => {
         if (!presetData || !fabrics?.length) return;
@@ -1138,6 +1349,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const handleStyleChange = (type, value) => {
         const blockSadriUpperPocket = type === 'sadriType' && isSadriUpperPocketBlocked(value);
         const forceSadriUpperPocketOff = type === 'sadriUpperPocket' && sadriUpperPocketForcedOff && String(value) === '1';
+        triggerStyleTransitionLoading();
         setSelections(prev => {
             const nextValue = forceSadriUpperPocketOff ? '0' : value;
             const next = { ...prev, [type]: nextValue };
@@ -1875,12 +2087,30 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const panelBottomOffset = effectiveTV ? 10 : 70;
 
     const buildSlides = () => {
-        const baseProps = { selections, selectedFabric, selectedButton, selectedSadriButton, selectedCoatButton, selectedPajamaFabric, selectedSadriFabric, selectedCoatFabric, hasSadri, sadriCode, selectedSkinTone };
+        const baseProps = {
+            selections,
+            selectedFabric: renderSelectedFabric,
+            selectedButton,
+            selectedSadriButton,
+            selectedCoatButton,
+            selectedPajamaFabric: renderSelectedPajamaFabric,
+            selectedSadriFabric: renderSelectedSadriFabric,
+            selectedCoatFabric: renderSelectedCoatFabric,
+            hasSadri,
+            sadriCode,
+            selectedSkinTone,
+        };
 
         if (hasOuterwear) {
             return [
                 <View key="full" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                    <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={0} />
+                    <KurtaModel
+                        {...baseProps}
+                        hasCoat={hasCoat}
+                        slideIndex={0}
+                        onSceneReadyChange={setIsInitialSlideSceneReady}
+                        bufferInitialScene={!hasInitialHeroRenderLoaded}
+                    />
                 </View>,
                 <View key="inner" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                     <KurtaModel {...baseProps} hasCoat={false} slideIndex={1} />
@@ -1909,7 +2139,13 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
         return [
             <View key="full" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-                <KurtaModel {...baseProps} hasCoat={hasCoat} slideIndex={0} />
+                <KurtaModel
+                    {...baseProps}
+                    hasCoat={hasCoat}
+                    slideIndex={0}
+                    onSceneReadyChange={setIsInitialSlideSceneReady}
+                    bufferInitialScene={!hasInitialHeroRenderLoaded}
+                />
             </View>,
             <View key="folded" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
                 <KurtaFolded {...baseProps} />
@@ -1959,9 +2195,25 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                         data={buildSlides()}
                         carouselWidth={effectiveTV ? width * 0.82 : width}
                         onIndexChange={(index) => {
+                            setCurrentCarouselIndex(index);
                             if (tvSessionId && !isRemoteScrolling.current) sendCommand('CAROUSEL_SCROLL', { index });
                         }}
                     />
+                    {showRenderLoadingOverlay ? (
+                        <View style={styles.renderLoadingOverlay} pointerEvents="none">
+                            {!loadError ? (
+                                <DotLottie
+                                    source={{ uri: RENDER_LOADING_ANIMATION_URL }}
+                                    autoplay
+                                    loop
+                                    style={styles.renderLoadingAnimation}
+                                />
+                            ) : null}
+                            <Text style={styles.renderLoadingText}>
+                                {renderLoadingLabel}
+                            </Text>
+                        </View>
+                    ) : null}
                 </View>
                 {isPreparingShareShot ? (
                     <View pointerEvents="none" style={styles.shareShotOverlay}>
@@ -2805,6 +3057,33 @@ const styles = StyleSheet.create({
         zIndex: 0,
     },
     modelContainer: { flex: 1, zIndex: 1, position: 'relative', marginTop: -60 },
+    renderLoadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 41,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    renderLoadingAnimation: {
+        width: 148,
+        height: 148,
+    },
+    renderLoadingText: {
+        color: CustomTheme.textBrand,
+        fontSize: 13,
+        fontWeight: '600',
+        marginTop: -8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderWidth: 1,
+        borderColor: 'rgba(20,33,61,0.08)',
+        shadowColor: '#000000',
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 3,
+    },
     shareShotOverlay: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 50,

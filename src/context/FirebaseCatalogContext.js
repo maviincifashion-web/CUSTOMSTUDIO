@@ -5,10 +5,6 @@ import {
   DUMMY_BUTTONS,
   DUMMY_SADRI_BUTTONS,
   DUMMY_COAT_BUTTONS,
-  KURTA_RENDERS as LOCAL_KURTA,
-  PAJAMA_RENDERS as LOCAL_PAJAMA,
-  SADRI_RENDERS as LOCAL_SADRI,
-  COAT_RENDERS as LOCAL_COAT,
 } from '../Data/dummyData';
 import { getFirestoreDb, isFirebaseConfigured } from '../firebase/config';
 import {
@@ -82,28 +78,6 @@ function embroideryExtraProfileUris(data) {
   return out;
 }
 
-function mergeLayerMaps(local, remote) {
-  if (!remote || Object.keys(remote).length === 0) return local;
-  return { ...local, ...remote };
-}
-
-function mergeGarmentEntry(localEntry, remoteEntry) {
-  if (!remoteEntry) return localEntry;
-  return {
-    display: mergeLayerMaps(localEntry?.display || {}, remoteEntry.display || {}),
-    style: mergeLayerMaps(localEntry?.style || {}, remoteEntry.style || {}),
-  };
-}
-
-function mergeGarmentMap(localMap, remoteMap) {
-  const ids = new Set([...Object.keys(localMap || {}), ...Object.keys(remoteMap || {})]);
-  const out = {};
-  for (const id of ids) {
-    out[id] = mergeGarmentEntry(localMap?.[id], remoteMap?.[id]);
-  }
-  return out;
-}
-
 function mergeButtons(localList, remoteList) {
   if (!remoteList?.length) return localList;
   const byId = new Map(localList.map((b) => [b.id, { ...b, renders: { ...b.renders } }]));
@@ -125,6 +99,29 @@ function mergeButtons(localList, remoteList) {
     }
   }
   return Array.from(byId.values());
+}
+
+const PREFETCH_GARMENT_LABELS = {
+  kurta: 'Kurta',
+  pajama: 'Pajama',
+  sadri: 'Sadri',
+  coat: 'Coat',
+};
+
+function normalizePrefetchGarments(garments) {
+  const fallback = Object.keys(PREFETCH_GARMENT_LABELS);
+  if (!Array.isArray(garments) || garments.length === 0) return fallback;
+
+  const out = [];
+  const seen = new Set();
+  garments.forEach((garment) => {
+    const key = String(garment || '').trim().toLowerCase();
+    if (!PREFETCH_GARMENT_LABELS[key] || seen.has(key)) return;
+    seen.add(key);
+    out.push(key);
+  });
+
+  return out.length ? out : fallback;
 }
 
 const FirebaseCatalogContext = createContext(null);
@@ -287,10 +284,11 @@ export function FirebaseCatalogProvider({ children }) {
     return () => { cancelled = true; };
   }, [enabled, localThumb, makeGarmentMetadataMap]);
 
-  const prefetchFabricRenders = useCallback(async (fabricOrId) => {
+  const prefetchFabricRenders = useCallback(async (fabricOrId, options = {}) => {
     if (!enabled || fabricOrId == null) return;
     const fabric = typeof fabricOrId === 'string' ? { fabricID: fabricOrId, stylePathId: fabricOrId } : fabricOrId;
     const mergeKey = fabric.fabricID;
+    const requestedGarments = normalizePrefetchGarments(options?.garments);
     
     const candidateIds = [
       fabric.websiteId,
@@ -341,13 +339,6 @@ export function FirebaseCatalogProvider({ children }) {
         return req;
       };
 
-      const [k, p, s, c] = await Promise.all([
-        fetchGarment('kurta', idsForGarment('Kurta')),
-        fetchGarment('pajama', idsForGarment('Pajama')),
-        fetchGarment('sadri', idsForGarment('Sadri')),
-        fetchGarment('coat', idsForGarment('Coat')),
-      ]);
-
       const aliasKeys = fabricRenderLookupKeys(fabric);
       const applyAliases = (setter, bundle) => {
         setter((prev) => {
@@ -363,10 +354,16 @@ export function FirebaseCatalogProvider({ children }) {
         });
       };
 
-      applyAliases(setRemoteKurta, k);
-      applyAliases(setRemotePajama, p);
-      applyAliases(setRemoteSadri, s);
-      applyAliases(setRemoteCoat, c);
+      await Promise.all(requestedGarments.map(async (garmentType) => {
+        const garmentLabel = PREFETCH_GARMENT_LABELS[garmentType];
+        if (!garmentLabel) return;
+
+        const bundle = await fetchGarment(garmentType, idsForGarment(garmentLabel));
+        if (garmentType === 'kurta') applyAliases(setRemoteKurta, bundle);
+        else if (garmentType === 'pajama') applyAliases(setRemotePajama, bundle);
+        else if (garmentType === 'sadri') applyAliases(setRemoteSadri, bundle);
+        else if (garmentType === 'coat') applyAliases(setRemoteCoat, bundle);
+      }));
 
     } catch (e) {
       console.warn('prefetchFabricRenders', mergeKey, e);
@@ -538,10 +535,10 @@ export function FirebaseCatalogProvider({ children }) {
     return () => { cancelled = true; };
   }, [enabled]);
 
-  const kurtaRenders = useMemo(() => mergeGarmentMap(LOCAL_KURTA, remoteKurta), [remoteKurta]);
-  const pajamaRenders = useMemo(() => mergeGarmentMap(LOCAL_PAJAMA, remotePajama), [remotePajama]);
-  const sadriRenders = useMemo(() => mergeGarmentMap(LOCAL_SADRI, remoteSadri), [remoteSadri]);
-  const coatRenders = useMemo(() => mergeGarmentMap(LOCAL_COAT, remoteCoat), [remoteCoat]);
+  const kurtaRenders = useMemo(() => remoteKurta || {}, [remoteKurta]);
+  const pajamaRenders = useMemo(() => remotePajama || {}, [remotePajama]);
+  const sadriRenders = useMemo(() => remoteSadri || {}, [remoteSadri]);
+  const coatRenders = useMemo(() => remoteCoat || {}, [remoteCoat]);
   const embroideryRenders = useMemo(
     () => mergeEmbroideryRenderMaps({}, remoteEmbroideryByStyleId),
     [remoteEmbroideryByStyleId]

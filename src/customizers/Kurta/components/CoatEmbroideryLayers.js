@@ -200,6 +200,28 @@ const getSourcePartsForLayer = (part) => {
     return normalizedPart ? [normalizedPart] : [];
 };
 
+const collectionValueMatchesCoatLayer = (value, layer) => {
+    const placement = parseEmbroideryValuePlacement(value);
+    if (normalizeEmbKey(placement.garment) !== 'coat') return false;
+
+    const sourceParts = Array.isArray(layer?.sourceParts)
+        ? layer.sourceParts.map(normalizeEmbKey)
+        : [];
+
+    if (sourceParts.length > 0) {
+        const normalizedPart = placement.part === 'lapel' ? 'collar' : placement.part;
+        return sourceParts.includes(normalizedPart)
+            || (placement.part === 'lapel' && sourceParts.includes('lapel'));
+    }
+
+    const layerPart = String(layer?.part || '').trim();
+    if (layerPart === 'Collar') return placement.part === 'collar' || placement.part === 'lapel';
+    if (layerPart === 'Sleeve') return placement.part === 'sleeve';
+    if (layerPart === 'Pocket') return placement.part === 'pocket';
+    if (layerPart === 'Chest') return placement.part === 'base';
+    return false;
+};
+
 const collectionHasPlacementPart = (matchingValues, garment, part) => {
     const normalizedGarment = normalizeEmbKey(garment);
     const normalizedPart = normalizeEmbKey(part);
@@ -277,12 +299,16 @@ const buildCoatEmbroideryLayers = (embroideryId, collection, garmentLayers, view
     garmentLayers.forEach((layer) => {
         if (!layer || !isCoatGarmentLayer(layer) || !COAT_EMBROIDERABLE_LAYER_PARTS.has(layer.part)) return;
 
-        const code = normalizeEmbroideryRenderCode(layer, viewSuffix);
-        if (!code) return;
-
         const sourceParts = Array.isArray(layer.sourceParts) && layer.sourceParts.length > 0
             ? layer.sourceParts
             : getSourcePartsForLayer(layer.part);
+
+        if (!matchingValues.some((value) => collectionValueMatchesCoatLayer(value, { ...layer, sourceParts }))) {
+            return;
+        }
+
+        const code = normalizeEmbroideryRenderCode(layer, viewSuffix);
+        if (!code) return;
 
         layersToRender.push({
             code,

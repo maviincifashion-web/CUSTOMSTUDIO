@@ -1,5 +1,5 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomTheme } from '../constants/theme';
 import { useResponsive } from '../hooks/useResponsive';
@@ -16,7 +16,7 @@ export interface CarouselRef {
 }
 
 const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data, onIndexChange, carouselWidth }, ref) => {
-    const { width: fullScreenWidth, normalize, isTV } = useResponsive();
+    const { width: fullScreenWidth } = useResponsive();
     const width = carouselWidth || fullScreenWidth;
     const [currentIndex, setCurrentIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
@@ -28,6 +28,7 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data, onInd
             if (flatListRef.current && index >= 0 && index < data.length) {
                 flatListRef.current.scrollToIndex({ index, animated: true });
                 setCurrentIndex(index);
+                onIndexChangeRef.current?.(index);
             }
         }
     }));
