@@ -21,7 +21,7 @@ import {
     DUMMY_COAT_BUTTONS,
 } from '../../Data/dummyData';
 import { useFirebaseCatalog } from '../../context/FirebaseCatalogContext';
-import { pickFabricRenderEntry } from '../../firebase/catalogApi';
+import { fetchEmbroideryUploadedCollectionsForStyleId, pickFabricRenderEntry } from '../../firebase/catalogApi';
 import { KURTA_STYLE_OPTIONS, SKIN_TONE_OPTIONS } from '../../Data/styleData';
 import { useOutfit } from '../../context/OutfitContext';
 import { useDeepLinkHandler } from '../../hooks/useDeepLinkHandler';
@@ -1231,6 +1231,13 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         ''
     ), []);
 
+    const prefetchEmbroideryCollectionsForPreview = useCallback((embroidery, panelMode) => {
+        if (!embroidery?.id) return;
+        const db = getFirestoreDb();
+        if (!db) return;
+        fetchEmbroideryUploadedCollectionsForStyleId(db, embroidery.id, panelMode).catch(() => {});
+    }, []);
+
     const buildSharePreset = useCallback(() => ({
         v: 1,
         items: selectedItems,
@@ -1938,6 +1945,9 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                     return (
                                         <View key={embroidery.id} style={[styles.fabricCard, isActive && styles.fabricCardActive]}>
                                             <TouchableOpacity
+                                                onPressIn={() => {
+                                                    prefetchEmbroideryCollectionsForPreview(embroidery, embroideryPanelTab);
+                                                }}
                                                 onPress={() => {
                                                     setEmbroideryPreview({ item: embroidery, panelMode: embroideryPanelTab });
                                                 }}
@@ -1952,6 +1962,9 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                                             <View style={styles.fabricInfo}>
                                                 <TouchableOpacity
                                                     style={styles.fabricInfoTextWrap}
+                                                    onPressIn={() => {
+                                                        prefetchEmbroideryCollectionsForPreview(embroidery, embroideryPanelTab);
+                                                    }}
                                                     onPress={() => setEmbroideryPreview({ item: embroidery, panelMode: embroideryPanelTab })}
                                                     activeOpacity={0.85}
                                                 >

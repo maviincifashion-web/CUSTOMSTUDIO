@@ -976,12 +976,18 @@ function matchingUploadedCollectionValues(data, sid, panelMode, bucketName) {
 /**
  * Admin embroidery “collection” cards for one style id (`Embroidery_collection.jsx` list when a style is opened).
  */
+const embroideryUploadedCollectionsCache = new Map();
+
 export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, panelMode = 'Kurta') {
   const sid = normalizeFabricKey(styleId);
   if (!sid) return [];
 
-  const out = [];
-  for (const entry of EMBROIDERY_UPLOAD_COLLECTIONS) {
+  const cacheKey = `${sid}:${panelMode}`;
+  if (embroideryUploadedCollectionsCache.has(cacheKey)) {
+    return embroideryUploadedCollectionsCache.get(cacheKey);
+  }
+
+  const loadPromise = Promise.all(EMBROIDERY_UPLOAD_COLLECTIONS.map(async (entry) => {
     const { value, label, category, garmentType } = entry;
     let snap;
     try {
@@ -991,8 +997,9 @@ export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, 
         snap = await getDocs(collection(db, 'Fabric', 'embroidery', value));
       }
     } catch {
-      continue;
+      return [];
     }
+    const matches = [];
     for (const docSnap of snap.docs) {
       const data = docSnap.data() || {};
       if (!Array.isArray(data.values) || data.values.length === 0) continue;
@@ -1005,7 +1012,7 @@ export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, 
       const resolvedCategory = normalizeEmbroideryLookupKey(data.targetCategory || category);
       const resolvedGarmentType = normalizeEmbroideryLookupKey(data.targetType || garmentType);
 
-      out.push({
+      matches.push({
         id: docSnap.id,
         segment: value,
         name: data.name || docSnap.id,
@@ -1019,10 +1026,18 @@ export async function fetchEmbroideryUploadedCollectionsForStyleId(db, styleId, 
         matchingValues: vals,
       });
     }
-  }
+    return matches;
+  })).then((groups) => {
+    const out = groups.flat();
+    out.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' }));
+    return out;
+  }).catch((error) => {
+    embroideryUploadedCollectionsCache.delete(cacheKey);
+    throw error;
+  });
 
-  out.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' }));
-  return out;
+  embroideryUploadedCollectionsCache.set(cacheKey, loadPromise);
+  return loadPromise;
 }
 
 /**
