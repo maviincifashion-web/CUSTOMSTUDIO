@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import { useResponsive } from '../../../../hooks/useResponsive';
 
@@ -56,6 +56,7 @@ const KURTA_HANDS_CUFF_BY_TONE = {
     7: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_7.webp'),
 };
 
+const SMART_LAYER_TIMEOUT_MS = 3000;
 
 const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
     const sourceKey = typeof src === 'number'
@@ -65,38 +66,64 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
     const [pendingSrc, setPendingSrc] = useState(null);
     const [pendingToken, setPendingToken] = useState(0);
     const tokenRef = useRef(0);
-    const pendingSrcRef = useRef(null);
+    const timeoutRef = useRef(null);
+    const skipNextRef = useRef(false);
 
     useEffect(() => {
+        // Guard: skip if this re-run was caused by our own setPendingSrc
+        if (skipNextRef.current) {
+            skipNextRef.current = false;
+            return;
+        }
+
         if (!src || !sourceKey) {
             setPendingSrc(null);
-            pendingSrcRef.current = null;
+            if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
             return;
         }
 
         const displayKey = typeof displaySrc === 'number'
             ? `r:${displaySrc}`
             : (displaySrc?.uri ? `u:${displaySrc.uri}` : '');
-        const pendingKey = typeof pendingSrc === 'number'
-            ? `r:${pendingSrc}`
-            : (pendingSrc?.uri ? `u:${pendingSrc.uri}` : '');
-
-        if (src?.uri) {
-            Image.prefetch(src.uri).catch(() => { });
-        }
 
         if (!displaySrc) {
             setDisplaySrc(src);
             return;
         }
 
-        if (sourceKey !== displayKey && sourceKey !== pendingKey) {
-            tokenRef.current += 1;
-            setPendingSrc(src);
-            pendingSrcRef.current = src;
-            setPendingToken(tokenRef.current);
+        if (sourceKey !== displayKey) {
+            const pendingKey = typeof pendingSrc === 'number'
+                ? `r:${pendingSrc}`
+                : (pendingSrc?.uri ? `u:${pendingSrc.uri}` : '');
+
+            if (sourceKey !== pendingKey) {
+                if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+                tokenRef.current += 1;
+                const currentToken = tokenRef.current;
+                skipNextRef.current = true; // prevent cascading re-run from setPendingSrc
+                setPendingSrc(src);
+                setPendingToken(currentToken);
+
+                if (src?.uri) {
+                    Image.prefetch(src.uri).catch(() => { });
+                }
+
+                // Safety timeout: if onLoad never fires, force-commit after 3s
+                timeoutRef.current = setTimeout(() => {
+                    if (tokenRef.current === currentToken) {
+                        setDisplaySrc(src);
+                        setPendingSrc(null);
+                    }
+                }, SMART_LAYER_TIMEOUT_MS);
+            }
         }
     }, [src, sourceKey, displaySrc, pendingSrc]);
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        };
+    }, []);
 
     if (!displaySrc) return null;
 
@@ -117,15 +144,15 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
                     fadeDuration={0}
                     onLoad={() => {
                         if (pendingToken === tokenRef.current) {
-                            setDisplaySrc(pendingSrcRef.current || pendingSrc);
+                            if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+                            setDisplaySrc(pendingSrc);
                             setPendingSrc(null);
-                            pendingSrcRef.current = null;
                         }
                     }}
                     onError={() => {
                         if (pendingToken === tokenRef.current) {
+                            if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
                             setPendingSrc(null);
-                            pendingSrcRef.current = null;
                         }
                     }}
                 />
@@ -133,6 +160,7 @@ const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
         </>
     );
 };
+
 
 const SHIRT_COLLARS = ['CR', 'CB', 'CT', 'CS', 'CE'];
 const JODHPURI_TYPES = ['JH', 'JR', 'JS', 'JO'];
@@ -477,7 +505,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     const baseSelections = selections || {};
 
     // Yahan aap apne screens ke hisab se width/height aur margins edit kar sakte hain
-    const getDynamicModelStyle = () => {
+    const dynamicStyle = useMemo(() => {
         const isSadriLastSlide = hasSadri && !hasCoat && slideIndex === 4;
 
         // # MOBILE SCREEN
@@ -529,14 +557,26 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             };
         }
         return {};
-    };
-
-    const dynamicStyle = getDynamicModelStyle();
+    }, [isMobile, isTablet, isDesktop, hasSadri, hasCoat, slideIndex]);
 
     const bodyImage = KURTA_BODY_BY_TONE[selectedSkinTone] || kurta_body;
     const handsImage = baseSelections?.sleeve === "SC"
         ? (KURTA_HANDS_CUFF_BY_TONE[selectedSkinTone] || kurta_hand_c)
         : (KURTA_HANDS_NONCUFF_BY_TONE[selectedSkinTone] || kurta_hand_n);
+
+    // DATABASE: Us kapde ki saari images yahan se nikalo (MOVED UP — resolveLayerSources needs these)
+    const fabricRenders = useMemo(
+        () => pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {},
+        [KURTA_RENDERS, selectedFabric]
+    );
+    const pajamaRenders = useMemo(
+        () => pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.display || {},
+        [PAJAMA_RENDERS, selectedPajamaFabric]
+    );
+    const sadriRenders = useMemo(
+        () => pickFabricRenderEntry(SADRI_RENDERS, selectedSadriFabric)?.display || SADRI_RENDERS['FAB_001']?.display || {},
+        [SADRI_RENDERS, selectedSadriFabric]
+    );
 
     const coatFabricId = selectedCoatFabric?.fabricID || 'FAB_001';
     const coatRenderSet =
@@ -643,59 +683,52 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         ...coatDisplayButtonLayers,
     ].sort((a, b) => a.zIndex - b.zIndex);
 
-    // DATABASE: Us kapde ki saari images yahan se nikalo
-    const fabricRenders = pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {};
-    // Pajama renders by fabricID (same fabric can have a matching pajama render)
-    const pajamaRenders = pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.display || {};
-    // Sadri renders by fabricID, fallback to FAB_001 until all fabrics are mapped
-    const sadriRenders =
-        pickFabricRenderEntry(SADRI_RENDERS, selectedSadriFabric)?.display ||
-        SADRI_RENDERS['FAB_001']?.display ||
-        {};
-
-    const buildSceneEntries = (renderLayers, keyPrefix = 'layer') => {
+    // Build scene entries — computed fresh every render to ensure reactivity with context data
+    const sceneEntries = (() => {
         const entries = [];
-
-        renderLayers.forEach((layerObj, index) => {
+        layersToRender.forEach((layerObj, index) => {
             if (!layerObj?.code) return;
-
             const { imageSource, imageSources } = resolveLayerSources(layerObj);
             if (Array.isArray(imageSources) && imageSources.length > 0) {
                 imageSources.forEach((src, sourceIndex) => {
                     if (!src) return;
                     entries.push({
-                        key: `${keyPrefix}-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`,
+                        key: `layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`,
                         src,
                         zIndex: layerObj.zIndex + sourceIndex * 0.01,
                     });
                 });
                 return;
             }
-
             if (!imageSource) return;
-
             entries.push({
-                key: `${keyPrefix}-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`,
+                key: `layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`,
                 src: imageSource,
                 zIndex: layerObj.zIndex,
             });
         });
-
         return entries;
-    };
+    })();
 
-    const sceneEntries = slideIndex === 0 ? buildSceneEntries(layersToRender) : [];
+    // Buffer slide 0 when the parent asks for a full-scene handoff.
+    // This keeps the previous committed scene visible until the warmed scene is ready.
     const shouldHoldInitialScene = slideIndex === 0 && bufferInitialScene;
     const bufferedSceneEntries = shouldHoldInitialScene ? sceneEntries : [];
-    const { displayEntries, hasCommittedScene } = useBufferedRenderScene(bufferedSceneEntries);
-    const canRenderInitialScene = !shouldHoldInitialScene || hasCommittedScene || bufferedSceneEntries.length === 0;
+    const {
+        displayEntries: bufferedDisplayEntries,
+        hasCommittedScene,
+        isLoading: isBufferingScene,
+    } = useBufferedRenderScene(bufferedSceneEntries);
+    const canRenderInitialScene = !shouldHoldInitialScene
+        || bufferedSceneEntries.length === 0
+        || (hasCommittedScene && !isBufferingScene);
 
     useEffect(() => {
         if (typeof onSceneReadyChange !== 'function') return;
         onSceneReadyChange(canRenderInitialScene);
     }, [onSceneReadyChange, canRenderInitialScene]);
 
-    const visibleSceneEntries = shouldHoldInitialScene ? (canRenderInitialScene ? displayEntries : []) : sceneEntries;
+    const visibleSceneEntries = shouldHoldInitialScene ? bufferedDisplayEntries : sceneEntries;
 
     if (!hasRequiredSceneInputs) return null;
 
@@ -752,9 +785,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     return (
         <View style={styles.container}>
             {/* 1. Nanga Ladka (Z-Index: 1) */}
-            {canRenderInitialScene ? (
-                <Image source={bodyImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
-            ) : null}
+            <Image source={bodyImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
 
             {/* 2. Kapde ki Layers (Z-Index: 10 se 90) */}
             {visibleSceneEntries.map((entry) => {
@@ -771,9 +802,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             })}
 
             {/* 3. Hands Overlay (Z-Index: 100) */}
-            {canRenderInitialScene ? (
-                <Image source={handsImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
-            ) : null}
+            <Image source={handsImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
 
         </View>
     );

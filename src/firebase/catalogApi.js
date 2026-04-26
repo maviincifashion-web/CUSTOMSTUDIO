@@ -248,29 +248,31 @@ export async function fetchGarmentRenderBundleWithFallback(db, garment, candidat
   const ids = expandStylePathCandidates(garment, uniqueCandidates);
   if (ids.length === 0) return { display: {}, style: {} };
   
-  /** @type {{ display: Record<string, { uri: string }>, style: Record<string, { uri: string }> }} */
-  let last = { display: {}, style: {} };
-  
-  for (const id of ids) {
-    const bundle = await fetchGarmentRenderBundleWithSuitsFallback(db, garment, id);
-    const n = Object.keys(bundle.display || {}).length + Object.keys(bundle.style || {}).length;
-    last = bundle;
+  // OPTIMIZATION: Fire ALL candidate IDs in PARALLEL instead of sequential
+  const results = await Promise.all(
+    ids.map((id) => fetchGarmentRenderBundleWithSuitsFallback(db, garment, id)
+      .then((bundle) => ({ id, bundle, count: Object.keys(bundle.display || {}).length + Object.keys(bundle.style || {}).length }))
+      .catch(() => ({ id, bundle: { display: {}, style: {} }, count: 0 }))
+    )
+  );
 
-    if (n > 0) {
+  // Pick the first candidate that returned layers
+  for (const result of results) {
+    if (result.count > 0) {
       if (typeof __DEV__ !== 'undefined' && __DEV__) {
         console.log(
-          `[Maviinci] ${garment} renders: id="${id}" (${Object.keys(bundle.display).length} display, ${Object.keys(bundle.style).length} style)`
+          `[Maviinci] ${garment} renders: id="${result.id}" (${Object.keys(result.bundle.display).length} display, ${Object.keys(result.bundle.style).length} style)`
         );
       }
-      renderBundleCache.set(cacheKey, bundle);
-      return bundle;
+      renderBundleCache.set(cacheKey, result.bundle);
+      return result.bundle;
     }
   }
   
   if (typeof __DEV__ !== 'undefined' && __DEV__) {
     console.warn(`[Maviinci] No ${garment} renders for tried ids: ${ids.join(', ')}`);
   }
-  return last;
+  return results.length > 0 ? results[results.length - 1].bundle : { display: {}, style: {} };
 }
 
 export async function fetchNamedResourceMapCollectionDoc(db, collectionPath, targetKey) {

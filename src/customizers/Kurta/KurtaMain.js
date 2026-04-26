@@ -606,6 +606,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const appliedPresetRef = useRef('');
     const [hasInitialHeroRenderLoaded, setHasInitialHeroRenderLoaded] = useState(false);
     const [isInitialSlideSceneReady, setIsInitialSlideSceneReady] = useState(false);
+    const [shouldBufferSlideZeroScene, setShouldBufferSlideZeroScene] = useState(false);
     const [isStyleTransitionLoading, setIsStyleTransitionLoading] = useState(false);
 
     const [remotePresetData, setRemotePresetData] = useState(null);
@@ -637,6 +638,19 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         return Object.keys(bundle?.display || {}).length > 0 || Object.keys(bundle?.style || {}).length > 0;
     }, []);
 
+    const coatEmbroiderySelectionKey = useMemo(() => {
+        if (!selectedItems.includes('coat')) return '';
+        return [
+            normalizeId(selections?.coatEmbroideryID),
+            normalizeId(selections?.coatEmbroideryCollection?.id || selections?.coatEmbroideryCollection?.name),
+        ].join(':');
+    }, [selectedItems, selections?.coatEmbroideryID, selections?.coatEmbroideryCollection?.id, selections?.coatEmbroideryCollection?.name]);
+
+    const isSelectedCoatEmbroideryBundleReady = useMemo(() => {
+        if (!selectedItems.includes('coat') || !selections?.coatEmbroideryID) return true;
+        return bundleHasPanelUploads(embroideryRenders?.[selections.coatEmbroideryID], 'Coat');
+    }, [selectedItems, selections?.coatEmbroideryID, embroideryRenders]);
+
     const firstHeroRenderReady = useMemo(() => {
         const kurtaReady = hasRenderableBundle(pickFabricRenderEntry(kurtaRenders, renderSelectedFabric));
         const pajamaReady = hasRenderableBundle(pickFabricRenderEntry(pajamaRenders, renderSelectedPajamaFabric));
@@ -644,14 +658,17 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
             || hasRenderableBundle(pickFabricRenderEntry(sadriRenders, renderSelectedSadriFabric));
         const coatReady = !selectedItems.includes('coat')
             || hasRenderableBundle(pickFabricRenderEntry(coatRenders, renderSelectedCoatFabric));
+        const coatEmbroideryReady = !selectedItems.includes('coat')
+            || isSelectedCoatEmbroideryBundleReady;
 
-        return kurtaReady && pajamaReady && sadriReady && coatReady && isInitialSlideSceneReady;
+        return kurtaReady && pajamaReady && sadriReady && coatReady && coatEmbroideryReady && isInitialSlideSceneReady;
     }, [
         hasRenderableBundle,
         kurtaRenders,
         pajamaRenders,
         sadriRenders,
         coatRenders,
+        isSelectedCoatEmbroideryBundleReady,
         renderSelectedFabric,
         renderSelectedPajamaFabric,
         renderSelectedSadriFabric,
@@ -659,6 +676,29 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         isInitialSlideSceneReady,
         selectedItems,
     ]);
+
+    const lastBufferedCoatEmbroideryKeyRef = useRef(coatEmbroiderySelectionKey);
+
+    useEffect(() => {
+        if (!hasInitialHeroRenderLoaded) {
+            lastBufferedCoatEmbroideryKeyRef.current = coatEmbroiderySelectionKey;
+            return;
+        }
+
+        if (coatEmbroiderySelectionKey === lastBufferedCoatEmbroideryKeyRef.current) {
+            return;
+        }
+
+        lastBufferedCoatEmbroideryKeyRef.current = coatEmbroiderySelectionKey;
+        setIsInitialSlideSceneReady(false);
+        setShouldBufferSlideZeroScene(true);
+    }, [coatEmbroiderySelectionKey, hasInitialHeroRenderLoaded]);
+
+    useEffect(() => {
+        if (!shouldBufferSlideZeroScene) return;
+        if (!isSelectedCoatEmbroideryBundleReady || !isInitialSlideSceneReady) return;
+        setShouldBufferSlideZeroScene(false);
+    }, [shouldBufferSlideZeroScene, isSelectedCoatEmbroideryBundleReady, isInitialSlideSceneReady]);
 
     useEffect(() => {
         const selectedKey = getFabricIdentityKey(selectedFabric);
@@ -729,8 +769,11 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         getFabricIdentityKey,
     ]);
 
+    const isSceneTransitionLoading = shouldBufferSlideZeroScene
+        && (!isSelectedCoatEmbroideryBundleReady || !isInitialSlideSceneReady);
+
     const showRenderLoadingOverlay = !isPreparingShareShot
-        && (!hasInitialHeroRenderLoaded || isFabricTransitionLoading || isStyleTransitionLoading);
+        && (!hasInitialHeroRenderLoaded || isFabricTransitionLoading || isStyleTransitionLoading || isSceneTransitionLoading);
 
     const renderLoadingLabel = loadError
         ? 'Render load failed'
@@ -2109,7 +2152,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                         hasCoat={hasCoat}
                         slideIndex={0}
                         onSceneReadyChange={setIsInitialSlideSceneReady}
-                        bufferInitialScene={!hasInitialHeroRenderLoaded}
+                        bufferInitialScene={!hasInitialHeroRenderLoaded || shouldBufferSlideZeroScene}
                     />
                 </View>,
                 <View key="inner" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
@@ -2144,7 +2187,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     hasCoat={hasCoat}
                     slideIndex={0}
                     onSceneReadyChange={setIsInitialSlideSceneReady}
-                    bufferInitialScene={!hasInitialHeroRenderLoaded}
+                    bufferInitialScene={!hasInitialHeroRenderLoaded || shouldBufferSlideZeroScene}
                 />
             </View>,
             <View key="folded" style={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
