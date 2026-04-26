@@ -17,7 +17,7 @@ import {
     IconCoatNoUpperPocket, IconCoatUpperPocket, IconCoatTuxSingle, IconCoatTuxDouble
 } from '../icons/KurtaIcons';
 
-export const KURTA_STYLE_OPTIONS = [
+export const KURTA_STYLES = [
     {
         title: "Length", key: "length",
         options: [
@@ -117,7 +117,10 @@ export const KURTA_STYLE_OPTIONS = [
             { label: "Notch 2", value: "UN2", icon: IconCuffNotch2 },
             { label: "Square 2", value: "US2", icon: IconCuffSquare2 }
         ]
-    },
+    }
+];
+
+export const PAJAMA_STYLES = [
     {
         title: "Pajama Type", key: "pajamaType",
         options: [
@@ -138,10 +141,12 @@ export const KURTA_STYLE_OPTIONS = [
             { label: "Rope", value: "R", icon: IconPajamaRope },
             { label: "Elastic", value: "E", icon: IconPajamaElastic }
         ]
-    },
+    }
+];
+
+export const SADRI_STYLES = [
     {
         title: "Sadri Style", key: "sadriType",
-        dependency: { isContextItem: "sadri" },
         options: [
             { label: "Essential Nehru", value: "SR", icon: IconSadriEssentialNehru },
             { label: "Signature Curve", value: "RR", icon: IconSadriSignatureCurve },
@@ -162,15 +167,16 @@ export const KURTA_STYLE_OPTIONS = [
     },
     {
         title: "UPPER POCKET", key: "sadriUpperPocket",
-        dependency: { isContextItem: "sadri" },
         options: [
             { label: "No Upper Pocket", value: "0", icon: IconCoatNoUpperPocket },
             { label: "Upper Pocket", value: "1", icon: IconCoatUpperPocket }
         ]
-    },
+    }
+];
+
+export const COAT_STYLES = [
     {
         title: "SINGLE BREASTED", key: "coatType",
-        dependency: { isContextItem: "coat" },
         options: [
             { label: "Single Button", value: "1B", icon: IconCoatSingleButton },
             { label: "Double Button", value: "2B", icon: IconCoatDoubleButton },
@@ -178,7 +184,6 @@ export const KURTA_STYLE_OPTIONS = [
     },
     {
         title: "TUXEDO", key: "coatType",
-        dependency: { isContextItem: "coat" },
         options: [
             { label: "Single Button", value: "T1", icon: IconCoatTuxSingle },
             { label: "Double Button", value: "T2", icon: IconCoatTuxDouble }
@@ -186,7 +191,6 @@ export const KURTA_STYLE_OPTIONS = [
     },
     {
         title: "LAPEL", key: "coatLapel",
-        dependency: { isContextItem: "coat" },
         options: [
             { label: "Notch", value: "N", icon: IconCoatNotchLapel },
             { label: "Peak", value: "P", icon: IconCoatPeakLapel }
@@ -194,7 +198,6 @@ export const KURTA_STYLE_OPTIONS = [
     },
     {
         title: "JODHPURI", key: "coatType",
-        dependency: { isContextItem: "coat" },
         options: [
             { label: "Seamless", value: "JH", icon: IconCoatSeamlessJodhpuri },
             { label: "Round", value: "JR", icon: IconCoatRoundJodhpuri },
@@ -204,7 +207,6 @@ export const KURTA_STYLE_OPTIONS = [
     },
     {
         title: "UPPER POCKET", key: "coatUpperPocket",
-        dependency: { isContextItem: "coat" },
         options: [
             { label: "No Upper Pocket", value: "0", icon: IconCoatNoUpperPocket },
             { label: "Upper Pocket", value: "1", icon: IconCoatUpperPocket }
@@ -212,13 +214,19 @@ export const KURTA_STYLE_OPTIONS = [
     },
     {
         title: "BACK STYLE", key: "coatBackStyle",
-        dependency: { isContextItem: "coat" },
         options: [
             { label: "Non Vent", value: "NV", icon: IconCoatNonVent },
             { label: "Single Vent", value: "SV", icon: IconCoatSingleVent },
             { label: "Double Vent", value: "DV", icon: IconCoatSideVent }
         ]
     }
+];
+
+export const KURTA_STYLE_OPTIONS = [
+    ...KURTA_STYLES,
+    ...PAJAMA_STYLES.map(s => ({ ...s, dependency: { ...s.dependency, isContextItem: 'pajama' }})),
+    ...SADRI_STYLES.map(s => ({ ...s, dependency: { ...s.dependency, isContextItem: 'sadri' }})),
+    ...COAT_STYLES.map(s => ({ ...s, dependency: { ...s.dependency, isContextItem: 'coat' }}))
 ];
 
 export const SKIN_TONE_OPTIONS = [

@@ -20,6 +20,7 @@ import {
     mapTuxedoSelectionsToBaseCoat,
 } from './KurtaCoatTux';
 import { useBufferedRenderScene } from './useBufferedRenderScene';
+import { hasCoatRightBaseEmbroidery } from '../utils/coatUpperPocket';
 
 // ASSETS IMPORTS
 import kurta_body from '../../../../assets/images/body/kurta_body.webp';
@@ -59,101 +60,46 @@ const KURTA_HANDS_CUFF_BY_TONE = {
 const SMART_LAYER_TIMEOUT_MS = 3000;
 
 const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
-    const sourceKey = typeof src === 'number'
-        ? `r:${src}`
-        : (src?.uri ? `u:${src.uri}` : '');
-    const [displaySrc, setDisplaySrc] = useState(src || null);
-    const [pendingSrc, setPendingSrc] = useState(null);
-    const [pendingToken, setPendingToken] = useState(0);
-    const tokenRef = useRef(0);
-    const timeoutRef = useRef(null);
-    const skipNextRef = useRef(false);
+    const [loadedSrc, setLoadedSrc] = useState(src || null);
+    const [loadingSrc, setLoadingSrc] = useState(null);
 
-    useEffect(() => {
-        // Guard: skip if this re-run was caused by our own setPendingSrc
-        if (skipNextRef.current) {
-            skipNextRef.current = false;
-            return;
-        }
+    // Derived state: if the incoming src is different from both our loaded and currently loading src,
+    // we set it as the new loading target.
+    const getSrcKey = (s) => (typeof s === 'number' ? `r:${s}` : (s?.uri ? `u:${s.uri}` : ''));
+    const targetKey = getSrcKey(src);
+    const loadedKey = getSrcKey(loadedSrc);
+    const loadingKey = getSrcKey(loadingSrc);
 
-        if (!src || !sourceKey) {
-            setPendingSrc(null);
-            if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-            return;
-        }
-
-        const displayKey = typeof displaySrc === 'number'
-            ? `r:${displaySrc}`
-            : (displaySrc?.uri ? `u:${displaySrc.uri}` : '');
-
-        if (!displaySrc) {
-            setDisplaySrc(src);
-            return;
-        }
-
-        if (sourceKey !== displayKey) {
-            const pendingKey = typeof pendingSrc === 'number'
-                ? `r:${pendingSrc}`
-                : (pendingSrc?.uri ? `u:${pendingSrc.uri}` : '');
-
-            if (sourceKey !== pendingKey) {
-                if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-                tokenRef.current += 1;
-                const currentToken = tokenRef.current;
-                skipNextRef.current = true; // prevent cascading re-run from setPendingSrc
-                setPendingSrc(src);
-                setPendingToken(currentToken);
-
-                if (src?.uri) {
-                    Image.prefetch(src.uri).catch(() => { });
-                }
-
-                // Safety timeout: if onLoad never fires, force-commit after 3s
-                timeoutRef.current = setTimeout(() => {
-                    if (tokenRef.current === currentToken) {
-                        setDisplaySrc(src);
-                        setPendingSrc(null);
-                    }
-                }, SMART_LAYER_TIMEOUT_MS);
-            }
-        }
-    }, [src, sourceKey, displaySrc, pendingSrc]);
-
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        };
-    }, []);
-
-    if (!displaySrc) return null;
+    if (src && targetKey !== loadedKey && targetKey !== loadingKey) {
+        setLoadingSrc(src);
+    } else if (!src && (loadedSrc || loadingSrc)) {
+        // If src becomes null/undefined, clear everything instantly
+        setLoadedSrc(null);
+        setLoadingSrc(null);
+    }
 
     return (
         <>
-            <Image
-                source={displaySrc}
-                style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
-                resizeMode="contain"
-                fadeDuration={0}
-            />
-            {pendingSrc ? (
+            {loadedSrc ? (
                 <Image
-                    key={`pending-${pendingToken}`}
-                    source={pendingSrc}
-                    style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex, opacity: 0 }]}
+                    source={loadedSrc}
+                    style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
                     resizeMode="contain"
                     fadeDuration={0}
-                    onLoad={() => {
-                        if (pendingToken === tokenRef.current) {
-                            if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-                            setDisplaySrc(pendingSrc);
-                            setPendingSrc(null);
-                        }
-                    }}
-                    onError={() => {
-                        if (pendingToken === tokenRef.current) {
-                            if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-                            setPendingSrc(null);
-                        }
+                />
+            ) : null}
+            {loadingSrc ? (
+                <Image
+                    key={`loading-${loadingKey}`}
+                    source={loadingSrc}
+                    style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
+                    resizeMode="contain"
+                    fadeDuration={0}
+                    onLoadEnd={() => {
+                        // Once the new image has successfully painted over the old one,
+                        // we make it the new base and clear the loading slot.
+                        setLoadedSrc(loadingSrc);
+                        setLoadingSrc(null);
                     }}
                 />
             ) : null}
@@ -172,13 +118,21 @@ const getCoatCollarGroup = (kurtaCollar = 'CM') => {
     return 'C';
 };
 
-const shouldShowCoatUpperPocket = (selections = {}) => String(
-    selections?.coatUpperPocket == null ? '1' : selections.coatUpperPocket,
-).trim() !== '0';
+const shouldShowCoatUpperPocket = (selections = {}, coatEmbRenders = null) => {
+    const enabled = String(
+        selections?.coatUpperPocket == null ? '1' : selections.coatUpperPocket,
+    ).trim() !== '0';
+    if (!enabled) return false;
 
-const getDisplayCoatCodes = (selections = {}) => {
+    if (coatEmbRenders && hasCoatRightBaseEmbroidery(coatEmbRenders, selections?.coatEmbroideryCollection)) {
+        return false;
+    }
+    return true;
+};
+
+const getDisplayCoatCodes = (selections = {}, coatEmbRenders = null) => {
     const coatType = selections?.coatType || '1B';
-    const showUpperPocket = shouldShowCoatUpperPocket(selections);
+    const showUpperPocket = shouldShowCoatUpperPocket(selections, coatEmbRenders);
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
         return showUpperPocket ? [coatType, 'UP1'] : [coatType];
     }
@@ -199,9 +153,9 @@ const getDisplayCoatCodes = (selections = {}) => {
     ];
 };
 
-const getStyleFrontCoatCodes = (selections = {}) => {
+const getStyleFrontCoatCodes = (selections = {}, coatEmbRenders = null) => {
     const coatType = selections?.coatType || '1B';
-    const showUpperPocket = shouldShowCoatUpperPocket(selections);
+    const showUpperPocket = shouldShowCoatUpperPocket(selections, coatEmbRenders);
     if (coatType === 'JH' || coatType === 'JR' || coatType === 'JS') {
         return showUpperPocket ? [coatType, 'UP1'] : [coatType];
     }
@@ -298,9 +252,9 @@ const createCoatLayer = (code, zIndex, selections = {}, sourceSet = 'display') =
     };
 };
 
-const getDisplayCoatLayers = (selections = {}, options = {}) => {
+const getDisplayCoatLayers = (selections = {}, options = {}, coatEmbRenders = null) => {
     const includeTrimLayers = options.includeTrimLayers !== false;
-    return getDisplayCoatCodes(selections).flatMap((code, idx) => {
+    return getDisplayCoatCodes(selections, coatEmbRenders).flatMap((code, idx) => {
         if (!includeTrimLayers && (isCoatCollarCode(code, 'display') || isCoatLapelCode(code))) {
             return [];
         }
@@ -308,9 +262,9 @@ const getDisplayCoatLayers = (selections = {}, options = {}) => {
     });
 };
 
-const getStyleFrontCoatLayers = (selections = {}, options = {}) => {
+const getStyleFrontCoatLayers = (selections = {}, options = {}, coatEmbRenders = null) => {
     const includeTrimLayers = options.includeTrimLayers !== false;
-    return getStyleFrontCoatCodes(selections).flatMap((code, idx) => {
+    return getStyleFrontCoatCodes(selections, coatEmbRenders).flatMap((code, idx) => {
         if (!includeTrimLayers && (isCoatCollarCode(code, 'style') || isCoatLapelCode(code))) {
             return [];
         }
@@ -659,7 +613,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
 
     const coatDisplayGarmentLayers = hasCoat && slideIndex === 0
         ? [
-            ...getDisplayCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(baseSelections?.coatType) }),
+            ...getDisplayCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(baseSelections?.coatType) }, EMBROIDERY_RENDERS[baseSelections?.coatEmbroideryID]),
             ...getKurtaCoatTuxDisplayLayers(baseSelections),
         ]
         : [];
@@ -693,7 +647,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                 imageSources.forEach((src, sourceIndex) => {
                     if (!src) return;
                     entries.push({
-                        key: `layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`,
+                        key: `layer-${layerObj.type}-${layerObj.zIndex}-${index}-${sourceIndex}`,
                         src,
                         zIndex: layerObj.zIndex + sourceIndex * 0.01,
                     });
@@ -702,7 +656,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             }
             if (!imageSource) return;
             entries.push({
-                key: `layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`,
+                key: `layer-${layerObj.type}-${layerObj.zIndex}-${index}`,
                 src: imageSource,
                 zIndex: layerObj.zIndex,
             });
@@ -735,7 +689,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
         const coatGarmentLayers = slideIndex === 4
             ? [
-                ...getStyleFrontCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(baseSelections?.coatType) }),
+                ...getStyleFrontCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(baseSelections?.coatType) }, EMBROIDERY_RENDERS[baseSelections?.coatEmbroideryID]),
                 ...getKurtaCoatTuxStyleFrontLayers(baseSelections).map((layer) => ({ ...layer, sourceSet: 'style' })),
             ]
             : [
@@ -761,7 +715,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     if (Array.isArray(imageSources) && imageSources.length > 0) {
                         return imageSources.map((src, sourceIndex) => (
                             <SmartLayer
-                                key={`coat-layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}-${sourceIndex}`}
+                                key={`coat-layer-${layerObj.type}-${layerObj.zIndex}-${index}-${sourceIndex}`}
                                 src={src}
                                 zIndex={layerObj.zIndex + sourceIndex * 0.01}
                                 dynamicStyle={dynamicStyle}
@@ -771,7 +725,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
 
                     return (
                         <SmartLayer
-                            key={`coat-layer-${layerObj.type}-${layerObj.code}-${layerObj.zIndex}-${index}`}
+                            key={`coat-layer-${layerObj.type}-${layerObj.zIndex}-${index}`}
                             src={imageSource}
                             zIndex={layerObj.zIndex}
                             dynamicStyle={dynamicStyle}

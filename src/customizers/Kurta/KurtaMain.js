@@ -33,6 +33,7 @@ import EmbroideryPreviewModal from './components/EmbroideryPreviewModal';
 import KurtaFolded from './components/KurtaFolded';
 import PajamaStylePreview from './components/PajamaStylePreview';
 import FullScreenCarousel from '../../../components/FullScreenCarousel';
+import { KurtaStylePanel, PajamaStylePanel, SadriStylePanel, CoatStylePanel } from './components/panels/GarmentStylePanels';
 
 import { IconFabric, IconStyle, IconEmbroidery, IconExtras } from '../../icons/ExtraIcons';
 
@@ -45,6 +46,7 @@ import AppLogo from '../../../assets/images/bussiness/only logo-01.svg';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { CustomTheme } from '../../../constants/theme';
 import { hasSadriRightBaseEmbroidery } from './utils/sadriUpperPocket';
+import { hasCoatRightBaseEmbroidery } from './utils/coatUpperPocket';
 
 const EXTRAS_TRAY_ITEMS = [
     { id: 0, Icon: ExtrasSummary, label: 'Summary' },
@@ -783,9 +785,16 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
     useEffect(() => {
         if (hasInitialHeroRenderLoaded) return;
+        
+        let timer;
         if (firstHeroRenderReady) {
-            setHasInitialHeroRenderLoaded(true);
+            // Wait a moment for React Native <Image> components to decode and paint 
+            // the prefetched images onto the screen to prevent the naked model flash.
+            timer = setTimeout(() => {
+                setHasInitialHeroRenderLoaded(true);
+            }, 500);
         }
+        return () => clearTimeout(timer);
     }, [firstHeroRenderReady, hasInitialHeroRenderLoaded]);
 
     const localPresetData = useMemo(() => {
@@ -1389,18 +1398,24 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const sadriRightBaseActive = hasSadriRightBaseEmbroidery(sadriBundle, selections?.sadriEmbroideryCollection);
     const sadriUpperPocketForcedOff = isSadriUpperPocketBlocked(selections?.sadriType) || sadriRightBaseActive;
 
+    const coatBundle = selections?.coatEmbroideryID ? embroideryRenders?.[selections.coatEmbroideryID] : null;
+    const coatRightBaseActive = hasCoatRightBaseEmbroidery(coatBundle, selections?.coatEmbroideryCollection);
+    const coatUpperPocketForcedOff = coatRightBaseActive;
+
     const handleStyleChange = (type, value) => {
         const blockSadriUpperPocket = type === 'sadriType' && isSadriUpperPocketBlocked(value);
         const forceSadriUpperPocketOff = type === 'sadriUpperPocket' && sadriUpperPocketForcedOff && String(value) === '1';
+        const forceCoatUpperPocketOff = type === 'coatUpperPocket' && coatUpperPocketForcedOff && String(value) === '1';
+        
         triggerStyleTransitionLoading();
         setSelections(prev => {
-            const nextValue = forceSadriUpperPocketOff ? '0' : value;
+            const nextValue = (forceSadriUpperPocketOff || forceCoatUpperPocketOff) ? '0' : value;
             const next = { ...prev, [type]: nextValue };
             if (blockSadriUpperPocket) next.sadriUpperPocket = '0';
             return next;
         });
         if (tvSessionId) {
-            sendCommand('STYLE_CHANGE', { type, value: forceSadriUpperPocketOff ? '0' : value });
+            sendCommand('STYLE_CHANGE', { type, value: (forceSadriUpperPocketOff || forceCoatUpperPocketOff) ? '0' : value });
             if (blockSadriUpperPocket) {
                 sendCommand('STYLE_CHANGE', { type: 'sadriUpperPocket', value: '0' });
             }
@@ -1425,6 +1440,13 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         setSelections((prev) => ({ ...prev, sadriUpperPocket: '0' }));
         if (tvSessionId) sendCommand('STYLE_CHANGE', { type: 'sadriUpperPocket', value: '0' });
     }, [sadriRightBaseActive, selections?.sadriUpperPocket, tvSessionId, sendCommand]);
+
+    useEffect(() => {
+        if (!coatRightBaseActive) return;
+        if (String(selections?.coatUpperPocket || '0') === '0') return;
+        setSelections((prev) => ({ ...prev, coatUpperPocket: '0' }));
+        if (tvSessionId) sendCommand('STYLE_CHANGE', { type: 'coatUpperPocket', value: '0' });
+    }, [coatRightBaseActive, selections?.coatUpperPocket, tvSessionId, sendCommand]);
 
     const getInfoImages = useCallback((fabric) => {
         if (!fabric) return [];
@@ -1842,175 +1864,40 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 <View style={[StyleSheet.absoluteFill, { opacity: activePanel === 'Style' ? 1 : 0, zIndex: activePanel === 'Style' ? 10 : 0 }]} pointerEvents={activePanel === 'Style' ? 'auto' : 'none'}>
                     {KURTA_STYLE_OPTIONS ? (
                         <ScrollView ref={el => { panelScrollRefs.current['Style'] = el; }} onScroll={handlePanelScroll('Style', null)} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 50 }}>
-                            {/* BUTTON PICKER SECTION MAP TO EXACT SCREENSHOT */}
-                            <View style={{ marginBottom: 15 }}>
-                                <View style={styles.buttonBanner}>
-                                    <Text style={styles.buttonBannerText}>Kurta</Text>
-                                </View>
-                                <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Button</Text>
-                                <View style={styles.optionRow}>
-                                    <View style={{ width: '48%', marginBottom: 10 }}>
-                                        <View style={styles.buttonIconWrapper}>
-                                            {selectedButton && selectedButton.icon ? (
-                                                <Image source={selectedButton.icon} style={{ width: 100, height: 100 }} resizeMode="contain" />
-                                            ) : (
-                                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
-                                            )}
-                                        </View>
-                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
-                                            {selectedButton?.name || 'Selected'}
-                                        </Text>
-                                    </View>
-
-                                    <View style={{ width: '48%', marginBottom: 10 }}>
-                                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => setButtonModalOpen(true)}>
-                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                <View style={styles.dot} />
-                                                <View style={styles.dot} />
-                                                <View style={styles.dot} />
-                                            </View>
-                                        </TouchableOpacity>
-                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                                            More{"\n"}options
-                                        </Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            {KURTA_STYLE_OPTIONS.map((section, idx) => {
-                                if (section.dependency) {
-                                    if (section.dependency.isContextItem) {
-                                        if (!selectedItems.includes(section.dependency.isContextItem)) return null;
-                                    } else {
-                                        const depValue = selections[section.dependency.key];
-                                        if (section.dependency.notValue && depValue === section.dependency.notValue) return null;
-                                        if (section.dependency.andNotValue && depValue === section.dependency.andNotValue) return null;
-                                        if (section.dependency.value && depValue !== section.dependency.value) return null;
-                                    }
-                                }
-
-                                if (section.key === 'sadriUpperPocket' && isSadriUpperPocketBlocked(selections?.sadriType)) {
-                                    return null;
-                                }
-
-                                const disableSadriUpperPocket = section.key === 'sadriUpperPocket' && sadriRightBaseActive;
-
-                                return (
-                                    <View
-                                        key={idx}
-                                        style={[
-                                            { marginBottom: 25 },
-                                            section.key === 'coatLapel' && isJodhpuriMode
-                                                ? { opacity: 0.35 }
-                                                : null
-                                        ]}
-                                    >
-                                        {section.key === 'pajamaType' && (
-                                            <View style={styles.buttonBanner}>
-                                                <Text style={styles.buttonBannerText}>Pajama</Text>
-                                            </View>
-                                        )}
-                                        {section.key === 'sadriType' && selectedItems.includes('sadri') && (
-                                            <View style={{ marginBottom: 15 }}>
-                                                <View style={styles.buttonBanner}>
-                                                    <Text style={styles.buttonBannerText}>Sadri</Text>
-                                                </View>
-                                                <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Sadri Button</Text>
-                                                <View style={styles.optionRow}>
-                                                    <View style={{ width: '48%', marginBottom: 10 }}>
-                                                        <View style={styles.buttonIconWrapper}>
-                                                            {selectedSadriButton && selectedSadriButton.icon ? (
-                                                                <Image source={selectedSadriButton.icon} style={{ width: 70, height: 70 }} resizeMode="contain" />
-                                                            ) : (
-                                                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
-                                                            )}
-                                                        </View>
-                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
-                                                            {selectedSadriButton?.name || 'Selected'}
-                                                        </Text>
-                                                    </View>
-
-                                                    <View style={{ width: '48%', marginBottom: 10 }}>
-                                                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => setSadriButtonModalOpen(true)}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <View style={styles.dot} />
-                                                                <View style={styles.dot} />
-                                                                <View style={styles.dot} />
-                                                            </View>
-                                                        </TouchableOpacity>
-                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                                                            More{"\n"}options
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        )}
-                                        {section.key === 'coatType' && idx === firstCoatTypeIndex && selectedItems.includes('coat') && (
-                                            <View style={{ marginBottom: 15 }}>
-                                                <View style={styles.buttonBanner}>
-                                                    <Text style={styles.buttonBannerText}>Coat</Text>
-                                                </View>
-                                                <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Coat Button</Text>
-                                                <View style={styles.optionRow}>
-                                                    <View style={{ width: '48%', marginBottom: 10 }}>
-                                                        <View style={styles.buttonIconWrapper}>
-                                                            {selectedCoatButton && selectedCoatButton.icon ? (
-                                                                <Image source={selectedCoatButton.icon} style={{ width: 70, height: 70 }} resizeMode="contain" />
-                                                            ) : (
-                                                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
-                                                            )}
-                                                        </View>
-                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
-                                                            {selectedCoatButton?.name || 'Selected'}
-                                                        </Text>
-                                                    </View>
-
-                                                    <View style={{ width: '48%', marginBottom: 10 }}>
-                                                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => setCoatButtonModalOpen(true)}>
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                                                <View style={styles.dot} />
-                                                                <View style={styles.dot} />
-                                                                <View style={styles.dot} />
-                                                            </View>
-                                                        </TouchableOpacity>
-                                                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                                                            More{"\n"}options
-                                                        </Text>
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        )}
-                                        <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>{section.title}</Text>
-                                        <View style={styles.optionRow}>
-                                            {section.options.map((opt) => {
-                                                const IconComponent = opt.icon?.default || opt.icon;
-                                                const isActive = selections[section.key] === opt.value;
-                                                const isDisabledOption = disableSadriUpperPocket && opt.value !== '0';
-                                                return (
-                                                    <View key={opt.value} style={{ width: '48%', marginBottom: 15 }}>
-                                                        <TouchableOpacity
-                                                            style={[
-                                                                styles.styleOption,
-                                                                isActive && styles.activeStyleOption,
-                                                                isDisabledOption && { opacity: 0.35 }
-                                                            ]}
-                                                            disabled={isDisabledOption}
-                                                            onPress={() => {
-                                                                if (isDisabledOption) return;
-                                                                if (section.key === 'coatLapel' && isJodhpuriMode) return;
-                                                                handleStyleChange(section.key, opt.value);
-                                                            }}
-                                                        >
-                                                            {IconComponent ? <IconComponent size={120} /> : <Text>Icon</Text>}
-                                                        </TouchableOpacity>
-                                                        <Text style={[styles.optionLabel, { color: isDisabledOption ? '#94a3b8' : isActive ? '#000' : '#555' }]}>{opt.label}</Text>
-                                                    </View>
-                                                );
-                                            })}
-                                        </View>
-                                    </View>
-                                );
-                            })}
+                            {selectedItems.includes('kurta') && (
+                                <KurtaStylePanel 
+                                    selections={selections}
+                                    handleStyleChange={handleStyleChange}
+                                    selectedButton={selectedButton}
+                                    setButtonModalOpen={setButtonModalOpen}
+                                />
+                            )}
+                            {selectedItems.includes('pajama') && (
+                                <PajamaStylePanel 
+                                    selections={selections}
+                                    handleStyleChange={handleStyleChange}
+                                />
+                            )}
+                            {selectedItems.includes('sadri') && (
+                                <SadriStylePanel 
+                                    selections={selections}
+                                    handleStyleChange={handleStyleChange}
+                                    selectedSadriButton={selectedSadriButton}
+                                    setSadriButtonModalOpen={setSadriButtonModalOpen}
+                                    isSadriUpperPocketBlocked={isSadriUpperPocketBlocked(selections?.sadriType)}
+                                    sadriRightBaseActive={sadriRightBaseActive}
+                                />
+                            )}
+                            {selectedItems.includes('coat') && (
+                                <CoatStylePanel 
+                                    selections={selections}
+                                    handleStyleChange={handleStyleChange}
+                                    selectedCoatButton={selectedCoatButton}
+                                    setCoatButtonModalOpen={setCoatButtonModalOpen}
+                                    coatRightBaseActive={coatRightBaseActive}
+                                    isJodhpuriMode={isJodhpuriMode}
+                                />
+                            )}
                         </ScrollView>
                     ) : (
                         <Text style={styles.panelContent}>Loading Styles...</Text>
@@ -2242,19 +2129,42 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                             if (tvSessionId && !isRemoteScrolling.current) sendCommand('CAROUSEL_SCROLL', { index });
                         }}
                     />
+                    {/* INITIAL LOADING CURTAIN */}
+                    {!hasInitialHeroRenderLoaded ? (
+                        <View style={styles.initialLoadingCurtain}>
+                            <View style={styles.initialLoadingContent}>
+                                <AppLogo width={160} height={54} />
+                                <View style={styles.initialLoadingSpinnerWrap}>
+                                    {!loadError ? (
+                                        <DotLottie
+                                            source={{ uri: RENDER_LOADING_ANIMATION_URL }}
+                                            autoplay
+                                            loop
+                                            style={styles.initialLoadingAnimation}
+                                        />
+                                    ) : null}
+                                    <Text style={styles.initialLoadingText}>Dressing Model...</Text>
+                                </View>
+                            </View>
+                        </View>
+                    ) : null}
+
+                    {/* ONGOING LOADING OVERLAY */}
                     {showRenderLoadingOverlay ? (
                         <View style={styles.renderLoadingOverlay} pointerEvents="none">
-                            {!loadError ? (
-                                <DotLottie
-                                    source={{ uri: RENDER_LOADING_ANIMATION_URL }}
-                                    autoplay
-                                    loop
-                                    style={styles.renderLoadingAnimation}
-                                />
-                            ) : null}
-                            <Text style={styles.renderLoadingText}>
-                                {renderLoadingLabel}
-                            </Text>
+                            <View style={styles.renderLoadingPill}>
+                                {!loadError ? (
+                                    <DotLottie
+                                        source={{ uri: RENDER_LOADING_ANIMATION_URL }}
+                                        autoplay
+                                        loop
+                                        style={styles.renderLoadingAnimationSmall}
+                                    />
+                                ) : null}
+                                <Text style={[styles.renderLoadingText, { marginTop: 0, backgroundColor: 'transparent', shadowOpacity: 0, borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 }]}>
+                                    {renderLoadingLabel}
+                                </Text>
+                            </View>
                         </View>
                     ) : null}
                 </View>
@@ -3103,8 +3013,59 @@ const styles = StyleSheet.create({
     renderLoadingOverlay: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 41,
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        paddingTop: 80,
+    },
+    initialLoadingCurtain: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 50,
+        backgroundColor: '#101828', // Dark elegant background
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    initialLoadingContent: {
+        alignItems: 'center',
+    },
+    initialLoadingSpinnerWrap: {
+        marginTop: 40,
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        padding: 24,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+    },
+    initialLoadingAnimation: {
+        width: 120,
+        height: 120,
+        marginBottom: 16,
+    },
+    initialLoadingText: {
+        color: '#F8FAFC',
+        fontSize: 16,
+        fontWeight: '600',
+        letterSpacing: 1,
+    },
+    renderLoadingPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.08)',
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 5,
+        gap: 12,
+    },
+    renderLoadingAnimationSmall: {
+        width: 24,
+        height: 24,
     },
     renderLoadingAnimation: {
         width: 148,
