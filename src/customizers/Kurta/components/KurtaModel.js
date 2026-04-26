@@ -176,10 +176,10 @@ const getStyleFrontCoatCodes = (selections = {}, coatEmbRenders = null) => {
 };
 
 const getStyleBackCoatCodes = (selections = {}) => {
-    const coatType = selections?.coatType || 'JO';
+    const coatType = String(selections?.coatType || 'JO').trim().toUpperCase();
     const ventCode = selections?.coatBackStyle || 'NV';
 
-    if (coatType === 'JH') return [`JH-${ventCode}`];
+    if (JODHPURI_TYPES.includes(coatType)) return [`JH-${ventCode}`];
     return [ventCode];
 };
 
