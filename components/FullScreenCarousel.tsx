@@ -83,7 +83,7 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data, onInd
                 }}
                 onViewableItemsChanged={onViewableItemsChanged}
                 viewabilityConfig={viewabilityConfig}
-                bounces={false}
+                bounces={true}
             />
 
             {/* Left Arrow (Hide if on first slide) */}

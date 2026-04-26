@@ -29,16 +29,16 @@ export const Colors = {
 
 export const CustomTheme = {
   // Main Backgrounds
-  backgroundPrimary: '#f3f4f6', // App default bg
+  backgroundPrimary: '#FDFBF7', // Creamy off-white as per design
   backgroundSecondary: '#cebfacff', // Studio bg
 
   // Text Colors
   textPrimary: '#000000',
   textSecondary: '#6b7280',
-  textBrand: '#14213D',
+  textBrand: '#000000',
 
   // Accent & Active Colors
-  accentGold: '#ffc811ff', // Primary brand accent
+  accentGold: '#9b7642', // Deep gold/bronze from design
 
   // Glassmorphism (Light Mode)
   glassBgLight: 'rgba(255, 255, 255, 0.4)',

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, InteractionManager } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Animated, Easing, ScrollView, Image, Platform, Linking, Modal, Share, InteractionManager, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -156,10 +156,10 @@ function buildPublicShareUrlFromSid(sid) {
 }
 
 const BG_THEMES = [
-    { start: '#e5e5e5', end: '#bdbab3' },
-    { start: '#bdbab3', end: '#ada0a0' },
-    { start: '#ada0a0', end: '#bdbab3' },
-    { start: '#b8d1cf', end: '#e5e5e5' },
+    { start: '#FDFBF7', end: '#F5F1E8' },
+    { start: '#F5F1E8', end: '#EBE6D9' },
+    { start: '#EBE6D9', end: '#FDFBF7' },
+    { start: '#FDFBF7', end: '#FDFBF7' },
 ];
 
 function hexToRgb(hex) {
@@ -374,18 +374,10 @@ function buttonTargetsKurta(b) {
 }
 
 /** Slide panel scrollviews: thin visible scrollbar (iOS: black indicator + insets; Android: persistent bar). */
-const PANEL_SCROLL_PROPS = Platform.select({
-    ios: {
-        showsVerticalScrollIndicator: true,
-        indicatorStyle: 'black',
-        scrollIndicatorInsets: { top: 6, bottom: 6, right: 2 },
-    },
-    android: {
-        showsVerticalScrollIndicator: true,
-        persistentScrollbar: true,
-    },
-    default: { showsVerticalScrollIndicator: true },
-});
+const PANEL_SCROLL_PROPS = {
+    showsVerticalScrollIndicator: false,
+    scrollEventThrottle: 16,
+};
 
 function clamp(v, min, max) {
     'worklet';
@@ -479,11 +471,17 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const listForGarmentTab = useCallback(
         (tab) => {
             const sub = fabricsByGarment?.[tab];
-            return sub?.length ? sub : fabrics;
+            const baseList = sub?.length ? sub : fabrics;
+            if (!fabricSearchQuery) return baseList;
+            const q = fabricSearchQuery.toLowerCase();
+            return baseList.filter(f => 
+                (f.name && f.name.toLowerCase().includes(q)) || 
+                (f.brand && f.brand.toLowerCase().includes(q))
+            );
         },
-        [fabrics, fabricsByGarment]
+        [fabrics, fabricsByGarment, fabricSearchQuery]
     );
-    const { width, isDesktop, isTV, normalize } = useResponsive();
+    const { width, isMobile, isDesktop, isTV, normalize } = useResponsive();
     const effectiveTV = isTVView || isTV;
     const isTabletViewport = !isDesktop && !isTV && width >= 768;
     const insets = useSafeAreaInsets();
@@ -595,6 +593,13 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
     const [fabricViewerIndex, setFabricViewerIndex] = useState(0);
     const brandNameTranslateX = useRef(new Animated.Value(0)).current;
     const brandNameMarqueeRef = useRef(null);
+    const stylePanelScrollY = useRef(new Animated.Value(0)).current;
+    const [stylePanelContentHeight, setStylePanelContentHeight] = useState(1);
+    const [stylePanelVisibleHeight, setStylePanelVisibleHeight] = useState(1);
+    const fabricPanelScrollY = useRef(new Animated.Value(0)).current;
+    const [fabricPanelContentHeight, setFabricPanelContentHeight] = useState(1);
+    const [fabricPanelVisibleHeight, setFabricPanelVisibleHeight] = useState(1);
+    const [fabricSearchQuery, setFabricSearchQuery] = useState('');
     const bgFadeAnim = useRef(new Animated.Value(0)).current;
     const bgTransitionTimerRef = useRef(null);
     const bgAnimatingRef = useRef(false);
@@ -1427,6 +1432,8 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 sendCommand('STYLE_CHANGE', { type: 'sadriUpperPocket', value: '0' });
             }
         }
+        setIsPanelOpen(false);
+        setActivePanel(null);
         if (type === 'cuffStyle') {
             carouselRef.current?.scrollToIndex(1);
         } else if (type === 'sadriType') {
@@ -1750,7 +1757,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                     style={styles.fabricInfoIconBtn}
                 >
-                    <MaterialIcons name="info-outline" size={infoIconSize} color="#475569" />
+                    <MaterialIcons name="info-outline" size={infoIconSize} color={CustomTheme.accentGold} />
                 </TouchableOpacity>
             </View>
         </TouchableOpacity>
@@ -1777,91 +1784,200 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                         ))}
                     </View>
 
-                    {/* KURTA FABRICS */}
-                    {fabricTab === 'Kurta' && fabrics ? (
-                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Kurta'] = el; }} onScroll={handlePanelScroll('Fabric', 'Kurta')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Kurta').map((fabric) =>
-                                renderFabricCard(
-                                    fabric,
-                                    selectedFabric?.fabricID === fabric.fabricID,
-                                    () => {
-                                        setSelectedFabric(fabric);
-                                        if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'kurta' });
-                                        let targetBtnId = fabric.default_recommended_button;
-                                        if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
-                                            targetBtnId = fabric.recommended_buttons[0];
-                                        }
-                                        if (targetBtnId) {
-                                            setPendingKurtaBtnId(normalizeId(targetBtnId));
-                                        }
-                                    },
-                                    24
-                                )
+                    {/* SEARCH & FILTER BAR */}
+                    <View style={styles.searchFilterContainer}>
+                        <View style={styles.searchBar}>
+                            <MaterialIcons name="search" size={20} color={CustomTheme.accentGold} style={{ marginRight: 8 }} />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder="Search..."
+                                placeholderTextColor="#94a3b8"
+                                value={fabricSearchQuery}
+                                onChangeText={setFabricSearchQuery}
+                            />
+                            {fabricSearchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setFabricSearchQuery('')}>
+                                    <MaterialIcons name="close" size={18} color="#94a3b8" />
+                                </TouchableOpacity>
                             )}
-                        </ScrollView>
-                    ) : null}
+                        </View>
+                        <TouchableOpacity style={styles.filterBtn}>
+                            <MaterialIcons name="tune" size={20} color="#000" />
+                        </TouchableOpacity>
+                    </View>
 
-                    {/* PAJAMA FABRICS — same fabric list as Kurta, independent selection */}
-                    {fabricTab === 'Pajama' && fabrics ? (
-                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Pajama'] = el; }} onScroll={handlePanelScroll('Fabric', 'Pajama')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Pajama').map((fabric) =>
-                                renderFabricCard(
-                                    fabric,
-                                    selectedPajamaFabric?.fabricID === fabric.fabricID,
-                                    () => { setSelectedPajamaFabric(fabric); if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'pajama' }); },
-                                    28
-                                )
-                            )}
-                        </ScrollView>
-                    ) : null}
+                    <View style={{ flex: 1 }}>
+                        {/* KURTA FABRICS */}
+                        {fabricTab === 'Kurta' && fabrics ? (
+                            <Animated.ScrollView 
+                                ref={el => { panelScrollRefs.current['fabric_Kurta'] = el; }} 
+                                onScroll={Animated.event(
+                                    [{ nativeEvent: { contentOffset: { y: fabricPanelScrollY } } }],
+                                    { 
+                                        useNativeDriver: true,
+                                        listener: (e) => handlePanelScroll('Fabric', 'Kurta')(e)
+                                    }
+                                )}
+                                onLayout={(e) => setFabricPanelVisibleHeight(e.nativeEvent.layout.height)}
+                                onContentSizeChange={(w, h) => setFabricPanelContentHeight(h)}
+                                scrollEventThrottle={16} 
+                                {...PANEL_SCROLL_PROPS} 
+                                contentContainerStyle={styles.gridContainer}
+                            >
+                                {listForGarmentTab('Kurta').map((fabric) =>
+                                    renderFabricCard(
+                                        fabric,
+                                        selectedFabric?.fabricID === fabric.fabricID,
+                                        () => {
+                                            setSelectedFabric(fabric);
+                                            if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'kurta' });
+                                            let targetBtnId = fabric.default_recommended_button;
+                                            if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
+                                                targetBtnId = fabric.recommended_buttons[0];
+                                            }
+                                            if (targetBtnId) {
+                                                setPendingKurtaBtnId(normalizeId(targetBtnId));
+                                            }
+                                        },
+                                        24
+                                    )
+                                )}
+                            </Animated.ScrollView>
+                        ) : null}
 
-                    {/* SADRI FABRICS — same fabric list as Kurta, independent selection */}
-                    {fabricTab === 'Sadri' && fabrics ? (
-                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Sadri'] = el; }} onScroll={handlePanelScroll('Fabric', 'Sadri')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Sadri').map((fabric) =>
-                                renderFabricCard(
-                                    fabric,
-                                    selectedSadriFabric?.fabricID === fabric.fabricID,
-                                    () => {
-                                        setSelectedSadriFabric(fabric);
-                                        if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'sadri' });
-                                        let targetBtnId = fabric.default_recommended_button;
-                                        if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
-                                            targetBtnId = fabric.recommended_buttons[0];
-                                        }
-                                        if (targetBtnId) {
-                                            setPendingSadriBtnId(normalizeId(targetBtnId));
-                                        }
-                                    },
-                                    24
-                                )
-                            )}
-                        </ScrollView>
-                    ) : null}
+                        {/* PAJAMA FABRICS */}
+                        {fabricTab === 'Pajama' && fabrics ? (
+                            <Animated.ScrollView 
+                                ref={el => { panelScrollRefs.current['fabric_Pajama'] = el; }} 
+                                onScroll={Animated.event(
+                                    [{ nativeEvent: { contentOffset: { y: fabricPanelScrollY } } }],
+                                    { 
+                                        useNativeDriver: true,
+                                        listener: (e) => handlePanelScroll('Fabric', 'Pajama')(e)
+                                    }
+                                )}
+                                onLayout={(e) => setFabricPanelVisibleHeight(e.nativeEvent.layout.height)}
+                                onContentSizeChange={(w, h) => setFabricPanelContentHeight(h)}
+                                scrollEventThrottle={16} 
+                                {...PANEL_SCROLL_PROPS} 
+                                contentContainerStyle={styles.gridContainer}
+                            >
+                                {listForGarmentTab('Pajama').map((fabric) =>
+                                    renderFabricCard(
+                                        fabric,
+                                        selectedPajamaFabric?.fabricID === fabric.fabricID,
+                                        () => { setSelectedPajamaFabric(fabric); if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'pajama' }); },
+                                        28
+                                    )
+                                )}
+                            </Animated.ScrollView>
+                        ) : null}
 
-                    {/* COAT FABRICS — same fabric list as Kurta, independent selection */}
-                    {fabricTab === 'Coat' && fabrics ? (
-                        <ScrollView ref={el => { panelScrollRefs.current['fabric_Coat'] = el; }} onScroll={handlePanelScroll('Fabric', 'Coat')} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={styles.gridContainer}>
-                            {listForGarmentTab('Coat').map((fabric) =>
-                                renderFabricCard(
-                                    fabric,
-                                    selectedCoatFabric?.fabricID === fabric.fabricID,
-                                    () => {
-                                        setSelectedCoatFabric(fabric);
-                                        if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'coat' });
-                                        let targetBtnId = fabric.default_recommended_button;
-                                        if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
-                                            targetBtnId = fabric.recommended_buttons[0];
-                                        }
-                                        if (targetBtnId) {
-                                            setPendingCoatBtnId(normalizeId(targetBtnId));
-                                        }
-                                    },
-                                    18
-                                )
-                            )}
-                        </ScrollView>
-                    ) : null}
+                        {/* SADRI FABRICS */}
+                        {fabricTab === 'Sadri' && fabrics ? (
+                            <Animated.ScrollView 
+                                ref={el => { panelScrollRefs.current['fabric_Sadri'] = el; }} 
+                                onScroll={Animated.event(
+                                    [{ nativeEvent: { contentOffset: { y: fabricPanelScrollY } } }],
+                                    { 
+                                        useNativeDriver: true,
+                                        listener: (e) => handlePanelScroll('Fabric', 'Sadri')(e)
+                                    }
+                                )}
+                                onLayout={(e) => setFabricPanelVisibleHeight(e.nativeEvent.layout.height)}
+                                onContentSizeChange={(w, h) => setFabricPanelContentHeight(h)}
+                                scrollEventThrottle={16} 
+                                {...PANEL_SCROLL_PROPS} 
+                                contentContainerStyle={styles.gridContainer}
+                            >
+                                {listForGarmentTab('Sadri').map((fabric) =>
+                                    renderFabricCard(
+                                        fabric,
+                                        selectedSadriFabric?.fabricID === fabric.fabricID,
+                                        () => {
+                                            setSelectedSadriFabric(fabric);
+                                            if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'sadri' });
+                                            let targetBtnId = fabric.default_recommended_button;
+                                            if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
+                                                targetBtnId = fabric.recommended_buttons[0];
+                                            }
+                                            if (targetBtnId) {
+                                                setPendingSadriBtnId(normalizeId(targetBtnId));
+                                            }
+                                        },
+                                        24
+                                    )
+                                )}
+                            </Animated.ScrollView>
+                        ) : null}
+
+                        {/* COAT FABRICS */}
+                        {fabricTab === 'Coat' && fabrics ? (
+                            <Animated.ScrollView 
+                                ref={el => { panelScrollRefs.current['fabric_Coat'] = el; }} 
+                                onScroll={Animated.event(
+                                    [{ nativeEvent: { contentOffset: { y: fabricPanelScrollY } } }],
+                                    { 
+                                        useNativeDriver: true,
+                                        listener: (e) => handlePanelScroll('Fabric', 'Coat')(e)
+                                    }
+                                )}
+                                onLayout={(e) => setFabricPanelVisibleHeight(e.nativeEvent.layout.height)}
+                                onContentSizeChange={(w, h) => setFabricPanelContentHeight(h)}
+                                scrollEventThrottle={16} 
+                                {...PANEL_SCROLL_PROPS} 
+                                contentContainerStyle={styles.gridContainer}
+                            >
+                                {listForGarmentTab('Coat').map((fabric) =>
+                                    renderFabricCard(
+                                        fabric,
+                                        selectedCoatFabric?.fabricID === fabric.fabricID,
+                                        () => {
+                                            setSelectedCoatFabric(fabric);
+                                            if (tvSessionId) sendCommand('SELECT_FABRIC', { fabricId: normalizeId(fabric.fabricID), garment: 'coat' });
+                                            let targetBtnId = fabric.default_recommended_button;
+                                            if (!targetBtnId && Array.isArray(fabric.recommended_buttons) && fabric.recommended_buttons.length > 0) {
+                                                targetBtnId = fabric.recommended_buttons[0];
+                                            }
+                                            if (targetBtnId) {
+                                                setPendingCoatBtnId(normalizeId(targetBtnId));
+                                            }
+                                        },
+                                        18
+                                    )
+                                )}
+                            </Animated.ScrollView>
+                        ) : null}
+
+                        {/* CUSTOM GOLD SCROLL INDICATOR FOR FABRICS */}
+                        {fabricPanelContentHeight > fabricPanelVisibleHeight && (
+                            <View style={{
+                                position: 'absolute',
+                                right: 4,
+                                top: 10,
+                                bottom: 10,
+                                width: 3,
+                                backgroundColor: 'rgba(0,0,0,0.03)',
+                                borderRadius: 3,
+                            }}>
+                                <Animated.View style={{
+                                    position: 'absolute',
+                                    right: 0,
+                                    width: '100%',
+                                    backgroundColor: CustomTheme.accentGold,
+                                    borderRadius: 3,
+                                    height: Math.max(20, (fabricPanelVisibleHeight / fabricPanelContentHeight) * (fabricPanelVisibleHeight - 20)),
+                                    transform: [{
+                                        translateY: fabricPanelScrollY.interpolate({
+                                            inputRange: [0, Math.max(1, fabricPanelContentHeight - fabricPanelVisibleHeight)],
+                                            outputRange: [0, fabricPanelVisibleHeight - 20 - Math.max(20, (fabricPanelVisibleHeight / fabricPanelContentHeight) * (fabricPanelVisibleHeight - 20))],
+                                            extrapolate: 'clamp',
+                                        })
+                                    }]
+                                }} />
+                            </View>
+                        )}
+                    </View>
 
                     {fabricsLoading && <Text style={styles.panelContent}>Loading fabrics from Firebase…</Text>}
                     {loadError ? <Text style={[styles.panelContent, { color: '#c0392b' }]}>{loadError}</Text> : null}
@@ -1870,42 +1986,87 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 {/* --- STYLE PANEL --- */}
                 <View style={[StyleSheet.absoluteFill, { opacity: activePanel === 'Style' ? 1 : 0, zIndex: activePanel === 'Style' ? 10 : 0 }]} pointerEvents={activePanel === 'Style' ? 'auto' : 'none'}>
                     {KURTA_STYLE_OPTIONS ? (
-                        <ScrollView ref={el => { panelScrollRefs.current['Style'] = el; }} onScroll={handlePanelScroll('Style', null)} scrollEventThrottle={100} {...PANEL_SCROLL_PROPS} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 50 }}>
-                            {selectedItems.includes('kurta') && (
-                                <KurtaStylePanel 
-                                    selections={selections}
-                                    handleStyleChange={handleStyleChange}
-                                    selectedButton={selectedButton}
-                                    setButtonModalOpen={setButtonModalOpen}
-                                />
+                        <View style={{ flex: 1 }}>
+                            <Animated.ScrollView 
+                                ref={el => { panelScrollRefs.current['Style'] = el; }} 
+                                onScroll={Animated.event(
+                                    [{ nativeEvent: { contentOffset: { y: stylePanelScrollY } } }],
+                                    { 
+                                        useNativeDriver: true,
+                                        listener: (e) => handlePanelScroll('Style', null)(e)
+                                    }
+                                )} 
+                                onLayout={(e) => setStylePanelVisibleHeight(e.nativeEvent.layout.height)}
+                                onContentSizeChange={(w, h) => setStylePanelContentHeight(h)}
+                                scrollEventThrottle={16} 
+                                {...PANEL_SCROLL_PROPS} 
+                                contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 50 }}
+                            >
+                                {selectedItems.includes('kurta') && (
+                                    <KurtaStylePanel 
+                                        selections={selections}
+                                        handleStyleChange={handleStyleChange}
+                                        selectedButton={selectedButton}
+                                        setButtonModalOpen={setButtonModalOpen}
+                                    />
+                                )}
+                                {selectedItems.includes('pajama') && (
+                                    <PajamaStylePanel 
+                                        selections={selections}
+                                        handleStyleChange={handleStyleChange}
+                                    />
+                                )}
+                                {selectedItems.includes('sadri') && (
+                                    <SadriStylePanel 
+                                        selections={selections}
+                                        handleStyleChange={handleStyleChange}
+                                        selectedSadriButton={selectedSadriButton}
+                                        setSadriButtonModalOpen={setSadriButtonModalOpen}
+                                        isSadriUpperPocketBlocked={isSadriUpperPocketBlocked(selections?.sadriType)}
+                                        sadriRightBaseActive={sadriRightBaseActive}
+                                    />
+                                )}
+                                {selectedItems.includes('coat') && (
+                                    <CoatStylePanel 
+                                        selections={selections}
+                                        handleStyleChange={handleStyleChange}
+                                        selectedCoatButton={selectedCoatButton}
+                                        setCoatButtonModalOpen={setCoatButtonModalOpen}
+                                        coatRightBaseActive={coatRightBaseActive}
+                                        isJodhpuriMode={isJodhpuriMode}
+                                    />
+                                )}
+                            </Animated.ScrollView>
+
+                            {/* CUSTOM GOLD SCROLL INDICATOR */}
+                            {stylePanelContentHeight > stylePanelVisibleHeight && (
+                                <View style={{
+                                    position: 'absolute',
+                                    right: 4,
+                                    top: 10,
+                                    bottom: 10,
+                                    width: 3,
+                                    backgroundColor: 'rgba(0,0,0,0.03)',
+                                    borderRadius: 3,
+                                }}>
+                                    <Animated.View style={{
+                                        position: 'absolute',
+                                        right: 0,
+                                        width: '100%',
+                                        backgroundColor: CustomTheme.accentGold,
+                                        borderRadius: 3,
+                                        height: Math.max(20, (stylePanelVisibleHeight / stylePanelContentHeight) * (stylePanelVisibleHeight - 20)),
+                                        transform: [{
+                                            translateY: stylePanelScrollY.interpolate({
+                                                inputRange: [0, Math.max(1, stylePanelContentHeight - stylePanelVisibleHeight)],
+                                                outputRange: [0, stylePanelVisibleHeight - 20 - Math.max(20, (stylePanelVisibleHeight / stylePanelContentHeight) * (stylePanelVisibleHeight - 20))],
+                                                extrapolate: 'clamp',
+                                            })
+                                        }]
+                                    }} />
+                                </View>
                             )}
-                            {selectedItems.includes('pajama') && (
-                                <PajamaStylePanel 
-                                    selections={selections}
-                                    handleStyleChange={handleStyleChange}
-                                />
-                            )}
-                            {selectedItems.includes('sadri') && (
-                                <SadriStylePanel 
-                                    selections={selections}
-                                    handleStyleChange={handleStyleChange}
-                                    selectedSadriButton={selectedSadriButton}
-                                    setSadriButtonModalOpen={setSadriButtonModalOpen}
-                                    isSadriUpperPocketBlocked={isSadriUpperPocketBlocked(selections?.sadriType)}
-                                    sadriRightBaseActive={sadriRightBaseActive}
-                                />
-                            )}
-                            {selectedItems.includes('coat') && (
-                                <CoatStylePanel 
-                                    selections={selections}
-                                    handleStyleChange={handleStyleChange}
-                                    selectedCoatButton={selectedCoatButton}
-                                    setCoatButtonModalOpen={setCoatButtonModalOpen}
-                                    coatRightBaseActive={coatRightBaseActive}
-                                    isJodhpuriMode={isJodhpuriMode}
-                                />
-                            )}
-                        </ScrollView>
+                        </View>
                     ) : (
                         <Text style={styles.panelContent}>Loading Styles...</Text>
                     )}
@@ -2099,6 +2260,8 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
         ];
     };
 
+    const isFoldedSlide = hasOuterwear ? currentCarouselIndex === 2 : currentCarouselIndex === 1;
+
     return (
         <SafeAreaView style={styles.container}>
             <View pointerEvents="none" style={styles.dynamicBgLayer}>
@@ -2118,10 +2281,10 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
 
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Text style={styles.backText}>←</Text>
+                    <MaterialIcons name="arrow-back" size={22} color="#000000" />
                 </TouchableOpacity>
                 <View style={styles.headerLogoContainer}>
-                    <AppLogo width={normalize ? normalize(100) : 100} height={normalize ? normalize(34) : 34} />
+                    {/* Logo removed as requested */}
                 </View>
                 <View style={{ width: 40 }} />
             </View>
@@ -2146,7 +2309,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     {!hasInitialHeroRenderLoaded ? (
                         <View style={styles.initialLoadingCurtain}>
                             <View style={styles.initialLoadingContent}>
-                                <AppLogo width={160} height={54} />
+                                {/* Logo removed */}
                                 <View style={styles.initialLoadingSpinnerWrap}>
                                     {!loadError ? (
                                         <DotLottie
@@ -2184,7 +2347,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 {isPreparingShareShot ? (
                     <View pointerEvents="none" style={styles.shareShotOverlay}>
                         <View style={styles.shareLogoWrap}>
-                            <AppLogo width={34} height={34} />
+                            {/* Logo removed */}
                         </View>
                         <View style={styles.shareBottomLeftWrap}>
                             {shareLinkForShot ? (
@@ -2205,7 +2368,10 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                 ) : null}
             </View>
 
-            <View style={[styles.rightMenu, effectiveTV && { right: normalize(20) }]}>
+            <View style={[
+                styles.rightMenu,
+                effectiveTV && { right: normalize(20) }
+            ]}>
                 <Animated.View
                     pointerEvents={extrasTrayOpen ? 'none' : 'auto'}
                     style={{
@@ -2227,8 +2393,8 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                         const isActive = activePanel === IconComponent.displayName;
                         return (
                             <TouchableOpacity key={index} style={[styles.iconButton, isActive && styles.iconButtonActive, effectiveTV && { width: normalize(36), height: normalize(36), borderRadius: normalize(8) }]} onPress={() => togglePanel(IconComponent.displayName)}>
-                                <IconComponent size={effectiveTV ? normalize(16) : 28} color={isActive ? '#fff' : '#14213D'} />
-                                <Text style={[styles.iconText, isActive && { color: '#fff' }, { marginTop: 1, fontSize: effectiveTV ? normalize(7) : 11 }]}>
+                                <IconComponent size={effectiveTV ? normalize(16) : 28} color={isActive ? CustomTheme.accentGold : '#14213D'} />
+                                <Text style={[styles.iconText, isActive && { color: CustomTheme.accentGold, fontWeight: '900' }, { marginTop: 1, fontSize: effectiveTV ? normalize(7) : 11 }]}>
                                     {IconComponent.displayName === 'Embroidery' ? 'EMB' : IconComponent.displayName.toUpperCase()}
                                 </Text>
                             </TouchableOpacity>
@@ -2236,69 +2402,61 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                     })}
                 </Animated.View>
 
-                <Animated.View
-                    pointerEvents={extrasTrayOpen ? 'auto' : 'none'}
-                    style={[
-                        styles.extrasTrayFloating,
-                        {
-                            opacity: extrasTrayAnim,
-                        },
-                    ]}
-                >
-                    {EXTRAS_TRAY_ITEMS.map(({ id, Icon, label }) => (
-                        <Animated.View
-                            key={id}
-                            style={{
-                                opacity: extrasTrayAnim.interpolate({
-                                    inputRange: [0, 0.4, 1],
-                                    outputRange: [0, 0.2, 1],
-                                }),
-                                transform: [
-                                    {
-                                        translateY: extrasTrayAnim.interpolate({
-                                            inputRange: [0, 1],
-                                            outputRange: [16 * (id + 1), 0],
-                                        }),
-                                    },
-                                ],
-                            }}
-                        >
-                            <TouchableOpacity
-                                style={[styles.extrasTraySlot, effectiveTV && { width: normalize(40), height: normalize(40), borderRadius: normalize(8) }]}
-                                activeOpacity={0.85}
-                                onPress={() => {
-                                    if (id === 0) {
-                                        setSummaryTab(fabricTab || 'Kurta');
-                                        setSummaryOpen(true);
-                                        animateExtrasTray(false);
-                                        return;
-                                    }
-                                    if (id === 2) {
-                                        handleSharePreset();
-                                        animateExtrasTray(false);
-                                        return;
-                                    }
-                                    if (id === 3) {
-                                        setSkinToneModalOpen(true);
-                                        animateExtrasTray(false);
-                                        return;
-                                    }
+                {/* EXTRAS CONTAINER (BUTTON + TRAY) */}
+                <View style={{ alignItems: 'center', position: 'relative' }}>
+                    <Animated.View
+                        pointerEvents={extrasTrayOpen ? 'auto' : 'none'}
+                        style={[
+                            styles.extrasTrayFloating,
+                            {
+                                opacity: extrasTrayAnim,
+                                position: 'absolute',
+                                bottom: 64, // Positioned right above the button
+                            },
+                        ]}
+                    >
+                        {EXTRAS_TRAY_ITEMS.map(({ id, Icon, label }) => (
+                            <Animated.View
+                                key={id}
+                                style={{
+                                    opacity: extrasTrayAnim.interpolate({
+                                        inputRange: [0, 0.4, 1],
+                                        outputRange: [0, 0.2, 1],
+                                    }),
+                                    transform: [
+                                        {
+                                            translateY: extrasTrayAnim.interpolate({
+                                                inputRange: [0, 1],
+                                                outputRange: [16 * (id + 1), 0],
+                                            }),
+                                        },
+                                    ],
                                 }}
                             >
-                                <Icon width={effectiveTV ? normalize(24) : 40} height={effectiveTV ? normalize(24) : 40} />
-                                <Text style={[styles.extrasTraySlotLabel, effectiveTV && { fontSize: normalize(7) }]}>{label}</Text>
-                            </TouchableOpacity>
-                        </Animated.View>
-                    ))}
-                </Animated.View>
+                                <TouchableOpacity
+                                    style={[styles.extrasTraySlot, effectiveTV && { width: normalize(40), height: normalize(40), borderRadius: normalize(8) }]}
+                                    activeOpacity={0.85}
+                                    onPress={() => {
+                                        if (id === 0) { setSummaryTab(fabricTab || 'Kurta'); setSummaryOpen(true); animateExtrasTray(false); return; }
+                                        if (id === 2) { handleSharePreset(); animateExtrasTray(false); return; }
+                                        if (id === 3) { setSkinToneModalOpen(true); animateExtrasTray(false); return; }
+                                    }}
+                                >
+                                    <Icon width={effectiveTV ? normalize(24) : 40} height={effectiveTV ? normalize(24) : 40} />
+                                    <Text style={[styles.extrasTraySlotLabel, effectiveTV && { fontSize: normalize(7) }]}>{label}</Text>
+                                </TouchableOpacity>
+                            </Animated.View>
+                        ))}
+                    </Animated.View>
 
-                <TouchableOpacity
-                    style={[styles.iconButton, effectiveTV && { width: normalize(36), height: normalize(36), borderRadius: normalize(8) }]}
-                    onPress={toggleExtrasTray}
-                >
-                    <IconExtras size={effectiveTV ? normalize(16) : 28} color="#14213D" />
-                    <Text style={[styles.iconText, { marginTop: 1, fontSize: effectiveTV ? normalize(7) : 11 }]}>{extrasTrayOpen ? 'HIDE' : 'EXTRAS'}</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.iconButton, extrasTrayOpen && styles.iconButtonActive, { marginBottom: 0 }, effectiveTV && { width: normalize(36), height: normalize(36), borderRadius: normalize(8) }]}
+                        onPress={toggleExtrasTray}
+                    >
+                        <IconExtras size={effectiveTV ? normalize(16) : 28} color={extrasTrayOpen ? CustomTheme.accentGold : '#14213D'} />
+                        <Text style={[styles.iconText, extrasTrayOpen && { color: CustomTheme.accentGold, fontWeight: '900' }, { marginTop: 1, fontSize: effectiveTV ? normalize(7) : 11 }]}>{extrasTrayOpen ? 'HIDE' : 'EXTRAS'}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {!isTVView && isPanelOpen && (
@@ -2984,7 +3142,7 @@ export default function KurtaMain({ presetParam, presetIdParam, isTVView = false
                             <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                                 ₹ {totalPrice.toLocaleString('en-IN')}
                             </Text>
-                            <Text style={styles.estDelivery} numberOfLines={2}>
+                            <Text style={styles.estDelivery} numberOfLines={1} adjustsFontSizeToFit>
                                 {estimatedDeliveryLabel}
                             </Text>
                         </View>
@@ -3022,7 +3180,7 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         zIndex: 0,
     },
-    modelContainer: { flex: 1, zIndex: 1, position: 'relative', marginTop: -60 },
+    modelContainer: { flex: 1, zIndex: 1, position: 'relative', marginTop: 0 },
     renderLoadingOverlay: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 41,
@@ -3155,42 +3313,41 @@ const styles = StyleSheet.create({
     },
     previewLabel: { position: 'absolute', top: 12, left: 12, backgroundColor: '#ffffff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: CustomTheme.accentGold },
     previewLabelText: { color: CustomTheme.accentGold, fontSize: 12, fontWeight: '700' },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, zIndex: 10 },
+    header: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 40, zIndex: 10 },
     headerLogoContainer: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    backButton: { padding: 10, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 25, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5, width: 40, height: 40, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    backButton: { width: 44, height: 44, backgroundColor: '#F5F1E8', borderWidth: 0.5, borderColor: '#000000', borderRadius: 6, justifyContent: 'center', alignItems: 'center', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5, overflow: 'hidden' },
     backText: { fontSize: 18, fontWeight: 'bold', color: CustomTheme.textBrand, zIndex: 2 },
     brandText: { fontSize: 24, fontWeight: 'bold', letterSpacing: 2, color: CustomTheme.textBrand },
-    rightMenu: { position: 'absolute', right: 20, top: '25%', zIndex: 100, alignItems: 'center' },
-    iconButton: { width: 60, height: 60, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 20, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8, overflow: 'hidden' },
-    iconButtonActive: { backgroundColor: 'rgba(252, 157, 3, 0.3)', borderColor: CustomTheme.accentGold, shadowColor: CustomTheme.accentGold, shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
+    rightMenu: { position: 'absolute', right: 20, top: 0, bottom: 84, zIndex: 100, alignItems: 'center', justifyContent: 'center' },
+    iconButton: { width: 54, height: 54, backgroundColor: '#F5F1E8', borderWidth: 0.5, borderColor: '#000000', borderRadius: 6, justifyContent: 'center', alignItems: 'center', marginBottom: 20, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 8, overflow: 'hidden' },
+    iconButtonActive: { backgroundColor: '#FFFFFF', borderWidth: 2.5, borderColor: CustomTheme.accentGold, shadowColor: CustomTheme.accentGold, shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
     iconText: { fontSize: 11, color: CustomTheme.textBrand, fontWeight: 'bold', textAlign: 'center', zIndex: 2 },
     extrasTray: { alignItems: 'center' },
     extrasTrayFloating: {
-        position: 'absolute',
-        bottom: 76,
         alignItems: 'center',
         zIndex: 2,
+        marginBottom: 10,
     },
     extrasTraySlot: {
-        width: 64,
-        height: 64,
+        width: 54,
+        height: 54,
         marginBottom: 10,
-        borderRadius: 14,
+        borderRadius: 6,
         overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        backgroundColor: '#ffffff',
+        borderWidth: 0.5,
+        borderColor: '#000000',
+        backgroundColor: '#F5F1E8',
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: CustomTheme.shadowDark,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
-        elevation: 5,
+        elevation: 8,
     },
     extrasTraySlotLabel: {
         marginTop: 2,
@@ -3202,21 +3359,75 @@ const styles = StyleSheet.create({
     extrasTrayAnchor: { marginTop: 2 },
     overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 20 },
     overlayDim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
-    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 84, backgroundColor: 'rgba(255, 255, 255, 0.7)', borderWidth: 1, borderColor: '#e5e7eb', zIndex: 5000, elevation: 5000, paddingTop: 18, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, borderTopRightRadius: 0, borderBottomRightRadius: 0, overflow: 'hidden' },
+    sidePanel: { position: 'absolute', left: 0, top: 0, bottom: 84, backgroundColor: '#FDFBF7', borderWidth: 1, borderColor: '#e5e7eb', zIndex: 5000, elevation: 5000, paddingTop: 18, shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 5, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, borderTopRightRadius: 0, borderBottomRightRadius: 0, overflow: 'hidden' },
     panelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 25, marginBottom: 10, marginTop: -10 },
     panelTitle: { fontSize: 20, fontWeight: 'bold', color: CustomTheme.textBrand },
     closeBtn: { fontSize: 24, color: CustomTheme.accentGold, padding: 10 },
     panelContentArea: { flex: 1 },
     panelContent: { fontSize: 16, color: '#666', paddingHorizontal: 20 },
     gridContainer: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 15, justifyContent: 'center', paddingBottom: 20 },
-    fabricCard: { width: '100%', backgroundColor: '#ffffff', borderRadius: 14, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 7, elevation: 4 },
-    fabricCardActive: { borderColor: CustomTheme.accentGold, backgroundColor: '#fffdf8', shadowColor: CustomTheme.accentGold, shadowOpacity: 0.35, shadowRadius: 10, elevation: 9 },
-    fabricImage: { width: '100%', height: 112, backgroundColor: '#f8fafc' },
-    fabricInfo: { paddingHorizontal: 10, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', minHeight: 58 },
-    fabricInfoTextWrap: { flex: 1, minWidth: 0, paddingRight: 8, justifyContent: 'center' },
-    fabricInfoIconBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
-    fabricName: { fontSize: 13, fontWeight: '700', color: '#0f172a', letterSpacing: 0.2 },
-    fabricBrand: { fontSize: 11, color: '#7c6a3a', marginTop: 3, fontWeight: '600' },
+    fabricCard: {
+        width: '100%',
+        backgroundColor: '#F5F1E8',
+        borderRadius: 4,
+        marginBottom: 16,
+        overflow: 'hidden',
+        borderWidth: 0.5,
+        borderColor: '#000000',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 3,
+    },
+    fabricCardActive: {
+        borderColor: CustomTheme.accentGold,
+        borderWidth: 2.5,
+        backgroundColor: '#FFFFFF',
+        shadowColor: CustomTheme.accentGold,
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    fabricImage: {
+        width: '100%',
+        height: 120,
+        backgroundColor: '#EBE6D9',
+    },
+    fabricInfo: {
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        minHeight: 54,
+    },
+    fabricInfoTextWrap: {
+        flex: 1,
+        paddingRight: 8,
+    },
+    fabricInfoIconBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(155, 118, 66, 0.08)', // Faint Gold background
+    },
+    fabricName: {
+        fontSize: 13,
+        fontWeight: '900',
+        color: '#000000',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    fabricBrand: {
+        fontSize: 11,
+        color: CustomTheme.accentGold,
+        marginTop: 2,
+        fontWeight: '700',
+    },
     sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 10, color: CustomTheme.textBrand },
     optionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
     styleOption: { width: '100%', aspectRatio: .8, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', padding: 15, borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: CustomTheme.shadowDark, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 5, overflow: 'hidden' },
@@ -3233,17 +3444,17 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         zIndex: 10000,
         overflow: 'hidden',
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: 'rgba(15, 23, 42, 0.08)',
-        shadowColor: '#0f172a',
+        borderTopWidth: 1,
+        borderTopColor: '#e5e7eb',
+        backgroundColor: '#FDFBF7',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: -6 },
         shadowOpacity: 0.07,
         shadowRadius: 20,
         elevation: 10000,
     },
     bottomBarTint: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(255, 253, 250, 1)',
+        display: 'none',
     },
     bottomBarContent: {
         flexDirection: 'row',
@@ -3259,24 +3470,24 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     productName: {
-        fontSize: 11,
-        color: '#666',
-        marginBottom: 3,
-        fontWeight: '600',
-        letterSpacing: 0.8,
+        fontSize: 13,
+        fontWeight: '900',
+        color: '#9B7642',
+        marginBottom: 2,
+        letterSpacing: 1,
         textTransform: 'uppercase',
     },
     price: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#14213D',
+        fontSize: 24,
+        fontWeight: '900',
+        color: '#000000',
         letterSpacing: -0.5,
     },
     estDelivery: {
-        fontSize: 10,
-        color: '#666',
+        fontSize: 11,
+        color: '#9B7642',
         marginTop: 4,
-        fontWeight: '500',
+        fontWeight: '700',
         letterSpacing: 0.2,
         lineHeight: 13,
     },
@@ -3285,31 +3496,69 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: CustomTheme.accentGold, // Orange button
+        backgroundColor: '#000000',
         paddingVertical: 12,
-        paddingHorizontal: 18,
+        paddingHorizontal: 22,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: CustomTheme.accentGold,
-        shadowColor: CustomTheme.accentGold,
+        borderColor: '#000000',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 10,
-        maxWidth: 148,
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 8,
+        maxWidth: 160,
     },
     checkoutBtnTablet: {
         maxWidth: 220,
         paddingHorizontal: 60
     },
-    checkoutText: { color: CustomTheme.textPrimary, fontSize: 14, fontWeight: '800', letterSpacing: 0.4 },
-    checkoutChevron: { color: CustomTheme.textPrimary, fontSize: 18, fontWeight: '800', marginLeft: 2, marginTop: -1 },
+    checkoutText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: 0.4 },
+    checkoutChevron: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', marginLeft: 2, marginTop: -1 },
 
     // Fabric Tab Switcher
-    fabricSwitcher: { flexDirection: 'row', marginHorizontal: 15, marginTop: 10, marginBottom: 8, backgroundColor: '#ffffff', borderRadius: 25, padding: 3, borderWidth: 1, borderColor: '#e5e7eb' },
-    fabricSwitcherTab: { flex: 1, paddingVertical: 7, borderRadius: 22, alignItems: 'center' },
+    fabricSwitcher: { flexDirection: 'row', marginHorizontal: 15, marginTop: 10, marginBottom: 8, backgroundColor: '#F5F1E8', borderRadius: 6, padding: 3, borderWidth: 1, borderColor: '#EBE6D9' },
+    fabricSwitcherTab: { flex: 1, paddingVertical: 7, borderRadius: 4, alignItems: 'center' },
     fabricSwitcherTabActive: { backgroundColor: CustomTheme.accentGold },
-    fabricSwitcherText: { fontSize: 13, fontWeight: 'bold', color: CustomTheme.textBrand },
+    fabricSwitcherText: { fontSize: 13, fontWeight: 'bold', color: '#000000' },
+
+    // Search & Filter
+    searchFilterContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 15,
+        marginBottom: 16,
+        gap: 10,
+    },
+    searchBar: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F1E8',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        height: 44,
+        borderWidth: 0.5,
+        borderColor: '#EBE6D9',
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#000',
+        paddingVertical: 8,
+        fontWeight: '500',
+        letterSpacing: -0.2,
+    },
+    filterBtn: {
+        width: 44,
+        height: 44,
+        backgroundColor: '#F5F1E8',
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 0.5,
+        borderColor: '#EBE6D9',
+    },
 
     // Button UI Styles
     buttonBanner: { backgroundColor: CustomTheme.accentGold, paddingVertical: 10, borderRadius: 6, alignItems: 'center', marginBottom: 15, marginHorizontal: 5 },

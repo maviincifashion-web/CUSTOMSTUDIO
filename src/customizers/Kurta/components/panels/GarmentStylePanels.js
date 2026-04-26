@@ -1,14 +1,16 @@
 import React, { memo } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { KURTA_STYLES, PAJAMA_STYLES, SADRI_STYLES, COAT_STYLES } from '../../../../Data/styleData';
+import { CustomTheme } from '../../../../../constants/theme';
 
 const styles = StyleSheet.create({
     sectionTitle: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#14213D',
-        letterSpacing: 1,
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0f172a',
+        letterSpacing: 1.2,
         textTransform: 'uppercase',
+        marginBottom: 12,
     },
     optionRow: {
         flexDirection: 'row',
@@ -17,56 +19,83 @@ const styles = StyleSheet.create({
     },
     styleOption: {
         width: '100%',
-        aspectRatio: 1,
-        backgroundColor: '#fff',
-        borderRadius: 8,
+        aspectRatio: 0.85, // Taller boxes
+        backgroundColor: '#F5F1E8',
+        borderRadius: 4,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        padding: 5,
+        padding: 4,
+        borderWidth: 0.5,
+        borderColor: '#000000',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 3,
     },
     activeStyleOption: {
-        borderColor: '#FCA311',
-        borderWidth: 2,
-        backgroundColor: '#fef9ec',
+        borderColor: CustomTheme.accentGold,
+        borderWidth: 2.5,
+        backgroundColor: '#FFFFFF', // White background to make it pop
+        borderRadius: 4,
+        shadowColor: CustomTheme.accentGold,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
     },
     optionLabel: {
         fontSize: 11,
         textAlign: 'center',
         marginTop: 8,
+        fontWeight: '600',
+        color: '#475569',
+        textTransform: 'capitalize',
     },
     buttonBanner: {
-        backgroundColor: '#14213D',
-        paddingVertical: 4,
-        paddingHorizontal: 12,
-        alignSelf: 'flex-start',
+        backgroundColor: '#000000',
+        paddingVertical: 8,
+        paddingHorizontal: 24,
+        alignSelf: 'center',
         borderRadius: 4,
-        marginBottom: 15,
+        marginBottom: 28,
+        width: '90%',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
     },
     buttonBannerText: {
         color: '#fff',
         fontSize: 12,
-        fontWeight: 'bold',
+        fontWeight: '900',
         textTransform: 'uppercase',
-        letterSpacing: 1,
+        letterSpacing: 2,
     },
     buttonIconWrapper: {
         width: '100%',
-        aspectRatio: 1,
-        backgroundColor: '#f8fafc',
-        borderRadius: 8,
+        aspectRatio: 0.85,
+        backgroundColor: '#F5F1E8',
+        borderRadius: 4,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
+        borderWidth: 0.5,
+        borderColor: '#000000',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 3,
     },
     dot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
         backgroundColor: '#14213D',
         marginHorizontal: 3,
+        opacity: 0.6,
     }
 });
 
@@ -115,8 +144,11 @@ const StyleSection = memo(({ section, selections, handleStyleChange, isJodhpuriM
     const isCoatLapelJodhpuri = section.key === 'coatLapel' && isJodhpuriMode;
 
     return (
-        <View key={`${section.key}-${section.title}`} style={[{ marginBottom: 25 }, isCoatLapelJodhpuri ? { opacity: 0.35 } : null]}>
-            <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>{section.title}</Text>
+        <View key={`${section.key}-${section.title}`} style={[{ marginBottom: 32 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: '#f1f5f9', marginLeft: 12, opacity: 0.6 }} />
+            </View>
             <View style={styles.optionRow}>
                 {section.options.map((opt) => {
                     const IconComponent = opt.icon?.default || opt.icon;
@@ -130,12 +162,11 @@ const StyleSection = memo(({ section, selections, handleStyleChange, isJodhpuriM
                     const isDisabledOption = disableUpperPocket && opt.value !== '0';
 
                     return (
-                        <View key={opt.value} style={{ width: '48%', marginBottom: 15 }}>
+                        <View key={opt.value} style={{ width: '47%', marginBottom: 18 }}>
                             <TouchableOpacity
                                 style={[
                                     styles.styleOption,
-                                    isActive && styles.activeStyleOption,
-                                    isDisabledOption && { opacity: 0.35 }
+                                    isActive && styles.activeStyleOption
                                 ]}
                                 disabled={isDisabledOption}
                                 onPress={() => {
@@ -144,9 +175,17 @@ const StyleSection = memo(({ section, selections, handleStyleChange, isJodhpuriM
                                     handleStyleChange(section.key, opt.value);
                                 }}
                             >
-                                {IconComponent ? <IconComponent size={120} /> : <Text>Icon</Text>}
+                                {IconComponent ? <IconComponent size={110} /> : <Text style={{ color: '#94a3b8' }}>Icon</Text>}
+                                {isActive && (
+                                    <View style={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: CustomTheme.accentGold }} />
+                                )}
                             </TouchableOpacity>
-                            <Text style={[styles.optionLabel, { color: isDisabledOption ? '#94a3b8' : isActive ? '#000' : '#555' }]}>{opt.label}</Text>
+                            <Text style={[
+                                styles.optionLabel, 
+                                isActive && { color: CustomTheme.accentGold, fontWeight: '900', fontSize: 12.5 }
+                            ]}>
+                                {opt.label}
+                            </Text>
                         </View>
                     );
                 })}
@@ -158,34 +197,37 @@ const StyleSection = memo(({ section, selections, handleStyleChange, isJodhpuriM
 export const KurtaStylePanel = (props) => {
     return (
         <View>
-            <View style={{ marginBottom: 15 }}>
+            <View style={{ marginBottom: 24 }}>
                 <View style={styles.buttonBanner}>
                     <Text style={styles.buttonBannerText}>Kurta</Text>
                 </View>
-                <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Button</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={styles.sectionTitle}>Button Style</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: '#f1f5f9', marginLeft: 12, opacity: 0.6 }} />
+                </View>
                 <View style={styles.optionRow}>
-                    <View style={{ width: '48%', marginBottom: 10 }}>
+                    <View style={{ width: '47%', marginBottom: 10 }}>
                         <View style={styles.buttonIconWrapper}>
                             {props.selectedButton && props.selectedButton.icon ? (
-                                <Image source={props.selectedButton.icon} style={{ width: 100, height: 100 }} resizeMode="contain" />
+                                <Image source={props.selectedButton.icon} style={{ width: 90, height: 90 }} resizeMode="contain" />
                             ) : (
-                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
+                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#f1f5f9' }} />
                             )}
                         </View>
-                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
+                        <Text style={[styles.optionLabel, { color: '#0f172a', fontSize: 12, fontWeight: '700', marginTop: 8 }]} numberOfLines={1}>
                             {props.selectedButton?.name || 'Selected'}
                         </Text>
                     </View>
-                    <View style={{ width: '48%', marginBottom: 10 }}>
-                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => props.setButtonModalOpen(true)}>
+                    <View style={{ width: '47%', marginBottom: 10 }}>
+                        <TouchableOpacity style={[styles.buttonIconWrapper, { backgroundColor: '#f8fafc', borderStyle: 'dashed' }]} onPress={() => props.setButtonModalOpen(true)}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                                 <View style={styles.dot} />
                                 <View style={styles.dot} />
                                 <View style={styles.dot} />
                             </View>
                         </TouchableOpacity>
-                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                            More{"\n"}options
+                        <Text style={[styles.optionLabel, { color: '#64748b', fontSize: 11, fontWeight: '600', marginTop: 8 }]}>
+                            Browse All
                         </Text>
                     </View>
                 </View>
@@ -213,34 +255,37 @@ export const PajamaStylePanel = (props) => {
 export const SadriStylePanel = (props) => {
     return (
         <View>
-            <View style={{ marginBottom: 15 }}>
+            <View style={{ marginBottom: 24 }}>
                 <View style={styles.buttonBanner}>
                     <Text style={styles.buttonBannerText}>Sadri</Text>
                 </View>
-                <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Sadri Button</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={styles.sectionTitle}>Outerwear Buttons</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: '#f1f5f9', marginLeft: 12, opacity: 0.6 }} />
+                </View>
                 <View style={styles.optionRow}>
-                    <View style={{ width: '48%', marginBottom: 10 }}>
+                    <View style={{ width: '47%', marginBottom: 10 }}>
                         <View style={styles.buttonIconWrapper}>
                             {props.selectedSadriButton && props.selectedSadriButton.icon ? (
                                 <Image source={props.selectedSadriButton.icon} style={{ width: 70, height: 70 }} resizeMode="contain" />
                             ) : (
-                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
+                                <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: '#f1f5f9' }} />
                             )}
                         </View>
-                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
+                        <Text style={[styles.optionLabel, { color: '#0f172a', fontSize: 12, fontWeight: '700', marginTop: 8 }]} numberOfLines={1}>
                             {props.selectedSadriButton?.name || 'Selected'}
                         </Text>
                     </View>
-                    <View style={{ width: '48%', marginBottom: 10 }}>
-                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => props.setSadriButtonModalOpen(true)}>
+                    <View style={{ width: '47%', marginBottom: 10 }}>
+                        <TouchableOpacity style={[styles.buttonIconWrapper, { backgroundColor: '#f8fafc', borderStyle: 'dashed' }]} onPress={() => props.setSadriButtonModalOpen(true)}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                                 <View style={styles.dot} />
                                 <View style={styles.dot} />
                                 <View style={styles.dot} />
                             </View>
                         </TouchableOpacity>
-                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                            More{"\n"}options
+                        <Text style={[styles.optionLabel, { color: '#64748b', fontSize: 11, fontWeight: '600', marginTop: 8 }]}>
+                            Change
                         </Text>
                     </View>
                 </View>
@@ -255,34 +300,37 @@ export const SadriStylePanel = (props) => {
 export const CoatStylePanel = (props) => {
     return (
         <View>
-            <View style={{ marginBottom: 15 }}>
+            <View style={{ marginBottom: 24 }}>
                 <View style={styles.buttonBanner}>
                     <Text style={styles.buttonBannerText}>Coat</Text>
                 </View>
-                <Text style={[styles.sectionTitle, { marginBottom: 10 }]}>Coat Button</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={styles.sectionTitle}>Coat Buttons</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: '#f1f5f9', marginLeft: 12, opacity: 0.6 }} />
+                </View>
                 <View style={styles.optionRow}>
-                    <View style={{ width: '48%', marginBottom: 10 }}>
+                    <View style={{ width: '47%', marginBottom: 10 }}>
                         <View style={styles.buttonIconWrapper}>
                             {props.selectedCoatButton && props.selectedCoatButton.icon ? (
                                 <Image source={props.selectedCoatButton.icon} style={{ width: 70, height: 70 }} resizeMode="contain" />
                             ) : (
-                                <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: '#888' }} />
+                                <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: '#f1f5f9' }} />
                             )}
                         </View>
-                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]} numberOfLines={1}>
+                        <Text style={[styles.optionLabel, { color: '#0f172a', fontSize: 12, fontWeight: '700', marginTop: 8 }]} numberOfLines={1}>
                             {props.selectedCoatButton?.name || 'Selected'}
                         </Text>
                     </View>
-                    <View style={{ width: '48%', marginBottom: 10 }}>
-                        <TouchableOpacity style={styles.buttonIconWrapper} onPress={() => props.setCoatButtonModalOpen(true)}>
+                    <View style={{ width: '47%', marginBottom: 10 }}>
+                        <TouchableOpacity style={[styles.buttonIconWrapper, { backgroundColor: '#f8fafc', borderStyle: 'dashed' }]} onPress={() => props.setCoatButtonModalOpen(true)}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                                 <View style={styles.dot} />
                                 <View style={styles.dot} />
                                 <View style={styles.dot} />
                             </View>
                         </TouchableOpacity>
-                        <Text style={[styles.optionLabel, { color: '#14213D', fontSize: 13, fontWeight: 'bold', marginTop: 5 }]}>
-                            More{"\n"}options
+                        <Text style={[styles.optionLabel, { color: '#64748b', fontSize: 11, fontWeight: '600', marginTop: 8 }]}>
+                            Change
                         </Text>
                     </View>
                 </View>

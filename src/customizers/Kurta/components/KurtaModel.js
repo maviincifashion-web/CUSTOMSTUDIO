@@ -510,6 +510,8 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     // Yahan aap apne screens ke hisab se width/height aur margins edit kar sakte hain
     const dynamicStyle = useMemo(() => {
         const isSadriLastSlide = hasSadri && !hasCoat && slideIndex === 4;
+        const isCoatLastSlides = hasCoat && (slideIndex === 4 || slideIndex === 5);
+        const isInitialSlides = slideIndex === 0 || slideIndex === 1;
 
         // # MOBILE SCREEN
         if (isMobile) {
@@ -519,6 +521,20 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     height: '160%',
                     marginTop: 250,
                     marginBottom: 0
+                };
+            }
+            if (isCoatLastSlides) {
+                return {
+                    width: '116%',
+                    height: '116%',
+                    marginTop: 0,
+                };
+            }
+            if (isInitialSlides) {
+                return {
+                    width: '110%',
+                    height: '105%',
+                    marginBottom: 33
                 };
             }
             return {
@@ -531,10 +547,25 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         if (isTablet) {
             if (isSadriLastSlide) {
                 return {
-                    width: '122%',
-                    height: '114%',
-                    marginTop: -54,
+                    width: '145%',
+                    height: '145%',
+                    marginTop: 600,
                     marginBottom: 0
+                };
+            }
+            if (isCoatLastSlides) {
+                return {
+                    width: '100%',
+                    height: '100%',
+                    marginTop: -30,
+                    marginBottom: 0
+                };
+            }
+            if (isInitialSlides) {
+                return {
+                    width: '96%',
+                    height: '96%',
+                    marginBottom: 45
                 };
             }
             return {
@@ -551,6 +582,21 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                     height: '130%',
                     marginTop: -70,
                     marginBottom: 0
+                };
+            }
+            if (isCoatLastSlides) {
+                return {
+                    width: '125%',
+                    height: '125%',
+                    marginTop: -40,
+                    marginBottom: 0
+                };
+            }
+            if (isInitialSlides) {
+                return {
+                    width: '125%',
+                    height: '125%',
+                    marginBottom: 80
                 };
             }
             return {

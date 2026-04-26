@@ -21,15 +21,17 @@ export default function PajamaStylePreview({ selections, selectedPajamaFabric })
         // # MOBILE SCREEN
         if (isMobile) {
             return {
-                width: width * 1.9,
-                height: width * 1.9,
+                width: width * 2.0,
+                height: width * 2.0,
+                marginBottom: 25,
             };
         }
         // # TABLET SCREEN
         if (isTablet) {
             return {
-                width: width * 1.5,
-                height: width * 1.5,
+                width: width * 1.52,
+                height: width * 1.52,
+                marginBottom: 25,
             };
         }
         // # TV SCREEN (Commercial Display)
