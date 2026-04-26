@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import { useResponsive } from '../../../../hooks/useResponsive';
 
@@ -57,50 +57,99 @@ const KURTA_HANDS_CUFF_BY_TONE = {
     7: require('../../../../assets/images/kurta_body/hand_for_cuff-sleeve_7.webp'),
 };
 
-const SMART_LAYER_TIMEOUT_MS = 3000;
+const getSrcKey = (s) => {
+    if (typeof s === 'number') return `r:${s}`;
+    if (s?.uri) return `u:${s.uri}`;
+    return '';
+};
 
-const SmartLayer = ({ src, zIndex, dynamicStyle }) => {
-    const [loadedSrc, setLoadedSrc] = useState(src || null);
-    const [loadingSrc, setLoadingSrc] = useState(null);
+const getLayerStackStyle = (zIndex) => ({
+    zIndex,
+    elevation: Math.ceil(Number(zIndex) || 0),
+});
 
-    // Derived state: if the incoming src is different from both our loaded and currently loading src,
-    // we set it as the new loading target.
-    const getSrcKey = (s) => (typeof s === 'number' ? `r:${s}` : (s?.uri ? `u:${s.uri}` : ''));
-    const targetKey = getSrcKey(src);
-    const loadedKey = getSrcKey(loadedSrc);
-    const loadingKey = getSrcKey(loadingSrc);
+const CRITICAL_FABRIC_PARTS = new Set([
+    'Chest',
+    'Placket',
+    'Sleeve',
+    'Collar',
+    'Cuff',
+]);
 
-    if (src && targetKey !== loadedKey && targetKey !== loadingKey) {
-        setLoadingSrc(src);
-    } else if (!src && (loadedSrc || loadingSrc)) {
-        // If src becomes null/undefined, clear everything instantly
-        setLoadedSrc(null);
-        setLoadingSrc(null);
-    }
+const isCriticalLayer = (layerObj) => {
+    if (!layerObj?.type) return false;
+    if (layerObj.type === 'fabric') return CRITICAL_FABRIC_PARTS.has(layerObj.part);
+    if (layerObj.type === 'pajama') return true;
+    if (layerObj.type === 'sadri_fabric') return !String(layerObj.code || '').startsWith('VPOCKET');
+    if (layerObj.type === 'coat_display' || layerObj.type === 'coat_tuxedo') return true;
+    return false;
+};
+
+const SmartLayer = ({ src, zIndex, dynamicStyle, onLoadSettled }) => {
+    const [displaySrc, setDisplaySrc] = useState(src || null);
+    const [pendingSrc, setPendingSrc] = useState(null);
+    const srcKey = getSrcKey(src);
+    const displayKey = getSrcKey(displaySrc);
+    const pendingKey = getSrcKey(pendingSrc);
+
+    useEffect(() => {
+        if (!src) {
+            setDisplaySrc(null);
+            setPendingSrc(null);
+            return undefined;
+        }
+
+        if (!displaySrc) {
+            setDisplaySrc(src);
+            setPendingSrc(null);
+            return undefined;
+        }
+
+        if (srcKey === displayKey) {
+            if (pendingSrc) setPendingSrc(null);
+            return undefined;
+        }
+
+        if (srcKey === pendingKey) return undefined;
+
+        setPendingSrc(src);
+        return undefined;
+    }, [src, srcKey, displayKey, displaySrc, pendingKey, pendingSrc]);
+
+    const handleDisplayLoadEnd = useCallback(() => {
+        if (typeof onLoadSettled === 'function') onLoadSettled();
+    }, [onLoadSettled]);
+
+    const handlePendingLoadEnd = useCallback(() => {
+        if (!pendingSrc) return;
+        const loadedPendingSrc = pendingSrc;
+        const loadedPendingKey = getSrcKey(loadedPendingSrc);
+        setDisplaySrc(loadedPendingSrc);
+        setPendingSrc((currentPending) => (
+            getSrcKey(currentPending) === loadedPendingKey ? null : currentPending
+        ));
+        if (typeof onLoadSettled === 'function') onLoadSettled();
+    }, [onLoadSettled, pendingSrc]);
 
     return (
         <>
-            {loadedSrc ? (
+            {displaySrc ? (
                 <Image
-                    source={loadedSrc}
-                    style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
+                    source={displaySrc}
+                    style={[styles.modelLayer, dynamicStyle, getLayerStackStyle(zIndex)]}
                     resizeMode="contain"
                     fadeDuration={0}
+                    onLoadEnd={handleDisplayLoadEnd}
                 />
             ) : null}
-            {loadingSrc ? (
+            {pendingSrc ? (
                 <Image
-                    key={`loading-${loadingKey}`}
-                    source={loadingSrc}
-                    style={[styles.modelLayer, dynamicStyle, { zIndex: zIndex }]}
+                    key={`pending-${pendingKey}`}
+                    source={pendingSrc}
+                    style={[styles.modelLayer, dynamicStyle, getLayerStackStyle(zIndex), styles.hiddenPreloadLayer]}
                     resizeMode="contain"
                     fadeDuration={0}
-                    onLoadEnd={() => {
-                        // Once the new image has successfully painted over the old one,
-                        // we make it the new base and clear the loading slot.
-                        setLoadedSrc(loadingSrc);
-                        setLoadingSrc(null);
-                    }}
+                    onLoadEnd={handlePendingLoadEnd}
                 />
             ) : null}
         </>
@@ -517,16 +566,35 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     const handsImage = baseSelections?.sleeve === "SC"
         ? (KURTA_HANDS_CUFF_BY_TONE[selectedSkinTone] || kurta_hand_c)
         : (KURTA_HANDS_NONCUFF_BY_TONE[selectedSkinTone] || kurta_hand_n);
+    const bodyImageKey = getSrcKey(bodyImage);
+    const handsImageKey = getSrcKey(handsImage);
+    const [baseImageLoadState, setBaseImageLoadState] = useState({ body: '', hands: '' });
+
+    useEffect(() => {
+        setBaseImageLoadState({ body: '', hands: '' });
+    }, [bodyImageKey, handsImageKey]);
+
+    const markBaseImageLoaded = useCallback((slot, key) => {
+        setBaseImageLoadState((current) => {
+            if (current[slot] === key) return current;
+            return {
+                ...current,
+                [slot]: key,
+            };
+        });
+    }, []);
 
     // DATABASE: Us kapde ki saari images yahan se nikalo (MOVED UP — resolveLayerSources needs these)
     const fabricRenders = useMemo(
-        () => pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || {},
+        () => pickFabricRenderEntry(KURTA_RENDERS, selectedFabric)?.display || KURTA_RENDERS['FAB_001']?.display || {},
         [KURTA_RENDERS, selectedFabric]
     );
+    const fabricFallbackRenders = KURTA_RENDERS['FAB_001']?.display || {};
     const pajamaRenders = useMemo(
-        () => pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.display || {},
+        () => pickFabricRenderEntry(PAJAMA_RENDERS, selectedPajamaFabric)?.display || PAJAMA_RENDERS['FAB_001']?.display || {},
         [PAJAMA_RENDERS, selectedPajamaFabric]
     );
+    const pajamaFallbackRenders = PAJAMA_RENDERS['FAB_001']?.display || {};
     const sadriRenders = useMemo(
         () => pickFabricRenderEntry(SADRI_RENDERS, selectedSadriFabric)?.display || SADRI_RENDERS['FAB_001']?.display || {},
         [SADRI_RENDERS, selectedSadriFabric]
@@ -578,7 +646,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                 layerObj
             );
         } else if (layerObj.type === 'pajama') {
-            imageSource = pajamaRenders[layerObj.code];
+            imageSource = pajamaRenders[layerObj.code] || pajamaFallbackRenders[layerObj.code];
         } else if (layerObj.type === 'sadri_button') {
             imageSource = selectedSadriButton?.renders?.[layerObj.code];
         } else if (layerObj.type === 'sadri_fabric') {
@@ -593,7 +661,7 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             imageSource = selectedCoatButton?.renders?.[layerObj.code]
                 || selectedCoatButton?.renders?.[layerObj.code.replace(/-[FS]$/, '')];
         } else {
-            imageSource = fabricRenders[layerObj.code];
+            imageSource = fabricRenders[layerObj.code] || fabricFallbackRenders[layerObj.code];
         }
 
         return { imageSource, imageSources };
@@ -637,57 +705,47 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
         ...coatDisplayButtonLayers,
     ].sort((a, b) => a.zIndex - b.zIndex);
 
-    // Build scene entries — computed fresh every render to ensure reactivity with context data
-    const sceneEntries = (() => {
+    const buildSceneEntriesFromLayers = (layerList, keyPrefix = 'layer') => {
         const entries = [];
-        layersToRender.forEach((layerObj, index) => {
+        const missingCriticalCodes = [];
+        layerList.forEach((layerObj, index) => {
             if (!layerObj?.code) return;
             const { imageSource, imageSources } = resolveLayerSources(layerObj);
             if (Array.isArray(imageSources) && imageSources.length > 0) {
                 imageSources.forEach((src, sourceIndex) => {
                     if (!src) return;
                     entries.push({
-                        key: `layer-${layerObj.type}-${layerObj.zIndex}-${index}-${sourceIndex}`,
+                        key: `${keyPrefix}-${layerObj.type}-${layerObj.zIndex}-${index}-${sourceIndex}`,
                         src,
                         zIndex: layerObj.zIndex + sourceIndex * 0.01,
                     });
                 });
                 return;
             }
-            if (!imageSource) return;
+            if (!imageSource) {
+                if (isCriticalLayer(layerObj)) {
+                    missingCriticalCodes.push(`${layerObj.type}:${layerObj.code}`);
+                }
+                return;
+            }
             entries.push({
-                key: `layer-${layerObj.type}-${layerObj.zIndex}-${index}`,
+                key: `${keyPrefix}-${layerObj.type}-${layerObj.zIndex}-${index}`,
                 src: imageSource,
                 zIndex: layerObj.zIndex,
             });
         });
-        return entries;
-    })();
+        return {
+            entries,
+            isComplete: missingCriticalCodes.length === 0,
+            missingCriticalCodes,
+        };
+    };
 
-    // Buffer slide 0 when the parent asks for a full-scene handoff.
-    // This keeps the previous committed scene visible until the warmed scene is ready.
-    const shouldHoldInitialScene = slideIndex === 0 && bufferInitialScene;
-    const bufferedSceneEntries = shouldHoldInitialScene ? sceneEntries : [];
-    const {
-        displayEntries: bufferedDisplayEntries,
-        hasCommittedScene,
-        isLoading: isBufferingScene,
-    } = useBufferedRenderScene(bufferedSceneEntries);
-    const canRenderInitialScene = !shouldHoldInitialScene
-        || bufferedSceneEntries.length === 0
-        || (hasCommittedScene && !isBufferingScene);
+    // Build scene entries — computed fresh every render to ensure reactivity with context data
+    const sceneBuild = buildSceneEntriesFromLayers(layersToRender, 'layer');
 
-    useEffect(() => {
-        if (typeof onSceneReadyChange !== 'function') return;
-        onSceneReadyChange(canRenderInitialScene);
-    }, [onSceneReadyChange, canRenderInitialScene]);
-
-    const visibleSceneEntries = shouldHoldInitialScene ? bufferedDisplayEntries : sceneEntries;
-
-    if (!hasRequiredSceneInputs) return null;
-
-    if (hasCoat && (slideIndex === 4 || slideIndex === 5)) {
-        const coatGarmentLayers = slideIndex === 4
+    const coatGarmentLayers = hasCoat && (slideIndex === 4 || slideIndex === 5)
+        ? (slideIndex === 4
             ? [
                 ...getStyleFrontCoatLayers(baseCoatSelections, { includeTrimLayers: !isTuxedoCoatType(baseSelections?.coatType) }, EMBROIDERY_RENDERS[baseSelections?.coatEmbroideryID]),
                 ...getKurtaCoatTuxStyleFrontLayers(baseSelections).map((layer) => ({ ...layer, sourceSet: 'style' })),
@@ -695,40 +753,96 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
             : [
                 ...getStyleBackCoatLayers(baseCoatSelections),
                 ...getKurtaCoatTuxBackLayers(baseSelections).map((layer) => ({ ...layer, sourceSet: 'style' })),
-            ];
-        const coatEmbroideryLayers = slideIndex === 4
+            ])
+        : [];
+    const coatEmbroideryLayers = hasCoat && (slideIndex === 4 || slideIndex === 5)
+        ? (slideIndex === 4
             ? getCoatStyleEmbroideryLayers(baseSelections, coatGarmentLayers)
-            : getCoatBackEmbroideryLayers(baseSelections, coatGarmentLayers);
-        const coatButtonLayers = getCoatButtonCodes(baseSelections, slideIndex).map((code, idx) => ({
+            : getCoatBackEmbroideryLayers(baseSelections, coatGarmentLayers))
+        : [];
+    const coatButtonLayers = hasCoat && (slideIndex === 4 || slideIndex === 5)
+        ? getCoatButtonCodes(baseSelections, slideIndex).map((code, idx) => ({
             code,
             zIndex: (slideIndex === 4 ? 40 : 41) + idx,
             type: 'coat_button',
-        }));
-        const coatLayersToRender = [...coatGarmentLayers, ...coatEmbroideryLayers, ...coatButtonLayers]
-            .sort((a, b) => a.zIndex - b.zIndex);
+        }))
+        : [];
+    const coatSceneBuild = buildSceneEntriesFromLayers(
+        [...coatGarmentLayers, ...coatEmbroideryLayers, ...coatButtonLayers].sort((a, b) => a.zIndex - b.zIndex),
+        'coat-layer'
+    );
+    const isCoatOnlySlide = hasCoat && (slideIndex === 4 || slideIndex === 5);
+    const activeSceneBuild = isCoatOnlySlide ? coatSceneBuild : sceneBuild;
+    const shouldBufferScene = slideIndex === 0
+        ? (bufferInitialScene || !activeSceneBuild.isComplete)
+        : !activeSceneBuild.isComplete;
+    const {
+        displayEntries: visibleSceneEntries,
+        hasCommittedScene,
+        isLoading: isBufferingScene,
+    } = useBufferedRenderScene(activeSceneBuild.entries, {
+        canCommit: activeSceneBuild.isComplete,
+    });
+    const visibleSceneLoadKeys = useMemo(
+        () => visibleSceneEntries.map((entry) => `${entry?.key || ''}:${getSrcKey(entry?.src)}`),
+        [visibleSceneEntries]
+    );
+    const visibleSceneLoadSignature = visibleSceneLoadKeys.join('|');
+    const [loadedSceneKeys, setLoadedSceneKeys] = useState(() => new Set());
+
+    useEffect(() => {
+        const validKeys = new Set(visibleSceneLoadKeys);
+        setLoadedSceneKeys((current) => {
+            let changed = false;
+            const next = new Set();
+            current.forEach((key) => {
+                if (validKeys.has(key)) {
+                    next.add(key);
+                } else {
+                    changed = true;
+                }
+            });
+            return changed ? next : current;
+        });
+    }, [visibleSceneLoadKeys, visibleSceneLoadSignature]);
+
+    const markSceneEntryLoaded = useCallback((loadKey) => {
+        setLoadedSceneKeys((current) => {
+            if (current.has(loadKey)) return current;
+            const next = new Set(current);
+            next.add(loadKey);
+            return next;
+        });
+    }, []);
+
+    const areVisibleSceneImagesLoaded = visibleSceneLoadKeys.every((loadKey) => loadedSceneKeys.has(loadKey));
+    const areBaseImagesLoaded = isCoatOnlySlide
+        || (baseImageLoadState.body === bodyImageKey && baseImageLoadState.hands === handsImageKey);
+    const canRenderInitialScene = activeSceneBuild.isComplete
+        && hasCommittedScene
+        && areVisibleSceneImagesLoaded
+        && areBaseImagesLoaded
+        && (!shouldBufferScene || !isBufferingScene);
+
+    useEffect(() => {
+        if (typeof onSceneReadyChange !== 'function') return;
+        onSceneReadyChange(canRenderInitialScene);
+    }, [onSceneReadyChange, canRenderInitialScene]);
+
+    if (!hasRequiredSceneInputs || !hasCommittedScene) return null;
+
+    if (isCoatOnlySlide) {
         return (
-            <View style={styles.container}>
-                {coatLayersToRender.map((layerObj, index) => {
-                    if (!layerObj?.code) return null;
-                    const { imageSource, imageSources } = resolveLayerSources(layerObj);
-
-                    if (Array.isArray(imageSources) && imageSources.length > 0) {
-                        return imageSources.map((src, sourceIndex) => (
-                            <SmartLayer
-                                key={`coat-layer-${layerObj.type}-${layerObj.zIndex}-${index}-${sourceIndex}`}
-                                src={src}
-                                zIndex={layerObj.zIndex + sourceIndex * 0.01}
-                                dynamicStyle={dynamicStyle}
-                            />
-                        ));
-                    }
-
+            <View collapsable={false} style={styles.container}>
+                {visibleSceneEntries.map((entry) => {
+                    if (!entry?.src) return null;
                     return (
                         <SmartLayer
-                            key={`coat-layer-${layerObj.type}-${layerObj.zIndex}-${index}`}
-                            src={imageSource}
-                            zIndex={layerObj.zIndex}
+                            key={entry.key}
+                            src={entry.src}
+                            zIndex={entry.zIndex}
                             dynamicStyle={dynamicStyle}
+                            onLoadSettled={() => markSceneEntryLoaded(`${entry.key}:${getSrcKey(entry.src)}`)}
                         />
                     );
                 })}
@@ -737,9 +851,14 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
     }
 
     return (
-        <View style={styles.container}>
+        <View collapsable={false} style={styles.container}>
             {/* 1. Nanga Ladka (Z-Index: 1) */}
-            <Image source={bodyImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 1 }]} resizeMode="contain" />
+            <SmartLayer
+                src={bodyImage}
+                zIndex={1}
+                dynamicStyle={dynamicStyle}
+                onLoadSettled={() => markBaseImageLoaded('body', bodyImageKey)}
+            />
 
             {/* 2. Kapde ki Layers (Z-Index: 10 se 90) */}
             {visibleSceneEntries.map((entry) => {
@@ -751,12 +870,18 @@ export default function KurtaModel({ selections, selectedFabric, selectedButton,
                         src={entry.src}
                         zIndex={entry.zIndex}
                         dynamicStyle={dynamicStyle}
+                        onLoadSettled={() => markSceneEntryLoaded(`${entry.key}:${getSrcKey(entry.src)}`)}
                     />
                 );
             })}
 
             {/* 3. Hands Overlay (Z-Index: 100) */}
-            <Image source={handsImage} style={[styles.modelLayer, dynamicStyle, { zIndex: 100 }]} resizeMode="contain" />
+            <SmartLayer
+                src={handsImage}
+                zIndex={100}
+                dynamicStyle={dynamicStyle}
+                onLoadSettled={() => markBaseImageLoaded('hands', handsImageKey)}
+            />
 
         </View>
     );
@@ -774,5 +899,8 @@ const styles = StyleSheet.create({
         width: '105%',
         height: '95%',
         marginBottom: 15
-    }
+    },
+    hiddenPreloadLayer: {
+        opacity: 0,
+    },
 });

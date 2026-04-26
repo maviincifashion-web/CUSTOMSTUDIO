@@ -3,9 +3,9 @@ import { Image } from 'react-native';
 
 /**
  * Maximum time (ms) to wait for remote image prefetching before committing the scene.
- * SmartLayer handles individual image transitions, so it's safe to commit early.
+ * The previous committed scene stays visible while this runs.
  */
-const PREFETCH_TIMEOUT_MS = 2000;
+const PREFETCH_TIMEOUT_MS = 4000;
 
 const getRenderSourceKey = (source) => {
     if (typeof source === 'number') return `asset:${source}`;
@@ -38,7 +38,8 @@ const createTimeout = (ms) => {
     return { promise, cancel };
 };
 
-export function useBufferedRenderScene(entries) {
+export function useBufferedRenderScene(entries, options = {}) {
+    const canCommit = options.canCommit !== false;
     const nextEntries = useMemo(
         () => (Array.isArray(entries) ? entries : []),
         [entries]
@@ -50,11 +51,16 @@ export function useBufferedRenderScene(entries) {
 
     const [displayEntries, setDisplayEntries] = useState(nextEntries);
     const [displaySignature, setDisplaySignature] = useState(nextSignature);
-    const [hasCommittedScene, setHasCommittedScene] = useState(nextEntries.length === 0);
+    const [hasCommittedScene, setHasCommittedScene] = useState(canCommit && nextEntries.length === 0);
     const [isLoading, setIsLoading] = useState(false);
     const commitRef = useRef(0);
 
     useEffect(() => {
+        if (!canCommit) {
+            setIsLoading(true);
+            return;
+        }
+
         const needsWarmScene = !hasCommittedScene || nextSignature !== displaySignature;
         if (!needsWarmScene) return;
 
@@ -94,7 +100,7 @@ export function useBufferedRenderScene(entries) {
             cancelled = true;
             timeout.cancel();
         };
-    }, [displaySignature, hasCommittedScene, nextEntries, nextSignature]);
+    }, [canCommit, displaySignature, hasCommittedScene, nextEntries, nextSignature]);
 
     return {
         displayEntries,

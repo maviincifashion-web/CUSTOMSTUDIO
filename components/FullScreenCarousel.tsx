@@ -62,10 +62,10 @@ const FullScreenCarousel = forwardRef<CarouselRef, CarouselProps>(({ data, onInd
                 data={data}
                 horizontal
                 pagingEnabled
-                initialNumToRender={1}
-                maxToRenderPerBatch={1}
-                windowSize={2}
-                removeClippedSubviews
+                initialNumToRender={Math.min(data.length, 3)}
+                maxToRenderPerBatch={3}
+                windowSize={3}
+                removeClippedSubviews={false}
                 showsHorizontalScrollIndicator={false}
                 keyExtractor={(_, index) => index.toString()}
                 getItemLayout={(_, index) => ({

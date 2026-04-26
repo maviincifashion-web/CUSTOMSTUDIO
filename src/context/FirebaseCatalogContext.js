@@ -5,6 +5,10 @@ import {
   DUMMY_BUTTONS,
   DUMMY_SADRI_BUTTONS,
   DUMMY_COAT_BUTTONS,
+  KURTA_RENDERS as LOCAL_KURTA_RENDERS,
+  PAJAMA_RENDERS as LOCAL_PAJAMA_RENDERS,
+  SADRI_RENDERS as LOCAL_SADRI_RENDERS,
+  COAT_RENDERS as LOCAL_COAT_RENDERS,
 } from '../Data/dummyData';
 import { getFirestoreDb, isFirebaseConfigured } from '../firebase/config';
 import {
@@ -99,6 +103,35 @@ function mergeButtons(localList, remoteList) {
     }
   }
   return Array.from(byId.values());
+}
+
+function mergeRenderBundle(localBundle, remoteBundle) {
+  const local = localBundle || {};
+  const remote = remoteBundle || {};
+  return {
+    ...local,
+    ...remote,
+    display: {
+      ...(local.display || {}),
+      ...(remote.display || {}),
+    },
+    style: {
+      ...(local.style || {}),
+      ...(remote.style || {}),
+    },
+  };
+}
+
+function mergeRenderCatalog(localMap, remoteMap) {
+  const merged = {};
+  const keys = new Set([
+    ...Object.keys(localMap || {}),
+    ...Object.keys(remoteMap || {}),
+  ]);
+  keys.forEach((key) => {
+    merged[key] = mergeRenderBundle(localMap?.[key], remoteMap?.[key]);
+  });
+  return merged;
 }
 
 const PREFETCH_GARMENT_LABELS = {
@@ -535,10 +568,10 @@ export function FirebaseCatalogProvider({ children }) {
     return () => { cancelled = true; };
   }, [enabled]);
 
-  const kurtaRenders = useMemo(() => remoteKurta || {}, [remoteKurta]);
-  const pajamaRenders = useMemo(() => remotePajama || {}, [remotePajama]);
-  const sadriRenders = useMemo(() => remoteSadri || {}, [remoteSadri]);
-  const coatRenders = useMemo(() => remoteCoat || {}, [remoteCoat]);
+  const kurtaRenders = useMemo(() => mergeRenderCatalog(LOCAL_KURTA_RENDERS, remoteKurta), [remoteKurta]);
+  const pajamaRenders = useMemo(() => mergeRenderCatalog(LOCAL_PAJAMA_RENDERS, remotePajama), [remotePajama]);
+  const sadriRenders = useMemo(() => mergeRenderCatalog(LOCAL_SADRI_RENDERS, remoteSadri), [remoteSadri]);
+  const coatRenders = useMemo(() => mergeRenderCatalog(LOCAL_COAT_RENDERS, remoteCoat), [remoteCoat]);
   const embroideryRenders = useMemo(
     () => mergeEmbroideryRenderMaps({}, remoteEmbroideryByStyleId),
     [remoteEmbroideryByStyleId]
